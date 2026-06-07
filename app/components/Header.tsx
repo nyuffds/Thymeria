@@ -60,6 +60,18 @@ export function Header() {
             Cartas
           </Link>
 
+        {username && (
+            <Link href="/loja" className="text-zinc-300 hover:text-amber-200 transition">
+              Loja
+            </Link>
+          )}
+
+        {username && (
+            <Link href="/estante" className="text-zinc-300 hover:text-amber-200 transition">
+              Estante
+            </Link>
+          )}
+
           {username && (
             <Link href="/conta" className="text-zinc-300 hover:text-amber-200 transition">
               Minha conta

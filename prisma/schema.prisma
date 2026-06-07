@@ -27,6 +27,9 @@ model User {
   collection    UserCollection[]
   transactions  Transaction[]
   openings      BoosterOpening[]
+  unopened      UnopenedBooster[]
+  pity          UserPity[]
+
 }
 
 // ─────────────────────────────────────────────
@@ -108,6 +111,11 @@ model GameSettings {
 
   allowSellLastCopy Boolean @default(false)
 
+  pityThresholdCommon    Int @default(3)
+  pityThresholdRare      Int @default(5)
+  pityThresholdEpic      Int @default(3)
+  pityThresholdLegendary Int @default(2)
+
   updatedAt DateTime @updatedAt
 }
 
@@ -143,6 +151,7 @@ model Booster {
 
   rules    BoosterRule[]
   openings BoosterOpening[]
+  unopened UnopenedBooster[]
 }
 
 model BoosterRule {
@@ -204,4 +213,38 @@ model BoosterOpeningResult {
   card    Card           @relation(fields: [cardId], references: [id], onDelete: Restrict)
 
   @@index([openingId])
+}
+
+// ─────────────────────────────────────────────
+// ESTANTE DE BOOSTERS FECHADOS
+// ─────────────────────────────────────────────
+// Cada linha = 1 booster fechado no inventário do jogador.
+// Comprar cria. Abrir deleta e gera BoosterOpening + Results.
+model UnopenedBooster {
+  id          String   @id @default(cuid())
+  userId      String
+  boosterId   String
+  pricePaid   Int      // snapshot do preço pago
+  acquiredAt  DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booster Booster @relation(fields: [boosterId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// PITY SYSTEM (por jogador + raridade)
+// ─────────────────────────────────────────────
+model UserPity {
+  id        String   @id @default(cuid())
+  userId    String
+  rarity    String   // COMMON | RARE | EPIC | LEGENDARY
+  counter   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, rarity])
+  @@index([userId])
 }

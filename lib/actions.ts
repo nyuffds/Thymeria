@@ -5,7 +5,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { signIn } from "@/auth";
+import { signIn, auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
@@ -327,17 +327,24 @@ export async function updateGameSettingsAction(data: {
   maxPerDeckEpic: number;
   maxPerDeckLegendary: number;
   allowSellLastCopy: boolean;
+  pityThresholdCommon: number;
+  pityThresholdRare: number;
+  pityThresholdEpic: number;
+  pityThresholdLegendary: number;
 }) {
-  // Valida que todos os números são >= 0
   const numericFields = [
     data.sellPriceCommon, data.sellPriceRare, data.sellPriceEpic, data.sellPriceLegendary,
     data.maxPerDeckCommon, data.maxPerDeckRare, data.maxPerDeckEpic, data.maxPerDeckLegendary,
+    data.pityThresholdCommon, data.pityThresholdRare, data.pityThresholdEpic, data.pityThresholdLegendary,
   ];
   if (numericFields.some((n) => Number.isNaN(n) || n < 0)) {
     throw new Error("Todos os valores numéricos devem ser positivos.");
   }
   if ([data.maxPerDeckCommon, data.maxPerDeckRare, data.maxPerDeckEpic, data.maxPerDeckLegendary].some((n) => n < 1)) {
     throw new Error("Limite por deck deve ser pelo menos 1.");
+  }
+  if ([data.pityThresholdCommon, data.pityThresholdRare, data.pityThresholdEpic, data.pityThresholdLegendary].some((n) => n < 1)) {
+    throw new Error("Limite de pity deve ser pelo menos 1.");
   }
 
   await prisma.gameSettings.upsert({
@@ -515,4 +522,258 @@ export async function deleteBoosterAction(id: string) {
   revalidatePath("/admin/boosters");
   revalidatePath("/admin");
   revalidatePath("/loja");
+}
+
+// ─────────────────────────────────────────────
+// COMPRA DE BOOSTER (jogador)
+// ─────────────────────────────────────────────
+
+  export async function buyBoosterAction(boosterId: string) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const [user, booster] = await Promise.all([
+    prisma.user.findUnique({ where: { username: session.user.name } }),
+    prisma.booster.findUnique({ where: { id: boosterId } }),
+  ]);
+
+  if (!user) throw new Error("Usuário não encontrado.");
+  if (!booster) throw new Error("Booster não encontrado.");
+  if (!booster.isActive) throw new Error("Este booster não está disponível.");
+  if (user.coins < booster.price) {
+    throw new Error(`Saldo insuficiente. Você tem ${user.coins} e o booster custa ${booster.price}.`);
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data:  { coins: user.coins - booster.price },
+    }),
+    prisma.transaction.create({
+      data: {
+        userId: user.id,
+        amount: -booster.price,
+        reason: "BOOSTER_PURCHASE",
+        note:   `Comprou: ${booster.name}`,
+      },
+    }),
+    prisma.unopenedBooster.create({
+      data: {
+        userId: user.id,
+        boosterId: booster.id,
+        pricePaid: booster.price,
+      },
+    }),
+  ]);
+
+  revalidatePath("/loja");
+  revalidatePath("/estante");
+  revalidatePath("/conta");
+}
+
+// ─────────────────────────────────────────────
+// ABERTURA DE BOOSTER (jogador)
+// ─────────────────────────────────────────────
+
+export interface OpenedCard {
+  id: string;
+  name: string;
+  rarity: string;
+  faction: { name: string; color: string };
+  wasNew: boolean;
+}
+
+export async function openUnopenedBoosterAction(unopenedId: string): Promise<OpenedCard[]> {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const user = await prisma.user.findUnique({ where: { username: session.user.name } });
+  if (!user) throw new Error("Usuário não encontrado.");
+
+  const unopened = await prisma.unopenedBooster.findUnique({
+    where: { id: unopenedId },
+    include: {
+      booster: { include: { rules: true } },
+    },
+  });
+  if (!unopened) throw new Error("Booster não encontrado.");
+  if (unopened.userId !== user.id) throw new Error("Este booster não é seu.");
+
+  // Carrega configurações de pity
+  const settings = await prisma.gameSettings.upsert({
+    where:  { id: "singleton" },
+    update: {},
+    create: { id: "singleton" },
+  });
+  const pityThreshold: Record<string, number> = {
+    COMMON:    settings.pityThresholdCommon,
+    RARE:      settings.pityThresholdRare,
+    EPIC:      settings.pityThresholdEpic,
+    LEGENDARY: settings.pityThresholdLegendary,
+  };
+
+  // Carrega coleção atual do jogador (cardId → quantity)
+  const collectionRows = await prisma.userCollection.findMany({
+    where: { userId: user.id },
+    select: { cardId: true },
+  });
+  const ownedCardIds = new Set(collectionRows.map((r) => r.cardId));
+
+  // Carrega pity counters atuais (rarity → counter)
+  const pityRows = await prisma.userPity.findMany({
+    where: { userId: user.id },
+  });
+  const pityCounters: Record<string, number> = {
+    COMMON: 0, RARE: 0, EPIC: 0, LEGENDARY: 0,
+  };
+  for (const p of pityRows) {
+    pityCounters[p.rarity] = p.counter;
+  }
+
+  // Sorteia as cartas. Para cada carta:
+  //   1. Se vier de FIXED_POOL → respeita (não interfere no pity)
+  //   2. Se vier de BY_RARITY → considera pity:
+  //      - Se contador já bateu o threshold E existe carta nova dessa raridade
+  //        → força sortear das novas
+  //      - Caso contrário → sorteio normal
+  //   3. Atualiza pity counter da raridade:
+  //      - Se carta foi nova → zera
+  //      - Se foi repetida → incrementa
+  const cardIds: string[] = [];
+
+  for (const rule of unopened.booster.rules) {
+    if (rule.mode === "FIXED_POOL") {
+      if (!rule.cardId) continue;
+      for (let i = 0; i < rule.quantity; i++) {
+        cardIds.push(rule.cardId);
+        // Atualiza pity baseado na carta fixa também
+        const card = await prisma.card.findUnique({ where: { id: rule.cardId }, select: { rarity: true } });
+        if (card && pityCounters[card.rarity] !== undefined) {
+          if (ownedCardIds.has(rule.cardId)) {
+            pityCounters[card.rarity]++;
+          } else {
+            pityCounters[card.rarity] = 0;
+            ownedCardIds.add(rule.cardId);
+          }
+        }
+      }
+    } else if (rule.mode === "BY_RARITY") {
+      if (!rule.rarity) continue;
+      const rarity = rule.rarity;
+
+      const pool = await prisma.card.findMany({
+        where: { rarity, isReleased: true },
+        select: { id: true },
+      });
+      if (pool.length === 0) {
+        throw new Error(`Não há cartas liberadas da raridade ${rarity}. Avise o GM.`);
+      }
+
+      const newPool = pool.filter((c) => !ownedCardIds.has(c.id));
+
+      for (let i = 0; i < rule.quantity; i++) {
+        const threshold = pityThreshold[rarity] ?? 999;
+        const counter = pityCounters[rarity] ?? 0;
+        const pityTriggered = counter >= threshold && newPool.length > 0;
+
+        const sourcePool = pityTriggered ? newPool : pool;
+        const pickIdx = Math.floor(Math.random() * sourcePool.length);
+        const pickId = sourcePool[pickIdx].id;
+        cardIds.push(pickId);
+
+        const wasNew = !ownedCardIds.has(pickId);
+        if (wasNew) {
+          pityCounters[rarity] = 0;
+          ownedCardIds.add(pickId);
+          // Remove do newPool pra não sortear de novo no mesmo booster
+          const idxInNewPool = newPool.findIndex((c) => c.id === pickId);
+          if (idxInNewPool !== -1) newPool.splice(idxInNewPool, 1);
+        } else {
+          pityCounters[rarity]++;
+        }
+      }
+    }
+  }
+
+  if (cardIds.length === 0) throw new Error("Booster sem regras válidas. Avise o GM.");
+
+  // Aplica tudo numa transação
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.unopenedBooster.delete({ where: { id: unopenedId } });
+
+    // Releitura do estado real "antes da abertura" pra marcar wasNew corretamente
+    const existing = await tx.userCollection.findMany({
+      where: { userId: user.id, cardId: { in: cardIds } },
+      select: { cardId: true },
+    });
+    const alreadyOwned = new Set(existing.map((e) => e.cardId));
+
+    // Conta quantos de cada
+    const counts = new Map<string, number>();
+    for (const id of cardIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+
+    // Atualiza coleção
+    for (const [cardId, qty] of counts.entries()) {
+      await tx.userCollection.upsert({
+        where:  { userId_cardId: { userId: user.id, cardId } },
+        update: { quantity: { increment: qty } },
+        create: { userId: user.id, cardId, quantity: qty },
+      });
+    }
+
+    // Atualiza pity counters
+    for (const rarity of Object.keys(pityCounters)) {
+      await tx.userPity.upsert({
+        where:  { userId_rarity: { userId: user.id, rarity } },
+        update: { counter: pityCounters[rarity] },
+        create: { userId: user.id, rarity, counter: pityCounters[rarity] },
+      });
+    }
+
+    // Cria opening + results
+    const opening = await tx.boosterOpening.create({
+      data: {
+        userId: user.id,
+        boosterId: unopened.boosterId,
+        pricePaid: unopened.pricePaid,
+        results: {
+          create: cardIds.map((cardId) => ({
+            cardId,
+            wasNew: !alreadyOwned.has(cardId),
+          })),
+        },
+      },
+    });
+
+    // Busca dados completos das cartas pra UI
+    const fullCards = await tx.card.findMany({
+      where: { id: { in: Array.from(counts.keys()) } },
+      include: { faction: true },
+    });
+    const fullById = new Map(fullCards.map((c) => [c.id, c]));
+
+    // Marca wasNew baseado em alreadyOwned + ocorrência no booster
+    const seenInBooster = new Set<string>();
+    const opened: OpenedCard[] = cardIds.map((id) => {
+      const c = fullById.get(id)!;
+      const isFirstInBooster = !seenInBooster.has(id);
+      seenInBooster.add(id);
+      const wasNew = !alreadyOwned.has(id) && isFirstInBooster;
+      return {
+        id: c.id,
+        name: c.name,
+        rarity: c.rarity,
+        faction: { name: c.faction.name, color: c.faction.color },
+        wasNew,
+      };
+    });
+
+    return { openingId: opening.id, opened };
+  });
+
+  revalidatePath("/estante");
+  revalidatePath("/colecao");
+  revalidatePath("/conta");
+
+  return result.opened;
 }

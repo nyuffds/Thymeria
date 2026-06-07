@@ -1,4 +1,3 @@
-// app/admin/configuracoes/page.tsx
 import Link from "next/link";
 import { PrismaClient } from "@prisma/client";
 import { SettingsForm } from "./_components/SettingsForm";
@@ -6,7 +5,6 @@ import { SettingsForm } from "./_components/SettingsForm";
 const prisma = new PrismaClient();
 
 export default async function ConfiguracoesPage() {
-  // Garante que o singleton existe
   const settings = await prisma.gameSettings.upsert({
     where:  { id: "singleton" },
     update: {},
@@ -18,7 +16,7 @@ export default async function ConfiguracoesPage() {
       <Link href="/admin" className="text-sm text-zinc-500 hover:text-amber-200">
         ← Painel
       </Link>
-      <h1 className="text-3xl font-bold text-amber-200 mt-1 mb-2">Configurações</h1>
+      <h1 className="text-3xl font-bold text-amber-200 mt-1 mb-2 font-heading">Configurações</h1>
       <p className="text-zinc-400 mb-6">Regras globais do jogo.</p>
 
       <SettingsForm
@@ -32,6 +30,10 @@ export default async function ConfiguracoesPage() {
           maxPerDeckEpic: settings.maxPerDeckEpic,
           maxPerDeckLegendary: settings.maxPerDeckLegendary,
           allowSellLastCopy: settings.allowSellLastCopy,
+          pityThresholdCommon: settings.pityThresholdCommon,
+          pityThresholdRare: settings.pityThresholdRare,
+          pityThresholdEpic: settings.pityThresholdEpic,
+          pityThresholdLegendary: settings.pityThresholdLegendary,
         }}
       />
     </main>

@@ -81,3 +81,13 @@
     inset 0 0 4px rgba(0, 0, 0, 0.4),
     0 0 8px var(--gem-color, #5dade2);
 }
+
+/* Animação de revelação de carta (modal de abertura de booster) */
+.reveal-animation {
+  animation: revealPop 0.4s ease-out;
+}
+@keyframes revealPop {
+  0%   { transform: scale(0.7) rotate(-3deg); opacity: 0; }
+  60%  { transform: scale(1.05) rotate(1deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}

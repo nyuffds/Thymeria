@@ -1,4 +1,3 @@
-// app/admin/configuracoes/_components/SettingsForm.tsx
 "use client";
 
 import { useState, useTransition } from "react";
@@ -17,6 +16,10 @@ interface Props {
     maxPerDeckEpic: number;
     maxPerDeckLegendary: number;
     allowSellLastCopy: boolean;
+    pityThresholdCommon: number;
+    pityThresholdRare: number;
+    pityThresholdEpic: number;
+    pityThresholdLegendary: number;
   };
 }
 
@@ -24,7 +27,7 @@ export function SettingsForm({ initial }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved]  = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const [v, setV] = useState(initial);
 
@@ -49,26 +52,48 @@ export function SettingsForm({ initial }: Props) {
   }
 
   const rarityRows = [
-    { label: "Comum",    color: RARITIES[0].color, sellKey: "sellPriceCommon",    deckKey: "maxPerDeckCommon"    },
-    { label: "Rara",     color: RARITIES[1].color, sellKey: "sellPriceRare",      deckKey: "maxPerDeckRare"      },
-    { label: "Épica",    color: RARITIES[2].color, sellKey: "sellPriceEpic",      deckKey: "maxPerDeckEpic"      },
-    { label: "Lendária", color: RARITIES[3].color, sellKey: "sellPriceLegendary", deckKey: "maxPerDeckLegendary" },
-  ] as const;
+    {
+      label: "Comum",    color: RARITIES[0].color,
+      sellKey: "sellPriceCommon" as const,
+      deckKey: "maxPerDeckCommon" as const,
+      pityKey: "pityThresholdCommon" as const,
+    },
+    {
+      label: "Rara",     color: RARITIES[1].color,
+      sellKey: "sellPriceRare" as const,
+      deckKey: "maxPerDeckRare" as const,
+      pityKey: "pityThresholdRare" as const,
+    },
+    {
+      label: "Épica",    color: RARITIES[2].color,
+      sellKey: "sellPriceEpic" as const,
+      deckKey: "maxPerDeckEpic" as const,
+      pityKey: "pityThresholdEpic" as const,
+    },
+    {
+      label: "Lendária", color: RARITIES[3].color,
+      sellKey: "sellPriceLegendary" as const,
+      deckKey: "maxPerDeckLegendary" as const,
+      pityKey: "pityThresholdLegendary" as const,
+    },
+  ];
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
       <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-5">
         <h2 className="text-lg font-bold text-amber-200 mb-1">Por raridade</h2>
         <p className="text-xs text-zinc-500 mb-4">
-          Valores padrão. Cada carta pode sobrescrever individualmente.
+          Valores padrão. Cada carta pode sobrescrever venda e limite individualmente.
+          Pity: após X cartas repetidas dessa raridade, próxima é garantida nova.
         </p>
 
         <table className="w-full text-sm">
           <thead>
             <tr className="text-xs uppercase text-zinc-400 border-b border-zinc-800">
               <th className="text-left py-2">Raridade</th>
-              <th className="text-center py-2">Preço de venda (moedas)</th>
-              <th className="text-center py-2">Máx. cópias no deck</th>
+              <th className="text-center py-2">Venda (moedas)</th>
+              <th className="text-center py-2">Máx. no deck</th>
+              <th className="text-center py-2">Pity (X repetidas)</th>
             </tr>
           </thead>
           <tbody>
@@ -92,6 +117,17 @@ export function SettingsForm({ initial }: Props) {
                     min={1}
                     value={v[r.deckKey]}
                     onChange={(e) => update(r.deckKey, parseInt(e.target.value, 10) || 1)}
+                    disabled={isPending}
+                    className="w-24 px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded
+                               text-zinc-100 text-center focus:outline-none focus:border-amber-500"
+                  />
+                </td>
+                <td className="py-3 text-center">
+                  <input
+                    type="number"
+                    min={1}
+                    value={v[r.pityKey]}
+                    onChange={(e) => update(r.pityKey, parseInt(e.target.value, 10) || 1)}
                     disabled={isPending}
                     className="w-24 px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded
                                text-zinc-100 text-center focus:outline-none focus:border-amber-500"
