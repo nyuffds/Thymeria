@@ -349,3 +349,45 @@ export async function updateGameSettingsAction(data: {
   revalidatePath("/admin/configuracoes");
   revalidatePath("/admin");
 }
+
+// ─────────────────────────────────────────────
+// ECONOMIA (admin)
+// ─────────────────────────────────────────────
+
+export async function adjustCoinsAction(data: {
+  userId: string;
+  amount: number;       // positivo soma, negativo subtrai
+  reason: string;       // ADMIN_GRANT | MATCH_REWARD | OTHER...
+  note: string;
+}) {
+  if (!data.userId) throw new Error("Jogador é obrigatório.");
+  if (!data.amount || Number.isNaN(data.amount)) throw new Error("Valor inválido.");
+
+  const user = await prisma.user.findUnique({ where: { id: data.userId } });
+  if (!user) throw new Error("Jogador não encontrado.");
+
+  const newBalance = user.coins + data.amount;
+  if (newBalance < 0) {
+    throw new Error(`Saldo ficaria negativo (${newBalance}). Operação cancelada.`);
+  }
+
+  // Faz a transação atômica: atualiza saldo + registra histórico
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: data.userId },
+      data:  { coins: newBalance },
+    }),
+    prisma.transaction.create({
+      data: {
+        userId: data.userId,
+        amount: data.amount,
+        reason: data.reason,
+        note:   data.note.trim() || null,
+      },
+    }),
+  ]);
+
+  revalidatePath("/admin/economia");
+  revalidatePath("/admin");
+  revalidatePath("/conta");
+}

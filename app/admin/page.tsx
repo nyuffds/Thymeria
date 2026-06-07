@@ -40,14 +40,22 @@ export default async function AdminHomePage() {
       desc: "Catálogo mestre de todas as cartas do jogo.",
       color: "border-emerald-700/40 hover:border-emerald-500",
     },
-
-    {
+     {
       href: "/admin/configuracoes",
       title: "Configurações",
       count: 0, // singleton, sem contador
       desc: "Regras globais: preços, limites, políticas.",
       color: "border-zinc-700/40 hover:border-zinc-500",
     },
+
+ {
+      href: "/admin/economia",
+      title: "Economia",
+      count: 0,
+      desc: "Distribuir moedas e ver histórico de transações.",
+      color: "border-yellow-700/40 hover:border-yellow-500",
+    },
+
   ];
 
   return (

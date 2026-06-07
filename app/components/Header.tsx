@@ -1,28 +1,45 @@
 // app/components/Header.tsx
-// Cabeçalho exibido em todas as páginas internas (exceto /login e /definir-senha).
-// Mostra saudação, link pro painel admin (se ADMIN) e botão de logout.
 
 "use client";
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+
+interface MeData {
+  id: string;
+  username: string;
+  role: string;
+  coins: number;
+}
 
 export function Header() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
+  const [me, setMe] = useState<MeData | null>(null);
 
-  // Não exibe o header nas páginas de auth
+  // Busca dados completos do usuário (incluindo saldo) quando logado
+  useEffect(() => {
+    if (status !== "authenticated") {
+      setMe(null);
+      return;
+    }
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((data) => setMe(data.user))
+      .catch(() => setMe(null));
+  }, [status, pathname]); // recarrega ao trocar de rota
+
   if (pathname.startsWith("/login") || pathname.startsWith("/definir-senha")) {
     return null;
   }
 
-  // Enquanto carrega sessão, evita flicker
   if (status === "loading") {
     return (
       <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center">
-          <span className="text-amber-200 font-bold">Thymeria Gwent</span>
+          <span className="text-amber-200 font-bold font-heading">Thymeria Gwent</span>
         </div>
       </header>
     );
@@ -34,7 +51,7 @@ export function Header() {
   return (
     <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-10">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href="/" className="text-amber-200 font-bold hover:text-amber-100 transition">
+        <Link href="/" className="text-amber-200 font-bold font-heading hover:text-amber-100 transition">
           Thymeria Gwent
         </Link>
 
@@ -42,6 +59,12 @@ export function Header() {
           <Link href="/cartas" className="text-zinc-300 hover:text-amber-200 transition">
             Cartas
           </Link>
+
+          {username && (
+            <Link href="/conta" className="text-zinc-300 hover:text-amber-200 transition">
+              Minha conta
+            </Link>
+          )}
 
           {isAdmin && (
             <Link
@@ -55,6 +78,17 @@ export function Header() {
           {username && (
             <>
               <span className="text-zinc-500">|</span>
+
+              {me && (
+                <Link
+                  href="/conta"
+                  className="font-mono text-amber-300 hover:text-amber-200 transition"
+                  title="Saldo de moedas"
+                >
+                  ✨ {me.coins}
+                </Link>
+              )}
+
               <span className="text-zinc-300">
                 Olá, <span className="text-amber-300 font-semibold">{username}</span>
               </span>
