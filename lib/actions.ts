@@ -777,3 +777,87 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
 
   return result.opened;
 }
+
+// ─────────────────────────────────────────────
+// VENDA DE CARTAS (jogador)
+// ─────────────────────────────────────────────
+
+export async function sellCardAction(data: { cardId: string; quantity: number }) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const qty = Math.floor(data.quantity);
+  if (!qty || qty < 1) throw new Error("Quantidade inválida.");
+
+  const [user, card, settings] = await Promise.all([
+    prisma.user.findUnique({ where: { username: session.user.name } }),
+    prisma.card.findUnique({ where: { id: data.cardId } }),
+    prisma.gameSettings.upsert({
+      where:  { id: "singleton" },
+      update: {},
+      create: { id: "singleton" },
+    }),
+  ]);
+
+  if (!user) throw new Error("Usuário não encontrado.");
+  if (!card) throw new Error("Carta não encontrada.");
+
+  // Verifica posse e quantidade
+  const entry = await prisma.userCollection.findUnique({
+    where: { userId_cardId: { userId: user.id, cardId: card.id } },
+  });
+  if (!entry || entry.quantity < qty) {
+    throw new Error(`Você não tem ${qty} cópia(s) dessa carta.`);
+  }
+
+  // Política da última cópia
+  if (!settings.allowSellLastCopy && entry.quantity - qty < 1) {
+    throw new Error("Você não pode vender a última cópia desta carta.");
+  }
+
+  // Preço unitário: override da carta > padrão por raridade
+  const defaultByRarity: Record<string, number> = {
+    COMMON:    settings.sellPriceCommon,
+    RARE:      settings.sellPriceRare,
+    EPIC:      settings.sellPriceEpic,
+    LEGENDARY: settings.sellPriceLegendary,
+  };
+  const unitPrice = card.sellPriceOverride ?? defaultByRarity[card.rarity] ?? 0;
+  const total = unitPrice * qty;
+
+  if (total < 0) throw new Error("Preço inválido.");
+
+  // Transação atômica
+  const newQty = entry.quantity - qty;
+
+  await prisma.$transaction(async (tx) => {
+    if (newQty === 0) {
+      await tx.userCollection.delete({ where: { id: entry.id } });
+    } else {
+      await tx.userCollection.update({
+        where: { id: entry.id },
+        data:  { quantity: newQty },
+      });
+    }
+
+    await tx.user.update({
+      where: { id: user.id },
+      data:  { coins: user.coins + total },
+    });
+
+    await tx.transaction.create({
+      data: {
+        userId: user.id,
+        amount: total,
+        reason: "CARD_SELL",
+        note:   `Vendeu ${qty}× ${card.name}`,
+      },
+    });
+  });
+
+  revalidatePath("/colecao");
+  revalidatePath(`/colecao/${card.id}`);
+  revalidatePath("/conta");
+
+  return { coinsGained: total, newQuantity: newQty };
+}

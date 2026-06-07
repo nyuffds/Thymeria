@@ -72,6 +72,12 @@ export function Header() {
             </Link>
           )}
 
+        {username && (
+            <Link href="/colecao" className="text-zinc-300 hover:text-amber-200 transition">
+              Coleção
+            </Link>
+          )}
+
           {username && (
             <Link href="/conta" className="text-zinc-300 hover:text-amber-200 transition">
               Minha conta
