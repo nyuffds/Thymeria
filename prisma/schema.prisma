@@ -79,4 +79,34 @@ model Card {
 
   abilityId   String?
   ability     Ability? @relation(fields: [abilityId], references: [id])
+
+  sellPriceOverride   Int?   // se preenchido, sobrescreve o padrão por raridade
+  maxPerDeckOverride  Int?   // idem
+
+}
+
+// ─────────────────────────────────────────────
+// CONFIGURAÇÕES GLOBAIS (singleton)
+// ─────────────────────────────────────────────
+// Sempre exatamente 1 linha (id fixo = "singleton").
+// Define padrões por raridade pra venda e limite de cópias.
+model GameSettings {
+  id        String   @id @default("singleton")
+
+  // Preços de venda padrão (moedas) por raridade
+  sellPriceCommon    Int @default(5)
+  sellPriceRare      Int @default(20)
+  sellPriceEpic      Int @default(60)
+  sellPriceLegendary Int @default(150)
+
+  // Limites de cópias no deck por raridade
+  maxPerDeckCommon    Int @default(3)
+  maxPerDeckRare      Int @default(2)
+  maxPerDeckEpic      Int @default(1)
+  maxPerDeckLegendary Int @default(1)
+
+  // Política de venda
+  allowSellLastCopy Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
 }

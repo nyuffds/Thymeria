@@ -312,3 +312,40 @@ export async function deleteCardAction(id: string) {
   revalidatePath("/admin");
   revalidatePath("/cartas");
 }
+
+// ─────────────────────────────────────────────
+// CONFIGURAÇÕES GLOBAIS (admin)
+// ─────────────────────────────────────────────
+
+export async function updateGameSettingsAction(data: {
+  sellPriceCommon: number;
+  sellPriceRare: number;
+  sellPriceEpic: number;
+  sellPriceLegendary: number;
+  maxPerDeckCommon: number;
+  maxPerDeckRare: number;
+  maxPerDeckEpic: number;
+  maxPerDeckLegendary: number;
+  allowSellLastCopy: boolean;
+}) {
+  // Valida que todos os números são >= 0
+  const numericFields = [
+    data.sellPriceCommon, data.sellPriceRare, data.sellPriceEpic, data.sellPriceLegendary,
+    data.maxPerDeckCommon, data.maxPerDeckRare, data.maxPerDeckEpic, data.maxPerDeckLegendary,
+  ];
+  if (numericFields.some((n) => Number.isNaN(n) || n < 0)) {
+    throw new Error("Todos os valores numéricos devem ser positivos.");
+  }
+  if ([data.maxPerDeckCommon, data.maxPerDeckRare, data.maxPerDeckEpic, data.maxPerDeckLegendary].some((n) => n < 1)) {
+    throw new Error("Limite por deck deve ser pelo menos 1.");
+  }
+
+  await prisma.gameSettings.upsert({
+    where:  { id: "singleton" },
+    update: data,
+    create: { id: "singleton", ...data },
+  });
+
+  revalidatePath("/admin/configuracoes");
+  revalidatePath("/admin");
+}

@@ -102,6 +102,14 @@ async function main() {
     console.log(`  ✓ ${(r.engineKey ?? "—").padEnd(7)} → ${r.name}`);
   }
 
+  console.log("\n⚙️  Configurações:");
+  await prisma.gameSettings.upsert({
+    where:  { id: "singleton" },
+    update: {}, // não sobrescreve valores já editados pelo admin
+    create: { id: "singleton" },
+  });
+  console.log("  ✓ singleton criado/mantido");
+
   console.log("\n✅ Seed concluído.");
 }
 
