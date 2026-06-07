@@ -1,5 +1,7 @@
-// Schema do Thymeria Gwent — Fase 1.7
-// Tabelas: User, Faction, Ability, Card
+// Schema do Thymeria Gwent — Fase 2.1
+// Tabelas: User, Faction, Ability, Card, GameSettings,
+//          UserCollection, Booster, BoosterRule,
+//          Transaction, BoosterOpening, BoosterOpeningResult
 
 generator client {
   provider = "prisma-client-js"
@@ -17,39 +19,24 @@ model User {
   id            String   @id @default(cuid())
   username      String   @unique
   passwordHash  String?
-  role          String   @default("PLAYER") // "PLAYER" ou "ADMIN"
+  role          String   @default("PLAYER")
+  coins         Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  collection    UserCollection[]
+  transactions  Transaction[]
+  openings      BoosterOpening[]
 }
 
 // ─────────────────────────────────────────────
-// FACÇÕES (gerenciadas pelo admin)
+// FACÇÕES
 // ─────────────────────────────────────────────
 model Faction {
   id          String   @id @default(cuid())
   name        String   @unique
-  color       String   @default("#c9a961") // cor temática (hex) para UI
-  description String?  // lore/sabor opcional
-  isActive    Boolean  @default(true)      // admin pode desativar sem perder dados
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  cards       Card[]
-}
-
-// ─────────────────────────────────────────────
-// HABILIDADES (gerenciadas pelo admin)
-// ─────────────────────────────────────────────
-// Se engineKey estiver preenchido com um valor conhecido pelo motor
-// (BOOST, DAMAGE, SPAWN, BOND, SPY, DRAW...), o motor da Fase 4
-// executa o efeito automaticamente. Caso contrário, o efeito é
-// apenas descritivo e o GM resolve narrativamente.
-model Ability {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String   // texto exibido na carta
-  engineKey   String?  // BOOST | DAMAGE | SPAWN | BOND | SPY | DRAW | null
-  engineValue Int?     // parâmetro numérico (ex: BOOST 3 = +3)
+  color       String   @default("#c9a961")
+  description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -58,55 +45,163 @@ model Ability {
 }
 
 // ─────────────────────────────────────────────
-// CARTAS (catálogo mestre)
+// HABILIDADES
+// ─────────────────────────────────────────────
+model Ability {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  engineKey   String?
+  engineValue Int?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cards       Card[]
+}
+
+// ─────────────────────────────────────────────
+// CARTAS
 // ─────────────────────────────────────────────
 model Card {
   id          String   @id @default(cuid())
   name        String   @unique
   power       Int
-  rows        String   // CSV de fileiras: "MELEE", "RANGED", "SIEGE"
-  rarity      String   @default("COMMON") // COMMON, RARE, EPIC, LEGENDARY
-  cardType    String   @default("UNIT")   // UNIT, SPECIAL, LEADER
+  rows        String
+  rarity      String   @default("COMMON")
+  cardType    String   @default("UNIT")
   loreText    String?
   imageUrl    String?
   isReleased  Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relações
   factionId   String
   faction     Faction  @relation(fields: [factionId], references: [id])
 
   abilityId   String?
   ability     Ability? @relation(fields: [abilityId], references: [id])
 
-  sellPriceOverride   Int?   // se preenchido, sobrescreve o padrão por raridade
-  maxPerDeckOverride  Int?   // idem
+  sellPriceOverride   Int?
+  maxPerDeckOverride  Int?
 
+  collectedBy        UserCollection[]
+  boosterFixedRules  BoosterRule[]    @relation("FixedPool")
+  openingResults     BoosterOpeningResult[]
 }
 
 // ─────────────────────────────────────────────
 // CONFIGURAÇÕES GLOBAIS (singleton)
 // ─────────────────────────────────────────────
-// Sempre exatamente 1 linha (id fixo = "singleton").
-// Define padrões por raridade pra venda e limite de cópias.
 model GameSettings {
   id        String   @id @default("singleton")
 
-  // Preços de venda padrão (moedas) por raridade
   sellPriceCommon    Int @default(5)
   sellPriceRare      Int @default(20)
   sellPriceEpic      Int @default(60)
   sellPriceLegendary Int @default(150)
 
-  // Limites de cópias no deck por raridade
   maxPerDeckCommon    Int @default(3)
   maxPerDeckRare      Int @default(2)
   maxPerDeckEpic      Int @default(1)
   maxPerDeckLegendary Int @default(1)
 
-  // Política de venda
   allowSellLastCopy Boolean @default(false)
 
   updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// COLEÇÃO DE CARTAS (por usuário)
+// ─────────────────────────────────────────────
+model UserCollection {
+  id        String   @id @default(cuid())
+  userId    String
+  cardId    String
+  quantity  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// BOOSTERS
+// ─────────────────────────────────────────────
+model Booster {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  price       Int
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rules    BoosterRule[]
+  openings BoosterOpening[]
+}
+
+model BoosterRule {
+  id        String  @id @default(cuid())
+  boosterId String
+  mode      String  // "FIXED_POOL" | "BY_RARITY"
+  rarity    String?
+  cardId    String?
+  quantity  Int     @default(1)
+
+  booster Booster @relation(fields: [boosterId], references: [id], onDelete: Cascade)
+  card    Card?   @relation("FixedPool", fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([boosterId])
+}
+
+// ─────────────────────────────────────────────
+// HISTÓRICO DE MOEDA
+// ─────────────────────────────────────────────
+model Transaction {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    String   // ADMIN_GRANT | BOOSTER_PURCHASE | CARD_SELL | MATCH_REWARD | OTHER
+  note      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────
+// HISTÓRICO DE ABERTURAS
+// ─────────────────────────────────────────────
+model BoosterOpening {
+  id        String   @id @default(cuid())
+  userId    String
+  boosterId String
+  pricePaid Int
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booster Booster @relation(fields: [boosterId], references: [id], onDelete: Restrict)
+  results BoosterOpeningResult[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model BoosterOpeningResult {
+  id        String   @id @default(cuid())
+  openingId String
+  cardId    String
+  wasNew    Boolean
+
+  opening BoosterOpening @relation(fields: [openingId], references: [id], onDelete: Cascade)
+  card    Card           @relation(fields: [cardId], references: [id], onDelete: Restrict)
+
+  @@index([openingId])
 }
