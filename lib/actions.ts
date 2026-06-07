@@ -216,3 +216,99 @@ export async function deleteAbilityAction(id: string) {
   revalidatePath("/admin/habilidades");
   revalidatePath("/admin");
 }
+
+// ─────────────────────────────────────────────
+// CARTAS (admin)
+// ─────────────────────────────────────────────
+
+export async function createCardAction(data: {
+  name: string;
+  factionId: string;
+  power: number;
+  rows: string[];                // ex: ["MELEE", "RANGED"]
+  rarity: string;
+  cardType: string;
+  abilityId: string | null;
+  loreText: string;
+  imageUrl: string;
+  isReleased: boolean;
+}) {
+  const name = data.name.trim();
+  if (!name) throw new Error("Nome é obrigatório.");
+  if (!data.factionId) throw new Error("Facção é obrigatória.");
+  if (data.rows.length === 0) throw new Error("Selecione pelo menos uma fileira.");
+  if (Number.isNaN(data.power)) throw new Error("Poder deve ser um número.");
+
+  const exists = await prisma.card.findUnique({ where: { name } });
+  if (exists) throw new Error("Já existe uma carta com esse nome.");
+
+  await prisma.card.create({
+    data: {
+      name,
+      factionId: data.factionId,
+      power: data.power,
+      rows: data.rows.join(","),
+      rarity: data.rarity,
+      cardType: data.cardType,
+      abilityId: data.abilityId || null,
+      loreText: data.loreText.trim() || null,
+      imageUrl: data.imageUrl.trim() || null,
+      isReleased: data.isReleased,
+    },
+  });
+
+  revalidatePath("/admin/cartas");
+  revalidatePath("/admin");
+  revalidatePath("/cartas");
+}
+
+export async function updateCardAction(id: string, data: {
+  name: string;
+  factionId: string;
+  power: number;
+  rows: string[];
+  rarity: string;
+  cardType: string;
+  abilityId: string | null;
+  loreText: string;
+  imageUrl: string;
+  isReleased: boolean;
+}) {
+  const name = data.name.trim();
+  if (!name) throw new Error("Nome é obrigatório.");
+  if (!data.factionId) throw new Error("Facção é obrigatória.");
+  if (data.rows.length === 0) throw new Error("Selecione pelo menos uma fileira.");
+
+  const conflict = await prisma.card.findFirst({
+    where: { name, NOT: { id } },
+  });
+  if (conflict) throw new Error("Já existe outra carta com esse nome.");
+
+  await prisma.card.update({
+    where: { id },
+    data: {
+      name,
+      factionId: data.factionId,
+      power: data.power,
+      rows: data.rows.join(","),
+      rarity: data.rarity,
+      cardType: data.cardType,
+      abilityId: data.abilityId || null,
+      loreText: data.loreText.trim() || null,
+      imageUrl: data.imageUrl.trim() || null,
+      isReleased: data.isReleased,
+    },
+  });
+
+  revalidatePath("/admin/cartas");
+  revalidatePath(`/admin/cartas/${id}`);
+  revalidatePath("/admin");
+  revalidatePath("/cartas");
+}
+
+export async function deleteCardAction(id: string) {
+  await prisma.card.delete({ where: { id } });
+  revalidatePath("/admin/cartas");
+  revalidatePath("/admin");
+  revalidatePath("/cartas");
+}
