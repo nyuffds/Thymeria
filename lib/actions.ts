@@ -7,6 +7,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { signIn } from "@/auth";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 
 const prisma = new PrismaClient();
 
@@ -62,4 +63,78 @@ export async function setPasswordAction(username: string, password: string) {
     password,
     redirect: false,
   });
+}
+
+// ─────────────────────────────────────────────
+// FACÇÕES (admin)
+// ─────────────────────────────────────────────
+
+export async function createFactionAction(data: {
+  name: string;
+  color: string;
+  description: string;
+}) {
+  const name = data.name.trim();
+  if (!name) throw new Error("Nome é obrigatório.");
+  if (!/^#[0-9a-fA-F]{6}$/.test(data.color)) throw new Error("Cor inválida (use formato #rrggbb).");
+
+  const exists = await prisma.faction.findUnique({ where: { name } });
+  if (exists) throw new Error("Já existe uma facção com esse nome.");
+
+  await prisma.faction.create({
+    data: {
+      name,
+      color: data.color,
+      description: data.description.trim() || null,
+    },
+  });
+
+  revalidatePath("/admin/faccoes");
+  revalidatePath("/admin");
+}
+
+export async function updateFactionAction(id: string, data: {
+  name: string;
+  color: string;
+  description: string;
+  isActive: boolean;
+}) {
+  const name = data.name.trim();
+  if (!name) throw new Error("Nome é obrigatório.");
+  if (!/^#[0-9a-fA-F]{6}$/.test(data.color)) throw new Error("Cor inválida (use formato #rrggbb).");
+
+  // Evita conflito de nome com outra facção
+  const conflict = await prisma.faction.findFirst({
+    where: { name, NOT: { id } },
+  });
+  if (conflict) throw new Error("Já existe outra facção com esse nome.");
+
+  await prisma.faction.update({
+    where: { id },
+    data: {
+      name,
+      color: data.color,
+      description: data.description.trim() || null,
+      isActive: data.isActive,
+    },
+  });
+
+  revalidatePath("/admin/faccoes");
+  revalidatePath(`/admin/faccoes/${id}`);
+  revalidatePath("/admin");
+}
+
+export async function deleteFactionAction(id: string) {
+  // Verifica se há cartas usando essa facção
+  const cardCount = await prisma.card.count({ where: { factionId: id } });
+  if (cardCount > 0) {
+    throw new Error(
+      `Esta facção possui ${cardCount} carta(s) associada(s). Reatribua ou apague essas cartas antes.`
+    );
+  }
+
+  await prisma.faction.delete({ where: { id } });
+
+  revalidatePath("/admin/faccoes");
+  revalidatePath("/admin");
 }
