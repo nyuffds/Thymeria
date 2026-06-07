@@ -1,0 +1,44 @@
+// Schema do Thymeria Gwent — Fase 1
+// Tabelas iniciais: User e Card (sem coleção/decks/partidas ainda)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// USUÁRIOS
+// ─────────────────────────────────────────────
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  passwordHash  String?  // null até o primeiro login definir senha
+  role          String   @default("PLAYER") // "PLAYER" ou "ADMIN"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// CARTAS (catálogo mestre — criadas pelo admin)
+// ─────────────────────────────────────────────
+model Card {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  faction     String   // ex: "Valtres", "Kaldaey", "Neutro", "A'Ralith"...
+  power       Int      // poder base da carta
+  rows        String   // CSV de fileiras permitidas: "MELEE", "RANGED", "SIEGE" (ex: "MELEE,RANGED")
+  rarity      String   @default("COMMON") // COMMON, RARE, EPIC, LEGENDARY
+  cardType    String   @default("UNIT")   // UNIT, SPECIAL, LEADER
+  abilityKey  String?  // chave do efeito programado (ex: "BOOST", "DAMAGE", "SPAWN") — pode ser null
+  abilityValue Int?    // valor do efeito (ex: BOOST 3 = +3 de poder)
+  abilityText String?  // descrição em texto livre exibida na carta
+  loreText    String?  // sabor/flavor text opcional (lore Thyméria)
+  imageUrl    String?  // caminho da imagem (opcional por ora)
+  isReleased  Boolean  @default(true)  // admin pode "liberar" ou guardar cartas
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
