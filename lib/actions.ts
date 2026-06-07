@@ -391,3 +391,128 @@ export async function adjustCoinsAction(data: {
   revalidatePath("/admin");
   revalidatePath("/conta");
 }
+
+// ─────────────────────────────────────────────
+// BOOSTERS (admin)
+// ─────────────────────────────────────────────
+
+export interface BoosterRuleInput {
+  mode: "FIXED_POOL" | "BY_RARITY";
+  rarity: string | null;
+  cardId: string | null;
+  quantity: number;
+}
+
+function validateBoosterPayload(data: {
+  name: string;
+  price: number;
+  rules: BoosterRuleInput[];
+}) {
+  const name = data.name.trim();
+  if (!name) throw new Error("Nome é obrigatório.");
+  if (Number.isNaN(data.price) || data.price < 0) throw new Error("Preço inválido.");
+  if (data.rules.length === 0) throw new Error("Adicione pelo menos uma regra de drop.");
+
+  for (const [i, r] of data.rules.entries()) {
+    const where = `Regra ${i + 1}`;
+    if (r.quantity < 1) throw new Error(`${where}: quantidade deve ser ≥ 1.`);
+    if (r.mode === "FIXED_POOL" && !r.cardId) throw new Error(`${where}: selecione uma carta.`);
+    if (r.mode === "BY_RARITY" && !r.rarity)  throw new Error(`${where}: selecione uma raridade.`);
+  }
+}
+
+export async function createBoosterAction(data: {
+  name: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  rules: BoosterRuleInput[];
+}) {
+  validateBoosterPayload(data);
+
+  const exists = await prisma.booster.findUnique({ where: { name: data.name.trim() } });
+  if (exists) throw new Error("Já existe um booster com esse nome.");
+
+  await prisma.booster.create({
+    data: {
+      name: data.name.trim(),
+      description: data.description.trim() || null,
+      price: data.price,
+      imageUrl: data.imageUrl.trim() || null,
+      isActive: true,
+      rules: {
+        create: data.rules.map((r) => ({
+          mode: r.mode,
+          rarity: r.mode === "BY_RARITY" ? r.rarity : null,
+          cardId: r.mode === "FIXED_POOL" ? r.cardId : null,
+          quantity: r.quantity,
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/admin/boosters");
+  revalidatePath("/admin");
+  revalidatePath("/loja");
+}
+
+export async function updateBoosterAction(id: string, data: {
+  name: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  isActive: boolean;
+  rules: BoosterRuleInput[];
+}) {
+  validateBoosterPayload(data);
+
+  const conflict = await prisma.booster.findFirst({
+    where: { name: data.name.trim(), NOT: { id } },
+  });
+  if (conflict) throw new Error("Já existe outro booster com esse nome.");
+
+  // Estratégia: apaga as regras antigas e cria as novas (mais simples
+  // que diffar; regras não têm dados externos vinculados a elas).
+  await prisma.$transaction([
+    prisma.boosterRule.deleteMany({ where: { boosterId: id } }),
+    prisma.booster.update({
+      where: { id },
+      data: {
+        name: data.name.trim(),
+        description: data.description.trim() || null,
+        price: data.price,
+        imageUrl: data.imageUrl.trim() || null,
+        isActive: data.isActive,
+        rules: {
+          create: data.rules.map((r) => ({
+            mode: r.mode,
+            rarity: r.mode === "BY_RARITY" ? r.rarity : null,
+            cardId: r.mode === "FIXED_POOL" ? r.cardId : null,
+            quantity: r.quantity,
+          })),
+        },
+      },
+    }),
+  ]);
+
+  revalidatePath("/admin/boosters");
+  revalidatePath(`/admin/boosters/${id}`);
+  revalidatePath("/admin");
+  revalidatePath("/loja");
+}
+
+export async function deleteBoosterAction(id: string) {
+  // Se já houve aberturas, bloqueia (preserva auditoria)
+  const openings = await prisma.boosterOpening.count({ where: { boosterId: id } });
+  if (openings > 0) {
+    throw new Error(
+      `Este booster já foi aberto ${openings} vez(es). Desative em vez de excluir (preserva histórico).`
+    );
+  }
+
+  await prisma.booster.delete({ where: { id } });
+
+  revalidatePath("/admin/boosters");
+  revalidatePath("/admin");
+  revalidatePath("/loja");
+}
