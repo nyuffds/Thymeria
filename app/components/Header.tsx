@@ -78,6 +78,12 @@ export function Header() {
             </Link>
           )}
 
+        {username && (
+            <Link href="/decks" className="text-zinc-300 hover:text-amber-200 transition">
+              Decks
+            </Link>
+          )}
+
           {username && (
             <Link href="/conta" className="text-zinc-300 hover:text-amber-200 transition">
               Minha conta

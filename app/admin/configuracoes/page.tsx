@@ -34,6 +34,9 @@ export default async function ConfiguracoesPage() {
           pityThresholdRare: settings.pityThresholdRare,
           pityThresholdEpic: settings.pityThresholdEpic,
           pityThresholdLegendary: settings.pityThresholdLegendary,
+          maxDecksPerPlayer: settings.maxDecksPerPlayer,
+          minCardsPerDeck: settings.minCardsPerDeck,
+          maxCardsPerDeck: settings.maxCardsPerDeck,
         }}
       />
     </main>

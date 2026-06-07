@@ -331,11 +331,15 @@ export async function updateGameSettingsAction(data: {
   pityThresholdRare: number;
   pityThresholdEpic: number;
   pityThresholdLegendary: number;
+  maxDecksPerPlayer: number;
+  minCardsPerDeck: number;
+  maxCardsPerDeck: number;
 }) {
   const numericFields = [
     data.sellPriceCommon, data.sellPriceRare, data.sellPriceEpic, data.sellPriceLegendary,
     data.maxPerDeckCommon, data.maxPerDeckRare, data.maxPerDeckEpic, data.maxPerDeckLegendary,
     data.pityThresholdCommon, data.pityThresholdRare, data.pityThresholdEpic, data.pityThresholdLegendary,
+    data.maxDecksPerPlayer, data.minCardsPerDeck, data.maxCardsPerDeck,
   ];
   if (numericFields.some((n) => Number.isNaN(n) || n < 0)) {
     throw new Error("Todos os valores numéricos devem ser positivos.");
@@ -345,6 +349,15 @@ export async function updateGameSettingsAction(data: {
   }
   if ([data.pityThresholdCommon, data.pityThresholdRare, data.pityThresholdEpic, data.pityThresholdLegendary].some((n) => n < 1)) {
     throw new Error("Limite de pity deve ser pelo menos 1.");
+  }
+  if (data.maxDecksPerPlayer < 1) {
+    throw new Error("Máx. decks por jogador deve ser pelo menos 1.");
+  }
+  if (data.minCardsPerDeck < 1) {
+    throw new Error("Mínimo de cartas no deck deve ser pelo menos 1.");
+  }
+  if (data.maxCardsPerDeck < data.minCardsPerDeck) {
+    throw new Error("Máximo de cartas não pode ser menor que o mínimo.");
   }
 
   await prisma.gameSettings.upsert({
@@ -860,4 +873,294 @@ export async function sellCardAction(data: { cardId: string; quantity: number })
   revalidatePath("/conta");
 
   return { coinsGained: total, newQuantity: newQty };
+}
+
+// ─────────────────────────────────────────────
+// DECKS (jogador)
+// ─────────────────────────────────────────────
+
+/**
+ * Valida um conjunto de cartas (sem líder) contra:
+ *   - posse na coleção
+ *   - limite por carta (maxPerDeck por raridade + override)
+ *   - facção (todas devem ser da factionId ou neutras)
+ * Não valida tamanho mín/máx (essa validação é separada porque
+ * o builder mostra estado intermediário inválido).
+ */
+async function validateDeckCards(params: {
+  userId: string;
+  factionId: string;
+  cardIds: string[];           // 1 entrada por cópia (3x mesma = 3 entradas)
+}) {
+  if (params.cardIds.length === 0) return;
+
+  const [collectionRows, cards, settings, neutralFaction] = await Promise.all([
+    prisma.userCollection.findMany({
+      where: { userId: params.userId, cardId: { in: params.cardIds } },
+    }),
+    prisma.card.findMany({
+      where: { id: { in: params.cardIds } },
+      include: { faction: true },
+    }),
+    prisma.gameSettings.upsert({
+      where:  { id: "singleton" },
+      update: {},
+      create: { id: "singleton" },
+    }),
+    prisma.faction.findFirst({ where: { name: "Neutro" } }),
+  ]);
+
+  const ownedByCard = new Map(collectionRows.map((r) => [r.cardId, r.quantity]));
+  const cardById = new Map(cards.map((c) => [c.id, c]));
+
+  // Conta uso de cada cardId no deck proposto
+  const useCount = new Map<string, number>();
+  for (const id of params.cardIds) useCount.set(id, (useCount.get(id) ?? 0) + 1);
+
+  const defaultMax: Record<string, number> = {
+    COMMON:    settings.maxPerDeckCommon,
+    RARE:      settings.maxPerDeckRare,
+    EPIC:      settings.maxPerDeckEpic,
+    LEGENDARY: settings.maxPerDeckLegendary,
+  };
+
+  for (const [cardId, count] of useCount.entries()) {
+    const card = cardById.get(cardId);
+    if (!card) throw new Error(`Carta ${cardId} não existe.`);
+
+    // Posse
+    const owned = ownedByCard.get(cardId) ?? 0;
+    if (count > owned) {
+      throw new Error(`Você só tem ${owned} cópia(s) de "${card.name}" (tentou usar ${count}).`);
+    }
+
+    // Limite por carta
+    const limit = card.maxPerDeckOverride ?? defaultMax[card.rarity] ?? 1;
+    if (count > limit) {
+      throw new Error(`"${card.name}" só pode entrar até ${limit} vez(es) no deck.`);
+    }
+
+    // Facção: precisa ser igual à do líder OU ser Neutro
+    const isNeutral = neutralFaction && card.factionId === neutralFaction.id;
+    if (card.factionId !== params.factionId && !isNeutral) {
+      throw new Error(`"${card.name}" (${card.faction.name}) não pertence à facção do deck.`);
+    }
+  }
+}
+
+export async function createDeckAction(data: {
+  name: string;
+  leaderCardId: string;
+}) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const name = data.name.trim();
+  if (!name) throw new Error("Nome do deck é obrigatório.");
+
+  const [user, leaderCard, settings] = await Promise.all([
+    prisma.user.findUnique({ where: { username: session.user.name } }),
+    prisma.card.findUnique({ where: { id: data.leaderCardId } }),
+    prisma.gameSettings.upsert({
+      where:  { id: "singleton" },
+      update: {},
+      create: { id: "singleton" },
+    }),
+  ]);
+
+  if (!user) throw new Error("Usuário não encontrado.");
+  if (!leaderCard) throw new Error("Carta líder não encontrada.");
+  if (leaderCard.cardType !== "LEADER") throw new Error("A carta escolhida não é um líder.");
+
+  // Verifica posse do líder
+  const ownership = await prisma.userCollection.findUnique({
+    where: { userId_cardId: { userId: user.id, cardId: leaderCard.id } },
+  });
+  if (!ownership || ownership.quantity < 1) {
+    throw new Error("Você não possui esse líder na sua coleção.");
+  }
+
+  // Limite de decks
+  const deckCount = await prisma.deck.count({ where: { userId: user.id } });
+  if (deckCount >= settings.maxDecksPerPlayer) {
+    throw new Error(`Limite de ${settings.maxDecksPerPlayer} decks atingido. Exclua um deck antes de criar outro.`);
+  }
+
+  const deck = await prisma.deck.create({
+    data: {
+      userId:    user.id,
+      factionId: leaderCard.factionId,
+      name,
+      leader: {
+        create: { cardId: leaderCard.id },
+      },
+    },
+  });
+
+  revalidatePath("/decks");
+  return { deckId: deck.id };
+}
+
+export async function renameDeckAction(deckId: string, name: string) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Nome do deck é obrigatório.");
+
+  const user = await prisma.user.findUnique({ where: { username: session.user.name } });
+  if (!user) throw new Error("Usuário não encontrado.");
+
+  const deck = await prisma.deck.findUnique({ where: { id: deckId } });
+  if (!deck) throw new Error("Deck não encontrado.");
+  if (deck.userId !== user.id) throw new Error("Este deck não é seu.");
+
+  await prisma.deck.update({
+    where: { id: deckId },
+    data:  { name: trimmed },
+  });
+
+  revalidatePath("/decks");
+  revalidatePath(`/decks/${deckId}`);
+}
+
+export async function deleteDeckAction(deckId: string) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const user = await prisma.user.findUnique({ where: { username: session.user.name } });
+  if (!user) throw new Error("Usuário não encontrado.");
+
+  const deck = await prisma.deck.findUnique({ where: { id: deckId } });
+  if (!deck) throw new Error("Deck não encontrado.");
+  if (deck.userId !== user.id) throw new Error("Este deck não é seu.");
+
+  await prisma.deck.delete({ where: { id: deckId } });
+
+  revalidatePath("/decks");
+}
+
+/**
+ * Adiciona +1 cópia da carta no deck.
+ */
+export async function addCardToDeckAction(deckId: string, cardId: string) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const user = await prisma.user.findUnique({ where: { username: session.user.name } });
+  if (!user) throw new Error("Usuário não encontrado.");
+
+  const deck = await prisma.deck.findUnique({
+    where: { id: deckId },
+    include: { cards: true },
+  });
+  if (!deck) throw new Error("Deck não encontrado.");
+  if (deck.userId !== user.id) throw new Error("Este deck não é seu.");
+
+  const settings = await prisma.gameSettings.upsert({
+    where: { id: "singleton" }, update: {}, create: { id: "singleton" },
+  });
+  if (deck.cards.length >= settings.maxCardsPerDeck) {
+    throw new Error(`Deck cheio (${settings.maxCardsPerDeck} cartas máximo).`);
+  }
+
+  // Simula adicionar e valida tudo (posse + limite por carta + facção)
+  const newCardIds = [...deck.cards.map((c) => c.cardId), cardId];
+  await validateDeckCards({
+    userId: user.id,
+    factionId: deck.factionId,
+    cardIds: newCardIds,
+  });
+
+  await prisma.deckCard.create({
+    data: { deckId, cardId },
+  });
+
+  revalidatePath(`/decks/${deckId}`);
+}
+
+/**
+ * Remove 1 cópia da carta do deck (a primeira encontrada).
+ */
+export async function removeCardFromDeckAction(deckId: string, cardId: string) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const user = await prisma.user.findUnique({ where: { username: session.user.name } });
+  if (!user) throw new Error("Usuário não encontrado.");
+
+  const deck = await prisma.deck.findUnique({ where: { id: deckId } });
+  if (!deck) throw new Error("Deck não encontrado.");
+  if (deck.userId !== user.id) throw new Error("Este deck não é seu.");
+
+  const entry = await prisma.deckCard.findFirst({
+    where: { deckId, cardId },
+  });
+  if (!entry) throw new Error("Carta não está no deck.");
+
+  await prisma.deckCard.delete({ where: { id: entry.id } });
+
+  revalidatePath(`/decks/${deckId}`);
+}
+
+/**
+ * Troca o líder do deck. Se a nova facção for diferente, REMOVE
+ * todas as cartas que não pertencem à nova facção (e nem são neutras).
+ */
+export async function changeDeckLeaderAction(deckId: string, newLeaderCardId: string) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const [user, leaderCard, neutralFaction] = await Promise.all([
+    prisma.user.findUnique({ where: { username: session.user.name } }),
+    prisma.card.findUnique({ where: { id: newLeaderCardId } }),
+    prisma.faction.findFirst({ where: { name: "Neutro" } }),
+  ]);
+
+  if (!user) throw new Error("Usuário não encontrado.");
+  if (!leaderCard) throw new Error("Líder não encontrado.");
+  if (leaderCard.cardType !== "LEADER") throw new Error("A carta escolhida não é um líder.");
+
+  const deck = await prisma.deck.findUnique({
+    where: { id: deckId },
+    include: { cards: { include: { card: true } } },
+  });
+  if (!deck) throw new Error("Deck não encontrado.");
+  if (deck.userId !== user.id) throw new Error("Este deck não é seu.");
+
+  // Verifica posse do novo líder
+  const ownership = await prisma.userCollection.findUnique({
+    where: { userId_cardId: { userId: user.id, cardId: newLeaderCardId } },
+  });
+  if (!ownership || ownership.quantity < 1) {
+    throw new Error("Você não possui esse líder na sua coleção.");
+  }
+
+  // Se mudou de facção, remove cartas inválidas
+  const incompatibleIds: string[] = [];
+  if (leaderCard.factionId !== deck.factionId) {
+    for (const c of deck.cards) {
+      const isNeutral = neutralFaction && c.card.factionId === neutralFaction.id;
+      if (c.card.factionId !== leaderCard.factionId && !isNeutral) {
+        incompatibleIds.push(c.id);
+      }
+    }
+  }
+
+  await prisma.$transaction([
+    ...(incompatibleIds.length > 0
+      ? [prisma.deckCard.deleteMany({ where: { id: { in: incompatibleIds } } })]
+      : []),
+    prisma.deck.update({
+      where: { id: deckId },
+      data:  { factionId: leaderCard.factionId },
+    }),
+    prisma.deckLeader.upsert({
+      where:  { deckId },
+      update: { cardId: newLeaderCardId },
+      create: { deckId, cardId: newLeaderCardId },
+    }),
+  ]);
+
+  revalidatePath(`/decks/${deckId}`);
 }

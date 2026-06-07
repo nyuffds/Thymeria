@@ -29,6 +29,7 @@ model User {
   openings      BoosterOpening[]
   unopened      UnopenedBooster[]
   pity          UserPity[]
+  decks         Deck[]
 
 }
 
@@ -45,6 +46,7 @@ model Faction {
   updatedAt   DateTime @updatedAt
 
   cards       Card[]
+  decks       Deck[]
 }
 
 // ─────────────────────────────────────────────
@@ -91,6 +93,8 @@ model Card {
   collectedBy        UserCollection[]
   boosterFixedRules  BoosterRule[]    @relation("FixedPool")
   openingResults     BoosterOpeningResult[]
+  inDecksAsLeader    DeckLeader[]
+  inDecks            DeckCard[]
 }
 
 // ─────────────────────────────────────────────
@@ -115,6 +119,10 @@ model GameSettings {
   pityThresholdRare      Int @default(5)
   pityThresholdEpic      Int @default(3)
   pityThresholdLegendary Int @default(2)
+
+  maxDecksPerPlayer   Int @default(5)
+  minCardsPerDeck     Int @default(20)
+  maxCardsPerDeck     Int @default(30)
 
   updatedAt DateTime @updatedAt
 }
@@ -247,4 +255,49 @@ model UserPity {
 
   @@unique([userId, rarity])
   @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// DECKS DOS JOGADORES
+// ─────────────────────────────────────────────
+model Deck {
+  id        String   @id @default(cuid())
+  userId    String
+  factionId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  faction Faction @relation(fields: [factionId], references: [id])
+
+  leader  DeckLeader?
+  cards   DeckCard[]
+
+  @@index([userId])
+}
+
+// Líder do deck (1:1 com Deck). Tabela separada pra permitir trocar
+// o líder sem recriar o deck e pra garantir unicidade.
+model DeckLeader {
+  id     String @id @default(cuid())
+  deckId String @unique
+  cardId String
+
+  deck Deck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id])
+}
+
+// Cartas no deck. Cada linha = 1 cópia. Se o jogador quer 3 cópias
+// da mesma carta, são 3 linhas. Mais simples pra contar/validar.
+model DeckCard {
+  id     String @id @default(cuid())
+  deckId String
+  cardId String
+
+  deck Deck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id])
+
+  @@index([deckId])
+  @@index([cardId])
 }
