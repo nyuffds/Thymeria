@@ -138,3 +138,81 @@ export async function deleteFactionAction(id: string) {
   revalidatePath("/admin/faccoes");
   revalidatePath("/admin");
 }
+
+// ─────────────────────────────────────────────
+// HABILIDADES (admin)
+// ─────────────────────────────────────────────
+
+export async function createAbilityAction(data: {
+  name: string;
+  description: string;
+  engineKey: string;       // string vazia = nenhum
+  engineValue: number | null;
+}) {
+  const name = data.name.trim();
+  const description = data.description.trim();
+  if (!name) throw new Error("Nome é obrigatório.");
+  if (!description) throw new Error("Descrição é obrigatória.");
+
+  const exists = await prisma.ability.findUnique({ where: { name } });
+  if (exists) throw new Error("Já existe uma habilidade com esse nome.");
+
+  await prisma.ability.create({
+    data: {
+      name,
+      description,
+      engineKey: data.engineKey || null,
+      engineValue: data.engineKey ? data.engineValue : null,
+    },
+  });
+
+  revalidatePath("/admin/habilidades");
+  revalidatePath("/admin");
+}
+
+export async function updateAbilityAction(id: string, data: {
+  name: string;
+  description: string;
+  engineKey: string;
+  engineValue: number | null;
+  isActive: boolean;
+}) {
+  const name = data.name.trim();
+  const description = data.description.trim();
+  if (!name) throw new Error("Nome é obrigatório.");
+  if (!description) throw new Error("Descrição é obrigatória.");
+
+  const conflict = await prisma.ability.findFirst({
+    where: { name, NOT: { id } },
+  });
+  if (conflict) throw new Error("Já existe outra habilidade com esse nome.");
+
+  await prisma.ability.update({
+    where: { id },
+    data: {
+      name,
+      description,
+      engineKey: data.engineKey || null,
+      engineValue: data.engineKey ? data.engineValue : null,
+      isActive: data.isActive,
+    },
+  });
+
+  revalidatePath("/admin/habilidades");
+  revalidatePath(`/admin/habilidades/${id}`);
+  revalidatePath("/admin");
+}
+
+export async function deleteAbilityAction(id: string) {
+  const cardCount = await prisma.card.count({ where: { abilityId: id } });
+  if (cardCount > 0) {
+    throw new Error(
+      `Esta habilidade está em ${cardCount} carta(s). Remova a habilidade dessas cartas antes.`
+    );
+  }
+
+  await prisma.ability.delete({ where: { id } });
+
+  revalidatePath("/admin/habilidades");
+  revalidatePath("/admin");
+}

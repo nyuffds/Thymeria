@@ -1,0 +1,216 @@
+// app/admin/habilidades/_components/AbilityForm.tsx
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  createAbilityAction,
+  updateAbilityAction,
+  deleteAbilityAction,
+} from "@/lib/actions";
+import { ENGINE_KEYS } from "@/lib/constants";
+
+type Mode =
+  | { mode: "create" }
+  | {
+      mode: "edit";
+      id: string;
+      initial: {
+        name: string;
+        description: string;
+        engineKey: string;
+        engineValue: number | null;
+        isActive: boolean;
+      };
+    };
+
+export function AbilityForm(props: Mode) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const isEdit = props.mode === "edit";
+  const init = isEdit
+    ? props.initial
+    : { name: "", description: "", engineKey: "", engineValue: null as number | null, isActive: true };
+
+  const [name, setName]                 = useState(init.name);
+  const [description, setDescription]   = useState(init.description);
+  const [engineKey, setEngineKey]       = useState(init.engineKey);
+  const [engineValue, setEngineValue]   = useState<string>(init.engineValue?.toString() ?? "");
+  const [isActive, setIsActive]         = useState(init.isActive);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    const valueNum = engineValue.trim() === "" ? null : parseInt(engineValue, 10);
+    if (engineKey && (valueNum === null || Number.isNaN(valueNum))) {
+      setError("Habilidade com motor precisa de valor numérico.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        if (isEdit) {
+          await updateAbilityAction(props.id, {
+            name, description, engineKey, engineValue: valueNum, isActive,
+          });
+        } else {
+          await createAbilityAction({
+            name, description, engineKey, engineValue: valueNum,
+          });
+        }
+        router.push("/admin/habilidades");
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erro ao salvar.");
+      }
+    });
+  }
+
+  async function handleDelete() {
+    if (!isEdit) return;
+    if (!confirm(`Excluir a habilidade "${name}"? Isto não pode ser desfeito.`)) return;
+    setError(null);
+
+    startTransition(async () => {
+      try {
+        await deleteAbilityAction(props.id);
+        router.push("/admin/habilidades");
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erro ao excluir.");
+      }
+    });
+  }
+
+  const selectedEngine = ENGINE_KEYS.find((e) => e.key === engineKey);
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
+      <div>
+        <label className="block text-sm text-zinc-300 mb-2">Nome</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={isPending}
+          className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg
+                     text-zinc-100 focus:outline-none focus:border-amber-500"
+          placeholder="Ex: Chamado de Kali"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm text-zinc-300 mb-2">
+          Descrição <span className="text-zinc-500">(aparece na carta)</span>
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          disabled={isPending}
+          rows={3}
+          className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg
+                     text-zinc-100 focus:outline-none focus:border-amber-500"
+          placeholder="O texto que o jogador lê na carta."
+        />
+      </div>
+
+      <div className="bg-zinc-900/40 border border-zinc-800 rounded-lg p-4 space-y-3">
+        <p className="text-xs text-zinc-400 uppercase tracking-wide">
+          Comportamento no motor
+        </p>
+
+        <div>
+          <label className="block text-sm text-zinc-300 mb-2">Tipo de efeito</label>
+          <select
+            value={engineKey}
+            onChange={(e) => setEngineKey(e.target.value)}
+            disabled={isPending}
+            className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg
+                       text-zinc-100 focus:outline-none focus:border-amber-500"
+          >
+            <option value="">— Narrativa (GM resolve à mão) —</option>
+            {ENGINE_KEYS.map((e) => (
+              <option key={e.key} value={e.key}>
+                {e.label} ({e.key})
+              </option>
+            ))}
+          </select>
+          {selectedEngine && (
+            <p className="text-xs text-zinc-500 mt-2 italic">{selectedEngine.desc}</p>
+          )}
+        </div>
+
+        {engineKey && (
+          <div>
+            <label className="block text-sm text-zinc-300 mb-2">Valor numérico</label>
+            <input
+              type="number"
+              value={engineValue}
+              onChange={(e) => setEngineValue(e.target.value)}
+              disabled={isPending}
+              className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg
+                         text-zinc-100 focus:outline-none focus:border-amber-500"
+              placeholder="Ex: 2"
+            />
+          </div>
+        )}
+      </div>
+
+      {isEdit && (
+        <div>
+          <label className="flex items-center gap-2 text-zinc-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              disabled={isPending}
+              className="w-4 h-4 accent-amber-500"
+            />
+            Habilidade ativa (disponível para uso em cartas)
+          </label>
+        </div>
+      )}
+
+      {error && (
+        <p className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded px-3 py-2">
+          {error}
+        </p>
+      )}
+
+      <div className="flex items-center justify-between pt-2">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => router.push("/admin/habilidades")}
+            disabled={isPending}
+            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50
+                       text-zinc-950 font-semibold px-6 py-2 rounded-lg transition"
+          >
+            {isPending ? "Salvando..." : isEdit ? "Salvar alterações" : "Criar habilidade"}
+          </button>
+        </div>
+
+        {isEdit && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={isPending}
+            className="text-red-400 hover:text-red-300 text-sm transition disabled:opacity-50"
+          >
+            Excluir habilidade
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
