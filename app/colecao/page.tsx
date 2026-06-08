@@ -42,21 +42,21 @@ export default async function ColecaoPage() {
     <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
       <div className="flex items-end justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-amber-200 font-heading">Minha coleÃ§Ã£o</h1>
+          <h1 className="text-3xl font-bold text-amber-200 font-heading">Minha coleção</h1>
           <p className="text-sm text-zinc-400 mt-1 font-lore italic">
-            {uniqueCount} de {totalCardsLiberadas} cartas Ãºnicas Â· {totalCopies} cÃ³pias no total
+            {uniqueCount} de {totalCardsLiberadas} cartas únicas · {totalCopies} cópias no total
           </p>
         </div>
         <Link href="/loja" className="text-sm text-amber-300 hover:text-amber-200">
-          â†’ Loja
+          → Loja
         </Link>
       </div>
 
       {entries.length === 0 ? (
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-12 text-center text-zinc-500">
-          <p className="mb-4">Sua coleÃ§Ã£o estÃ¡ vazia.</p>
+          <p className="mb-4">Sua coleção está vazia.</p>
           <Link href="/loja" className="text-amber-300 hover:text-amber-200 underline">
-            Comprar boosters â†’
+            Comprar boosters →
           </Link>
         </div>
       ) : (
