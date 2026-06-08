@@ -330,6 +330,8 @@ model Match {
   lobbyOpen       Boolean  @default(false)  // true enquanto está em status "LOBBY" esperando oponente
   creatorUserId   String?                    // quem criou o lobby (referência simples, não relacional)
   isPrivate       Boolean  @default(false)  // reservado p/ futuro: lobbies só por convite
+  // Empate por acordo mútuo: armazena o lado que ofereceu empate
+  drawOfferedBy   String?   // "A" ou "B" — null se não há oferta ativa
 
   players  MatchPlayer[]
   hands    MatchHand[]

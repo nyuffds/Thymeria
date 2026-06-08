@@ -57,6 +57,22 @@ export default async function PartidaPage({
   const pB = match.players.find((p) => p.side === "B");
   if (!pA || !pB) notFound();
 
+// Descobre qual lado o usuário logado está jogando (relevante em ONLINE).
+  // Em HOTSEAT, viewerSide = null e ambos os lados são visíveis.
+  const viewerUser = await prisma.user.findUnique({
+    where: { username: session.user.name },
+    select: { id: true },
+  });
+  const viewerSide: "A" | "B" | null =
+    match.mode === "ONLINE" && viewerUser
+      ? (pA.userId === viewerUser.id ? "A" : pB.userId === viewerUser.id ? "B" : null)
+      : null;
+
+  // Em ONLINE, espectadores (nem A nem B) não veem a partida.
+  if (match.mode === "ONLINE" && viewerSide === null) {
+    redirect("/partidas");
+  }
+  
   return (
     <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-4">
       <div className="flex items-center justify-between mb-4">
@@ -125,40 +141,44 @@ export default async function PartidaPage({
           },
         }}
         hands={{
-          A: match.hands.filter((h) => h.side === "A" && h.zone === "HAND").map((h) => ({
-            handId: h.id,
-            cardId: h.cardId,
-            name: h.card.name,
-            power: h.card.power,
-            rows: h.card.rows,
-            rarity: h.card.rarity,
-            cardType: h.card.cardType,
-            imageUrl: h.card.imageUrl,
-            faction: { name: h.card.faction.name, color: h.card.faction.color },
-            ability: h.card.ability ? {
-              name: h.card.ability.name,
-              description: h.card.ability.description,
-              engineKey: h.card.ability.engineKey,
-              engineValue: h.card.ability.engineValue,
-            } : null,
-          })),
-          B: match.hands.filter((h) => h.side === "B" && h.zone === "HAND").map((h) => ({
-            handId: h.id,
-            cardId: h.cardId,
-            name: h.card.name,
-            power: h.card.power,
-            rows: h.card.rows,
-            rarity: h.card.rarity,
-            cardType: h.card.cardType,
-            imageUrl: h.card.imageUrl,
-            faction: { name: h.card.faction.name, color: h.card.faction.color },
-            ability: h.card.ability ? {
-              name: h.card.ability.name,
-              description: h.card.ability.description,
-              engineKey: h.card.ability.engineKey,
-              engineValue: h.card.ability.engineValue,
-            } : null,
-          })),
+          A: (match.mode === "HOTSEAT" || viewerSide === "A")
+            ? match.hands.filter((h) => h.side === "A" && h.zone === "HAND").map((h) => ({
+                handId: h.id,
+                cardId: h.cardId,
+                name: h.card.name,
+                power: h.card.power,
+                rows: h.card.rows,
+                rarity: h.card.rarity,
+                cardType: h.card.cardType,
+                imageUrl: h.card.imageUrl,
+                faction: { name: h.card.faction.name, color: h.card.faction.color },
+                ability: h.card.ability ? {
+                  name: h.card.ability.name,
+                  description: h.card.ability.description,
+                  engineKey: h.card.ability.engineKey,
+                  engineValue: h.card.ability.engineValue,
+                } : null,
+              }))
+            : [],
+          B: (match.mode === "HOTSEAT" || viewerSide === "B")
+            ? match.hands.filter((h) => h.side === "B" && h.zone === "HAND").map((h) => ({
+                handId: h.id,
+                cardId: h.cardId,
+                name: h.card.name,
+                power: h.card.power,
+                rows: h.card.rows,
+                rarity: h.card.rarity,
+                cardType: h.card.cardType,
+                imageUrl: h.card.imageUrl,
+                faction: { name: h.card.faction.name, color: h.card.faction.color },
+                ability: h.card.ability ? {
+                  name: h.card.ability.name,
+                  description: h.card.ability.description,
+                  engineKey: h.card.ability.engineKey,
+                  engineValue: h.card.ability.engineValue,
+                } : null,
+              }))
+            : [],
         }}
         board={match.board.map((b) => ({
           boardId: b.id,
@@ -193,6 +213,10 @@ export default async function PartidaPage({
             powerB: payload.powerB,
           };
         })}
+
+        mode={match.mode}
+        viewerSide={viewerSide}
+        drawOfferedBy={match.drawOfferedBy as "A" | "B" | null}
       />
     </main>
   );

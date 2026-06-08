@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   redrawAction, skipRedrawAction, playCardAction,
   passRoundAction, activateLeaderAction, abandonMatchAction,
+  offerDrawAction, respondDrawOfferAction,
 } from "@/lib/match-actions";
 import { RARITIES, ROWS } from "@/lib/constants";
 
@@ -78,6 +79,9 @@ interface Props {
   hands: Record<Side, HandCard[]>;
   board: BoardCard[];
   weather: WeatherInfo[];
+  mode: string;                          // HOTSEAT | ONLINE
+  viewerSide: "A" | "B" | null;          // em ONLINE, qual lado o usuário logado está
+  drawOfferedBy: "A" | "B" | null;
 }
 
 const ROW_LABEL: Record<Row, string> = {
@@ -103,6 +107,20 @@ export function MatchTable(props: Props) {
   const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY">("NONE");
 
   const turnSide = props.currentTurnSide;
+
+  // Em ONLINE: sempre mostra a mão do viewer (mesmo quando não é seu turno).
+  // Em HOTSEAT: mostra a mão de quem é o turno.
+  const isOnline = props.mode === "ONLINE";
+  const displaySide: Side | null = isOnline ? props.viewerSide : turnSide;
+  const canAct = isOnline ? (turnSide === props.viewerSide) : true;
+
+// Polling em ONLINE (provisório até SSE da 5.4)
+  useEffect(() => {
+    if (!isOnline) return;
+    if (props.status === "FINISHED") return;
+    const interval = setInterval(() => router.refresh(), 3000);
+    return () => clearInterval(interval);
+  }, [isOnline, props.status, router]);
 
   function guard(fn: () => Promise<void>) {
     setError(null);
@@ -136,7 +154,9 @@ export function MatchTable(props: Props) {
   }
 
   function handleSelectHandCard(card: HandCard) {
-    if (props.status !== "PLAYING" || props.players[turnSide!].hasPassed) return;
+    if (props.status !== "PLAYING") return;
+    if (!canAct) return;
+    if (!turnSide || props.players[turnSide].hasPassed) return;
     setSelectedHandCard(card);
     setChosenRow(null);
     setTargetMode("NONE");
@@ -224,9 +244,18 @@ export function MatchTable(props: Props) {
     setLeaderTargetMode("NONE");
   }
 
-  function handleAbandon() {
-    if (!confirm("Abandonar a partida? Será encerrada em empate.")) return;
+function handleAbandon() {
+    if (!confirm("Abandonar a partida? Você será considerado derrotado.")) return;
     guard(async () => { await abandonMatchAction(props.matchId); });
+  }
+
+  function handleOfferDraw() {
+    if (!confirm("Oferecer empate ao oponente? Ele precisará aceitar.")) return;
+    guard(async () => { await offerDrawAction(props.matchId); });
+  }
+
+  function handleRespondDraw(accept: boolean) {
+    guard(async () => { await respondDrawOfferAction(props.matchId, accept); });
   }
 
   function rowsAllowed(card: HandCard | null): Row[] {
@@ -264,7 +293,9 @@ export function MatchTable(props: Props) {
           }}
         >
           <p className="text-xs uppercase tracking-widest text-zinc-400">
-            {props.status === "REDRAW" ? "Redraw" : "Vez de jogar"}
+            {props.status === "REDRAW"
+              ? (isOnline && turnSide !== props.viewerSide ? "Redraw do oponente" : "Redraw")
+              : (isOnline && turnSide !== props.viewerSide ? "Vez do oponente" : "Vez de jogar")}
           </p>
           <p className="text-2xl font-heading font-bold mt-1" style={{ color: turnPlayer.deck.faction.color }}>
             {turnPlayer.username}
@@ -276,11 +307,51 @@ export function MatchTable(props: Props) {
         </div>
       )}
 
-      {error && (
+{error && (
         <p className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded px-3 py-2">
           {error}
         </p>
       )}
+
+      {props.drawOfferedBy && (() => {
+        const offeredByMe = isOnline
+          ? props.drawOfferedBy === props.viewerSide
+          : props.drawOfferedBy === turnSide;
+        return (
+          <div className="bg-purple-950/40 border-2 border-purple-700 rounded-xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-purple-200">
+                {offeredByMe
+                  ? "Você ofereceu empate. Aguardando resposta do oponente…"
+                  : "O oponente está oferecendo empate."}
+              </p>
+              {!offeredByMe && (
+                <p className="text-xs text-purple-300 mt-0.5">
+                  Aceitar encerra a partida sem vencedor.
+                </p>
+              )}
+            </div>
+            {!offeredByMe && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleRespondDraw(true)}
+                  disabled={isPending}
+                  className="bg-purple-600 hover:bg-purple-500 text-purple-50 font-semibold px-3 py-1.5 rounded text-sm transition"
+                >
+                  Aceitar empate
+                </button>
+                <button
+                  onClick={() => handleRespondDraw(false)}
+                  disabled={isPending}
+                  className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-sm transition"
+                >
+                  Recusar
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Lado B (sempre em cima) */}
       {renderPlayerHeader("B")}
@@ -374,7 +445,8 @@ export function MatchTable(props: Props) {
     //  - É O LADO DE QUEM ESTÁ JOGANDO (= turnSide)
     //  - a carta permite essa fileira
     //  - não é carta de clima
-    const isAvailableToPlay =
+const isAvailableToPlay =
+      canAct &&
       selectedHandCard !== null &&
       !chosenRow &&
       side === turnSide &&
@@ -419,11 +491,12 @@ export function MatchTable(props: Props) {
 
   function renderBoardCard(c: BoardCard) {
     const rarity = RARITIES.find((r) => r.key === c.rarity);
-    const isTargetable =
+const isTargetable = canAct && (
       (targetMode === "ALLY" && c.side === turnSide) ||
       (targetMode === "ENEMY" && c.side !== turnSide) ||
       (leaderTargetMode === "ALLY" && c.side === activatingLeader) ||
-      (leaderTargetMode === "ENEMY" && c.side !== activatingLeader);
+      (leaderTargetMode === "ENEMY" && c.side !== activatingLeader)
+    );
 
     return (
       <button
@@ -449,12 +522,20 @@ export function MatchTable(props: Props) {
     );
   }
 
-  function renderControl() {
-    if (!turnSide) return null;
-    const p = props.players[turnSide];
+    function renderControl() {
+    if (!displaySide) return null;
+    const p = props.players[displaySide];
 
     if (props.status === "REDRAW") {
-      return renderRedrawPanel(turnSide);
+      // Em ONLINE, só seu lado vê seu próprio painel de redraw quando é sua vez
+      if (isOnline && (turnSide !== displaySide)) {
+        return (
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 text-center text-zinc-400">
+            Aguardando oponente fazer redraw…
+          </div>
+        );
+      }
+      return renderRedrawPanel(displaySide);
     }
 
     if (p.hasPassed) {
@@ -465,7 +546,12 @@ export function MatchTable(props: Props) {
       );
     }
 
-    return renderPlayPanel(turnSide);
+    // Em ONLINE: se não é sua vez, mostra a mão mas sem permitir ação
+    if (isOnline && !canAct) {
+      return renderPlayPanel(displaySide, true);
+    }
+
+    return renderPlayPanel(displaySide, false);
   }
 
   function renderRedrawPanel(side: Side) {
@@ -528,12 +614,12 @@ export function MatchTable(props: Props) {
     );
   }
 
-  function renderPlayPanel(side: Side) {
+  function renderPlayPanel(side: Side, readonly: boolean = false) {
     const p = props.players[side];
     const hand = props.hands[side];
     const leader = p.deck.leader;
-    const canActivateLeader = leader && leader.leaderMode === "ACTIVE" && !p.leaderUsed;
-
+    const canActivateLeader = leader && leader.leaderMode === "ACTIVE" && !p.leaderUsed && !readonly;
+    
     return (
       <div className="bg-zinc-900/60 border-2 border-amber-700/40 rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
@@ -551,12 +637,20 @@ export function MatchTable(props: Props) {
                 ✦ Líder
               </button>
             )}
-            <button
+<button
               onClick={handlePass}
               disabled={isPending}
               className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-sm transition"
             >
               Passar
+            </button>
+            <button
+              onClick={handleOfferDraw}
+              disabled={isPending || !!props.drawOfferedBy || readonly}
+              className="bg-purple-900/50 hover:bg-purple-800/50 disabled:opacity-50 text-purple-300 px-3 py-1.5 rounded text-xs transition"
+              title={props.drawOfferedBy ? "Já há oferta de empate ativa" : "Oferecer empate ao oponente"}
+            >
+              Oferecer empate
             </button>
             <button
               onClick={handleAbandon}

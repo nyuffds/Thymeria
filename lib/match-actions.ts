@@ -830,18 +830,163 @@ export async function skipRedrawAction(matchId: string, side: Side) {
 // ─────────────────────────────────────────────
 
 export async function abandonMatchAction(matchId: string) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const user = await prisma.user.findUnique({
+    where: { username: session.user.name },
+    select: { id: true },
+  });
+  if (!user) throw new Error("Usuário não encontrado.");
+
   await prisma.$transaction(async (tx) => {
-    const match = await tx.match.findUnique({ where: { id: matchId } });
+    const match = await tx.match.findUnique({
+      where: { id: matchId },
+      include: { players: true },
+    });
     if (!match) throw new Error("Partida não encontrada.");
     if (match.status === "FINISHED") return;
 
+    // Em HOTSEAT, qualquer jogador pode abandonar (mesma máquina, mesma sessão).
+    // Em ONLINE, só quem está jogando pode abandonar (e perde).
+    let loserSide: Side | null = null;
+
+    if (match.mode === "ONLINE") {
+      const me = match.players.find((p) => p.userId === user.id);
+      if (!me) throw new Error("Você não está nesta partida.");
+      loserSide = me.side as Side;
+    } else {
+      // HOTSEAT: quem clicou é quem está no turno atual
+      loserSide = (match.currentTurnSide ?? "A") as Side;
+    }
+
+    const winnerSide: Side = otherSide(loserSide);
+
     await tx.match.update({
       where: { id: matchId },
-      data:  { status: "FINISHED", finishedAt: new Date(), winnerSide: "DRAW" },
+      data: {
+        status: "FINISHED",
+        winnerSide,
+        finishedAt: new Date(),
+        currentTurnSide: null,
+      },
     });
-    await logEvent(tx, matchId, match.currentRound, null, "MATCH_ABANDONED", {});
+
+    await logEvent(tx, matchId, match.currentRound, loserSide, "MATCH_ABANDONED",
+      { abandonedBy: loserSide, winner: winnerSide });
   });
 
   revalidatePath(`/partidas/${matchId}`);
   revalidatePath("/partidas");
+}
+
+// ─────────────────────────────────────────────
+// 8. OFERECER EMPATE
+// ─────────────────────────────────────────────
+
+export async function offerDrawAction(matchId: string) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const user = await prisma.user.findUnique({
+    where: { username: session.user.name },
+    select: { id: true },
+  });
+  if (!user) throw new Error("Usuário não encontrado.");
+
+  await prisma.$transaction(async (tx) => {
+    const match = await tx.match.findUnique({
+      where: { id: matchId },
+      include: { players: true },
+    });
+    if (!match) throw new Error("Partida não encontrada.");
+    if (match.status === "FINISHED") throw new Error("Partida já terminou.");
+
+    let mySide: Side;
+    if (match.mode === "ONLINE") {
+      const me = match.players.find((p) => p.userId === user.id);
+      if (!me) throw new Error("Você não está nesta partida.");
+      mySide = me.side as Side;
+    } else {
+      mySide = (match.currentTurnSide ?? "A") as Side;
+    }
+
+    if (match.drawOfferedBy === mySide) {
+      throw new Error("Você já ofereceu empate.");
+    }
+
+    await tx.match.update({
+      where: { id: matchId },
+      data: { drawOfferedBy: mySide },
+    });
+
+    await logEvent(tx, matchId, match.currentRound, mySide, "DRAW_OFFERED", {});
+  });
+
+  revalidatePath(`/partidas/${matchId}`);
+}
+
+// ─────────────────────────────────────────────
+// 9. RESPONDER OFERTA DE EMPATE
+// ─────────────────────────────────────────────
+
+export async function respondDrawOfferAction(matchId: string, accept: boolean) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const user = await prisma.user.findUnique({
+    where: { username: session.user.name },
+    select: { id: true },
+  });
+  if (!user) throw new Error("Usuário não encontrado.");
+
+  await prisma.$transaction(async (tx) => {
+    const match = await tx.match.findUnique({
+      where: { id: matchId },
+      include: { players: true },
+    });
+    if (!match) throw new Error("Partida não encontrada.");
+    if (match.status === "FINISHED") throw new Error("Partida já terminou.");
+    if (!match.drawOfferedBy) throw new Error("Não há oferta de empate ativa.");
+
+    let mySide: Side;
+    if (match.mode === "ONLINE") {
+      const me = match.players.find((p) => p.userId === user.id);
+      if (!me) throw new Error("Você não está nesta partida.");
+      mySide = me.side as Side;
+    } else {
+      // HOTSEAT: quem responde é quem NÃO ofereceu
+      mySide = otherSide(match.drawOfferedBy as Side);
+    }
+
+    if (mySide === match.drawOfferedBy) {
+      throw new Error("Você não pode responder à sua própria oferta.");
+    }
+
+    if (accept) {
+      // Empate aceito: fim de partida com DRAW
+      await tx.match.update({
+        where: { id: matchId },
+        data: {
+          status: "FINISHED",
+          winnerSide: "DRAW",
+          finishedAt: new Date(),
+          currentTurnSide: null,
+          drawOfferedBy: null,
+        },
+      });
+      await logEvent(tx, matchId, match.currentRound, mySide, "DRAW_ACCEPTED",
+        { offeredBy: match.drawOfferedBy });
+    } else {
+      // Recusado: limpa oferta, jogo continua
+      await tx.match.update({
+        where: { id: matchId },
+        data: { drawOfferedBy: null },
+      });
+      await logEvent(tx, matchId, match.currentRound, mySide, "DRAW_DECLINED",
+        { offeredBy: match.drawOfferedBy });
+    }
+  });
+
+  revalidatePath(`/partidas/${matchId}`);
 }
