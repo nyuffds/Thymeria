@@ -166,6 +166,11 @@ model Booster {
   rules    BoosterRule[]
   openings BoosterOpening[]
   unopened UnopenedBooster[]
+  guaranteeRareOrBetter Boolean @default(false)
+  factionFiltersCsv     String? // CSV de factionIds, vazio = todas
+  abilityFiltersCsv     String? // CSV de abilityIds, vazio = todas
+  includeNeutro         Boolean @default(true)
+
 }
 
 model BoosterRule {
@@ -175,6 +180,7 @@ model BoosterRule {
   rarity    String?
   cardId    String?
   quantity  Int     @default(1)
+  weights   String? // JSON pra WEIGHTED, ex: '{"COMMON":50,"RARE":20,"EPIC":15,"LEGENDARY":10,"MYTHIC":5}'
 
   booster Booster @relation(fields: [boosterId], references: [id], onDelete: Cascade)
   card    Card?   @relation("FixedPool", fields: [cardId], references: [id], onDelete: Cascade)

@@ -24,6 +24,9 @@ export default async function BoostersListPage() {
     if (rule.mode === "FIXED_POOL") {
       return `${rule.quantity}× ${rule.card?.name ?? "?"}`;
     }
+    if (rule.mode === "WEIGHTED") {
+      return `${rule.quantity}x pesos custom`;
+    }
     const rarityLabel = RARITIES.find((r) => r.key === rule.rarity)?.label ?? rule.rarity ?? "?";
     return `${rule.quantity}× ${rarityLabel}`;
   }

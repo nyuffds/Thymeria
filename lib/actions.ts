@@ -65,9 +65,9 @@ export async function setPasswordAction(username: string, password: string) {
   });
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // FACÇÕES (admin)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 export async function createFactionAction(data: {
   name: string;
@@ -139,9 +139,9 @@ export async function deleteFactionAction(id: string) {
   revalidatePath("/admin");
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // HABILIDADES (admin)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 export async function createAbilityAction(data: {
   name: string;
@@ -217,9 +217,9 @@ export async function deleteAbilityAction(id: string) {
   revalidatePath("/admin");
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // CARTAS (admin)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 export async function createCardAction(data: {
   name: string;
@@ -326,9 +326,9 @@ export async function deleteCardAction(id: string) {
   revalidatePath("/cartas");
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // CONFIGURAÇÕES GLOBAIS (admin)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 export async function updateGameSettingsAction(data: {
   sellPriceCommon: number;
@@ -383,9 +383,9 @@ export async function updateGameSettingsAction(data: {
   revalidatePath("/admin");
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // ECONOMIA (admin)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 export async function adjustCoinsAction(data: {
   userId: string;
@@ -425,15 +425,16 @@ export async function adjustCoinsAction(data: {
   revalidatePath("/conta");
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // BOOSTERS (admin)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 export interface BoosterRuleInput {
-  mode: "FIXED_POOL" | "BY_RARITY";
+  mode: "FIXED_POOL" | "BY_RARITY" | "WEIGHTED";
   rarity: string | null;
   cardId: string | null;
   quantity: number;
+  weights: string | null;
 }
 
 function validateBoosterPayload(data: {
@@ -448,9 +449,20 @@ function validateBoosterPayload(data: {
 
   for (const [i, r] of data.rules.entries()) {
     const where = `Regra ${i + 1}`;
-    if (r.quantity < 1) throw new Error(`${where}: quantidade deve ser ≥ 1.`);
+    if (r.quantity < 1) throw new Error(`${where}: quantidade deve ser = 1.`);
     if (r.mode === "FIXED_POOL" && !r.cardId) throw new Error(`${where}: selecione uma carta.`);
     if (r.mode === "BY_RARITY" && !r.rarity)  throw new Error(`${where}: selecione uma raridade.`);
+    if (r.mode === "WEIGHTED") {
+      if (!r.weights) throw new Error(`${where}: defina os pesos das raridades.`);
+      try {
+        const parsed = JSON.parse(r.weights) as Record<string, number>;
+        const sum = Object.values(parsed).reduce((a, b) => a + b, 0);
+        if (sum !== 100) throw new Error(`${where}: a soma dos pesos deve ser exatamente 100 (atual: ${sum}).`);
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("soma dos pesos")) throw err;
+        throw new Error(`${where}: pesos invalidos (JSON malformado).`);
+      }
+    }
   }
 }
 
@@ -459,6 +471,10 @@ export async function createBoosterAction(data: {
   description: string;
   price: number;
   imageUrl: string;
+  guaranteeRareOrBetter?: boolean;
+  factionFiltersCsv?: string | null;
+  abilityFiltersCsv?: string | null;
+  includeNeutro?: boolean;
   rules: BoosterRuleInput[];
 }) {
   validateBoosterPayload(data);
@@ -472,13 +488,18 @@ export async function createBoosterAction(data: {
       description: data.description.trim() || null,
       price: data.price,
       imageUrl: data.imageUrl.trim() || null,
+      guaranteeRareOrBetter: data.guaranteeRareOrBetter ?? false,
+      factionFiltersCsv: data.factionFiltersCsv ?? null,
+      abilityFiltersCsv: data.abilityFiltersCsv ?? null,
+      includeNeutro: data.includeNeutro ?? true,
       isActive: true,
       rules: {
         create: data.rules.map((r) => ({
           mode: r.mode,
           rarity: r.mode === "BY_RARITY" ? r.rarity : null,
           cardId: r.mode === "FIXED_POOL" ? r.cardId : null,
-          quantity: r.quantity,
+            weights: r.mode === "WEIGHTED" ? r.weights : null,
+            quantity: r.quantity,
         })),
       },
     },
@@ -495,6 +516,10 @@ export async function updateBoosterAction(id: string, data: {
   price: number;
   imageUrl: string;
   isActive: boolean;
+  guaranteeRareOrBetter?: boolean;
+  factionFiltersCsv?: string | null;
+  abilityFiltersCsv?: string | null;
+  includeNeutro?: boolean;
   rules: BoosterRuleInput[];
 }) {
   validateBoosterPayload(data);
@@ -516,11 +541,16 @@ export async function updateBoosterAction(id: string, data: {
         price: data.price,
         imageUrl: data.imageUrl.trim() || null,
         isActive: data.isActive,
-        rules: {
+        guaranteeRareOrBetter: data.guaranteeRareOrBetter ?? false,
+          factionFiltersCsv: data.factionFiltersCsv ?? null,
+          abilityFiltersCsv: data.abilityFiltersCsv ?? null,
+          includeNeutro: data.includeNeutro ?? true,
+          rules: {
           create: data.rules.map((r) => ({
             mode: r.mode,
             rarity: r.mode === "BY_RARITY" ? r.rarity : null,
             cardId: r.mode === "FIXED_POOL" ? r.cardId : null,
+            weights: r.mode === "WEIGHTED" ? r.weights : null,
             quantity: r.quantity,
           })),
         },
@@ -550,9 +580,9 @@ export async function deleteBoosterAction(id: string) {
   revalidatePath("/loja");
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // COMPRA DE BOOSTER (jogador)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
   export async function buyBoosterAction(boosterId: string) {
   const session = await auth();
@@ -597,9 +627,9 @@ export async function deleteBoosterAction(id: string) {
   revalidatePath("/conta");
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // ABERTURA DE BOOSTER (jogador)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 export interface OpenedCard {
   id: string;
@@ -638,14 +668,14 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
     LEGENDARY: settings.pityThresholdLegendary,
   };
 
-  // Carrega coleção atual do jogador (cardId → quantity)
+  // Carrega coleção atual do jogador (cardId ? quantity)
   const collectionRows = await prisma.userCollection.findMany({
     where: { userId: user.id },
     select: { cardId: true },
   });
   const ownedCardIds = new Set(collectionRows.map((r) => r.cardId));
 
-  // Carrega pity counters atuais (rarity → counter)
+  // Carrega pity counters atuais (rarity ? counter)
   const pityRows = await prisma.userPity.findMany({
     where: { userId: user.id },
   });
@@ -655,16 +685,68 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
   for (const p of pityRows) {
     pityCounters[p.rarity] = p.counter;
   }
+// Constroi o where clause para a busca de cartas elegiveis em um sorteio,
+// considerando filtros de fac\u00e7\u00e3o e habilidade do booster.
+function buildBoosterCardFilter(
+  booster: { factionFiltersCsv: string | null; abilityFiltersCsv: string | null; includeNeutro: boolean },
+  base: { rarity: string }
+): {
+  isReleased: true;
+  rarity: string;
+  factionId?: { in: string[] };
+  abilityId?: { in: string[] };
+} {
+  const where: {
+    isReleased: true;
+    rarity: string;
+    factionId?: { in: string[] };
+    abilityId?: { in: string[] };
+  } = {
+    isReleased: true,
+    rarity: base.rarity,
+  };
 
-  // Sorteia as cartas. Para cada carta:
-  //   1. Se vier de FIXED_POOL → respeita (não interfere no pity)
-  //   2. Se vier de BY_RARITY → considera pity:
+  if (booster.factionFiltersCsv) {
+    const factionIds = booster.factionFiltersCsv.split(",").filter(Boolean);
+    if (factionIds.length > 0) {
+      where.factionId = { in: factionIds };
+    }
+  }
+
+  if (booster.abilityFiltersCsv) {
+    const abilityIds = booster.abilityFiltersCsv.split(",").filter(Boolean);
+    if (abilityIds.length > 0) {
+      where.abilityId = { in: abilityIds };
+    }
+  }
+
+  return where;
+}
+
+
+  
+  // Se o booster tem filtro de facao + includeNeutro, adiciona o ID da faccao Neutro ao filtro
+  if (unopened.booster.factionFiltersCsv && unopened.booster.includeNeutro) {
+    const neutroFaction = await prisma.faction.findFirst({
+      where: { name: "Neutro" },
+      select: { id: true },
+    });
+    if (neutroFaction) {
+      const currentIds = unopened.booster.factionFiltersCsv.split(",").filter(Boolean);
+      if (!currentIds.includes(neutroFaction.id)) {
+        unopened.booster.factionFiltersCsv = [...currentIds, neutroFaction.id].join(",");
+      }
+    }
+  }
+// Sorteia as cartas. Para cada carta:
+  //   1. Se vier de FIXED_POOL ? respeita (não interfere no pity)
+  //   2. Se vier de BY_RARITY ? considera pity:
   //      - Se contador já bateu o threshold E existe carta nova dessa raridade
-  //        → força sortear das novas
-  //      - Caso contrário → sorteio normal
+  //        ? força sortear das novas
+  //      - Caso contrário ? sorteio normal
   //   3. Atualiza pity counter da raridade:
-  //      - Se carta foi nova → zera
-  //      - Se foi repetida → incrementa
+  //      - Se carta foi nova ? zera
+  //      - Se foi repetida ? incrementa
   const cardIds: string[] = [];
 
   for (const rule of unopened.booster.rules) {
@@ -688,7 +770,7 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
       const rarity = rule.rarity;
 
       const pool = await prisma.card.findMany({
-        where: { rarity, isReleased: true },
+        where: buildBoosterCardFilter(unopened.booster, { rarity }),
         select: { id: true },
       });
       if (pool.length === 0) {
@@ -718,7 +800,54 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
           pityCounters[rarity]++;
         }
       }
-    }
+    } else if (rule.mode === "WEIGHTED") {
+      if (!rule.weights) continue;
+      let weights: Record<string, number>;
+      try {
+        weights = JSON.parse(rule.weights);
+      } catch {
+        continue;
+      }
+
+      const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
+      if (totalWeight <= 0) continue;
+
+      for (let i = 0; i < rule.quantity; i++) {
+        // Sorteia raridade pelos pesos
+        let roll = Math.random() * totalWeight;
+        let chosenRarity: string | null = null;
+        for (const [rar, w] of Object.entries(weights)) {
+          roll -= w;
+          if (roll <= 0) { chosenRarity = rar; break; }
+        }
+        if (!chosenRarity) chosenRarity = Object.keys(weights)[0];
+
+        // Pega o pool da raridade sorteada
+        const pool = await prisma.card.findMany({
+          where: buildBoosterCardFilter(unopened.booster, { rarity: chosenRarity }),
+          select: { id: true },
+        });
+        if (pool.length === 0) continue;
+
+        const newPool = pool.filter((c) => !ownedCardIds.has(c.id));
+        const threshold = pityThreshold[chosenRarity] ?? 999;
+        const counter = pityCounters[chosenRarity] ?? 0;
+        const pityTriggered = counter >= threshold && newPool.length > 0;
+        const sourcePool = pityTriggered ? newPool : pool;
+
+        const pickIdx = Math.floor(Math.random() * sourcePool.length);
+        const pickId = sourcePool[pickIdx].id;
+        cardIds.push(pickId);
+
+        const wasNew = !ownedCardIds.has(pickId);
+        if (wasNew) {
+          pityCounters[chosenRarity] = 0;
+          ownedCardIds.add(pickId);
+        } else {
+          pityCounters[chosenRarity] = (pityCounters[chosenRarity] ?? 0) + 1;
+        }
+      }    }
+
   }
 
   if (cardIds.length === 0) throw new Error("Booster sem regras válidas. Avise o GM.");
@@ -756,7 +885,36 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
       });
     }
 
-    // Cria opening + results
+    
+    // Garantia "estilo Hearthstone": se o booster tiver flag e nenhum card sorteado for >= RARE,
+    // troca o ultimo por uma carta rara aleatoria (preferindo nova nao possuida).
+    if (unopened.booster.guaranteeRareOrBetter && cardIds.length > 0) {
+      const drawnCards = await tx.card.findMany({
+        where: { id: { in: cardIds } },
+        select: { id: true, rarity: true },
+      });
+      const rarityRank: Record<string, number> = {
+        COMMON: 0, RARE: 1, EPIC: 2, LEGENDARY: 3, MYTHIC: 4,
+      };
+      const highestRank = Math.max(...drawnCards.map((c) => rarityRank[c.rarity] ?? 0));
+      if (highestRank < 1) {
+        // Sortea uma carta de raridade RARE+
+        const rarePool = await tx.card.findMany({
+          where: { isReleased: true, rarity: { in: ["RARE", "EPIC", "LEGENDARY", "MYTHIC"] } },
+          select: { id: true, rarity: true },
+        });
+        if (rarePool.length > 0) {
+          // Prefere cartas novas
+          const newRarePool = rarePool.filter((c) => !ownedCardIds.has(c.id));
+          const sourcePool = newRarePool.length > 0 ? newRarePool : rarePool;
+          const pickIdx = Math.floor(Math.random() * sourcePool.length);
+          const pickId = sourcePool[pickIdx].id;
+          // Substitui o ultimo card sorteado
+          cardIds[cardIds.length - 1] = pickId;
+        }
+      }
+    }
+// Cria opening + results
     const opening = await tx.boosterOpening.create({
       data: {
         userId: user.id,
@@ -804,9 +962,9 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
   return result.opened;
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // VENDA DE CARTAS (jogador)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 export async function sellCardAction(data: { cardId: string; quantity: number }) {
   const session = await auth();
@@ -888,9 +1046,9 @@ export async function sellCardAction(data: { cardId: string; quantity: number })
   return { coinsGained: total, newQuantity: newQty };
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // DECKS (jogador)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 /**
  * Valida um conjunto de cartas (sem líder) contra:
