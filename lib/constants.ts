@@ -22,6 +22,15 @@ export const CARD_TYPES = [
   { key: "LEADER",  label: "Líder" },
 ] as const;
 
+
+export const ENGINE_KEYS = [
+  { key: "BOOST",    label: "Reforço" },
+  { key: "DAMAGE",   label: "Investida" },
+  { key: "SPAWN",    label: "Convocar aliado" },
+  { key: "HEAL",     label: "Cura" },
+  { key: "SHIELD",   label: "Escudo" },
+  { key: "WEATHER",  label: "Clima" },
+] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo" },
   { key: "ACTIVE",  label: "Ativo" },
