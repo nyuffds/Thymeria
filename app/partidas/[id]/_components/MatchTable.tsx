@@ -11,6 +11,7 @@ import {
 import { RARITIES, ROWS } from "@/lib/constants";
 import { MatchEventLog } from "./MatchEventLog";
 import { CardTooltip } from "./CardTooltip";
+import { DeckPiles } from "./DeckPiles";
 
 type Side = "A" | "B";
 type Row = "MELEE" | "RANGED" | "SIEGE";
@@ -23,6 +24,8 @@ interface PlayerInfo {
   redrawsLeft: number;
   deckCardCount: number;
   handCount: number;
+  discardCount: number;
+  deckRealCount: number;
   deck: {
     name: string;
     faction: { name: string; color: string };
@@ -332,7 +335,18 @@ function handlePass() {
 
 return (
     <div className="flex gap-4">
-      <div className="flex-1 space-y-3 min-w-0">
+      <div
+        className="flex-1 space-y-3 min-w-0 rounded-2xl border-4 shadow-2xl p-4 relative overflow-hidden"
+        style={{
+          borderColor: "#3d2817",
+          backgroundImage:
+            "linear-gradient(rgba(20, 12, 4, 0.85), rgba(20, 12, 4, 0.85)), " +
+            "url('https://images.unsplash.com/photo-1604147706283-d7119b5b822c?w=1600&q=80')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          boxShadow: "inset 0 0 60px rgba(0, 0, 0, 0.7), 0 10px 40px rgba(0, 0, 0, 0.6)",
+        }}
+      >
       {/* Banner gigante de turno */}
       {turnSide && turnPlayer && (
         <div
@@ -434,14 +448,46 @@ return (
         );
       })()}
 
-      {/* Lado B (sempre em cima) */}
+{/* Lado B (sempre em cima) */}
       {renderPlayerHeader("B")}
-      {(["SIEGE", "RANGED", "MELEE"] as Row[]).map((r) => renderRow("B", r))}
+      <div className="flex gap-3 items-stretch">
+        <div className="flex-1 space-y-2 min-w-0">
+          {(["SIEGE", "RANGED", "MELEE"] as Row[]).map((r) => renderRow("B", r))}
+        </div>
+        <DeckPiles
+          deckCount={props.players.B.deckRealCount}
+          discardCount={props.players.B.discardCount}
+          factionColor={props.players.B.deck.faction.color}
+          side="B"
+        />
+      </div>
 
-      <div className="h-2 bg-amber-700/30 rounded" />
+      <div
+        className="h-4 rounded-full shadow-inner my-3 relative"
+        style={{
+          background: "linear-gradient(to bottom, #3d2817, #8b6019, #f3c969, #8b6019, #3d2817)",
+          boxShadow: "0 0 20px rgba(212, 160, 74, 0.5), inset 0 1px 3px rgba(0, 0, 0, 0.6)",
+        }}
+      >
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
+          <span className="text-amber-200 text-xs px-3 bg-gradient-to-r from-transparent via-zinc-950 to-transparent">
+            ⚔
+          </span>
+        </div>
+      </div>
 
-      {/* Lado A (sempre em baixo) */}
-      {(["MELEE", "RANGED", "SIEGE"] as Row[]).map((r) => renderRow("A", r))}
+{/* Lado A (sempre em baixo) */}
+      <div className="flex gap-3 items-stretch">
+        <div className="flex-1 space-y-2 min-w-0">
+          {(["MELEE", "RANGED", "SIEGE"] as Row[]).map((r) => renderRow("A", r))}
+        </div>
+        <DeckPiles
+          deckCount={props.players.A.deckRealCount}
+          discardCount={props.players.A.discardCount}
+          factionColor={props.players.A.deck.faction.color}
+          side="A"
+        />
+      </div>
       {renderPlayerHeader("A")}
 
       <div className="mt-4">{renderControl()}</div>
@@ -478,10 +524,14 @@ return (
     const isTurn = turnSide === side && (props.status === "PLAYING" || props.status === "REDRAW");
     return (
       <div
-        className={"flex items-center justify-between p-3 rounded-lg border-2 transition " +
-          (isTurn
-            ? "border-amber-500 bg-amber-950/40 shadow-lg shadow-amber-900/30"
-            : "border-zinc-800 bg-zinc-900/40 opacity-60")}
+        className="flex items-center justify-between p-3 rounded-lg border-2 transition"
+        style={{
+          borderColor: isTurn ? "#d4a04a" : "#3d2817",
+          backgroundImage: "linear-gradient(rgba(40, 25, 10, 0.85), rgba(20, 12, 4, 0.9))",
+          boxShadow: isTurn
+            ? "0 0 20px rgba(212, 160, 74, 0.4), inset 0 1px 0 rgba(212, 160, 74, 0.3)"
+            : "inset 0 0 8px rgba(0, 0, 0, 0.5)",
+        }}
       >
         <div className="flex items-center gap-3">
           <div
@@ -546,20 +596,34 @@ const isAvailableToPlay =
     const isTurnSide = side === turnSide;
 
     return (
-      <div
+<div
         key={side + row}
-        className={"flex items-center gap-2 p-2 rounded border transition " +
-          (w ? "border-blue-700/50 bg-blue-950/20" :
-            isTurnSide ? "border-zinc-800 bg-zinc-900/40" : "border-zinc-800/50 bg-zinc-900/20 opacity-70") +
-          (isAvailableToPlay ? " ring-2 ring-amber-500 cursor-pointer hover:bg-amber-950/20" : "")}
+        className={"flex items-center gap-3 px-3 py-2 rounded-lg border-2 transition min-h-[110px] " +
+          (isAvailableToPlay ? " ring-2 ring-amber-400 cursor-pointer hover:brightness-125" : "")}
+style={{
+          borderColor: w
+            ? "rgba(96, 165, 250, 0.5)"
+            : isTurnSide
+              ? "#8b6019"
+              : "#3d2817",
+          backgroundImage: w
+            ? "linear-gradient(rgba(30, 58, 138, 0.4), rgba(15, 23, 42, 0.6))"
+            : "linear-gradient(rgba(60, 35, 15, 0.7), rgba(40, 22, 8, 0.85))",
+          boxShadow: isTurnSide
+            ? "inset 0 1px 0 rgba(212, 160, 74, 0.3), inset 0 -1px 0 rgba(0,0,0,0.5)"
+            : "inset 0 0 8px rgba(0, 0, 0, 0.5)",
+        }}
         onClick={isAvailableToPlay ? () => handleChooseRow(row) : undefined}
       >
-        <div className="w-20 flex-shrink-0 text-xs uppercase text-zinc-500 flex items-center gap-1">
-          <span className="text-lg">{ROW_ICON[row]}</span>
-          <span className="hidden sm:inline">{ROW_LABEL[row]}</span>
+        <div className="w-20 flex-shrink-0 text-[10px] uppercase tracking-wider flex items-center gap-1.5"
+             style={{ color: "#c79a4b" }}>
+          <span className="text-lg" style={{ filter: "drop-shadow(0 0 4px rgba(212, 160, 74, 0.6))" }}>
+            {ROW_ICON[row]}
+          </span>
+          <span className="hidden sm:inline font-heading">{ROW_LABEL[row]}</span>
         </div>
 
-        <div className="flex-1 flex flex-wrap gap-1 min-h-[60px] items-center">
+          <div className="flex-1 flex flex-wrap gap-1.5 items-center content-center">
           {cards.length === 0 ? (
             <span className="text-xs text-zinc-700 italic">vazia</span>
           ) : (
@@ -572,7 +636,13 @@ const isAvailableToPlay =
           )}
         </div>
 
-        <div className="w-12 text-right font-mono font-bold text-amber-300 text-lg">
+        <div
+          className="w-12 text-right font-mono font-bold text-xl"
+          style={{
+            color: "#f3c969",
+            textShadow: "0 0 8px rgba(243, 201, 105, 0.5), 0 2px 4px rgba(0,0,0,0.8)",
+          }}
+        >
           {total}
         </div>
       </div>
@@ -604,23 +674,36 @@ card={{
           isToken: c.isToken,
         }}
       >
-        <button
+<button
           onClick={isTargetable
             ? (activatingLeader ? () => handleLeaderTargetClick(c) : () => handleTargetClick(c))
             : undefined}
           disabled={!isTargetable}
-          className={"relative w-14 h-16 rounded border-2 bg-zinc-800 flex flex-col items-center justify-between p-0.5 text-[10px] " +
-            (isTargetable ? "ring-2 ring-amber-400 cursor-pointer hover:scale-105 transition" : "cursor-default")}
-          style={{ borderColor: rarity?.color ?? "#aaa" }}
+          className={"relative w-16 h-24 rounded border-2 overflow-hidden transition flex-shrink-0 " +
+            (isTargetable ? "ring-2 ring-amber-400 cursor-pointer hover:scale-105 hover:z-10" : "cursor-default")}
+          style={{
+            borderColor: rarity?.color ?? "#aaa",
+            backgroundImage: c.imageUrl ? "url(" + c.imageUrl + ")" : undefined,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundColor: "#27272a",
+          }}
         >
-          <span className="font-mono font-bold text-amber-300 text-sm">{c.power}</span>
-          <span className="truncate w-full text-zinc-300 text-center leading-tight">
-            {c.name.slice(0, 8)}
+          {/* Poder no canto superior esquerdo */}
+          <span className="absolute top-0.5 left-0.5 font-mono font-bold text-amber-300 text-sm bg-black/80 px-1 rounded leading-none py-0.5">
+            {c.power}
           </span>
-          <div className="flex gap-0.5">
-            {c.shielded && <span className="text-blue-400">◆</span>}
-            {c.isToken && <span className="text-zinc-500">•</span>}
-          </div>
+          {/* Estados no canto superior direito */}
+          {(c.shielded || c.isToken) && (
+            <div className="absolute top-0.5 right-0.5 flex flex-col gap-0.5">
+              {c.shielded && <span className="text-blue-400 text-xs bg-black/80 px-1 rounded">◆</span>}
+              {c.isToken && <span className="text-zinc-300 text-xs bg-black/80 px-1 rounded">•</span>}
+            </div>
+          )}
+          {/* Nome no rodapé sobre gradiente */}
+          <span className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-[9px] text-zinc-100 text-center truncate bg-gradient-to-t from-black/95 via-black/70 to-transparent leading-tight">
+            {c.name}
+          </span>
         </button>
       </CardTooltip>
     );

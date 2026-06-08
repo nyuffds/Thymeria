@@ -73,7 +73,7 @@ export default async function PartidaPage({
   }
   
   return (
-    <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-4">
+    <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-4">
       <div className="flex items-center justify-between mb-4">
         <Link href="/partidas" className="text-sm text-zinc-500 hover:text-amber-200">
           ← Partidas
@@ -98,6 +98,8 @@ export default async function PartidaPage({
             redrawsLeft: pA.redrawsLeft,
             deckCardCount: pA.deckCardCount,
             handCount: match.hands.filter((h) => h.side === "A" && h.zone === "HAND").length,
+            discardCount: match.hands.filter((h) => h.side === "A" && h.zone === "DISCARD").length,
+            deckRealCount: match.hands.filter((h) => h.side === "A" && h.zone === "DECK").length,
             deck: {
               name: pA.deck.name,
               faction: { name: pA.deck.faction.name, color: pA.deck.faction.color },
@@ -122,6 +124,8 @@ export default async function PartidaPage({
             redrawsLeft: pB.redrawsLeft,
             deckCardCount: pB.deckCardCount,
             handCount: match.hands.filter((h) => h.side === "B" && h.zone === "HAND").length,
+            discardCount: match.hands.filter((h) => h.side === "B" && h.zone === "DISCARD").length,
+            deckRealCount: match.hands.filter((h) => h.side === "B" && h.zone === "DECK").length,
             deck: {
               name: pB.deck.name,
               faction: { name: pB.deck.faction.name, color: pB.deck.faction.color },
