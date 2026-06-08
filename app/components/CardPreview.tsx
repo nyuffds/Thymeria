@@ -28,7 +28,10 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
   const rowList = card.rows.split(",").filter(Boolean);
 
   return (
-    <div className="relative w-64" style={{ aspectRatio: "5 / 7" }}>
+    <div
+      className={"relative w-64 " + (card.rarity === "MYTHIC" ? "rarity-mythic" : "")}
+      style={{ aspectRatio: "5 / 7" }}
+    >
       {/* Moldura externa dourada */}
       <div className="frame-gold absolute inset-0 rounded-lg p-[3px] shadow-2xl">
         {/* Faixa azul-noite interna (anel entre moldura e conteudo) */}

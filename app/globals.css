@@ -157,3 +157,55 @@
   background-size: 200% 100%;
   animation: shimmer-gold 1.5s ease-in-out;
 }
+
+/* ─────────────────────────────────────────────
+   Animação MYTHIC — glow dourado intenso pulsante
+   ───────────────────────────────────────────── */
+
+@keyframes mythic-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 12px rgba(243, 201, 105, 0.6),
+      0 0 24px rgba(220, 38, 38, 0.4),
+      inset 0 0 8px rgba(243, 201, 105, 0.3);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow:
+      0 0 24px rgba(243, 201, 105, 1),
+      0 0 48px rgba(220, 38, 38, 0.7),
+      0 0 64px rgba(243, 201, 105, 0.5),
+      inset 0 0 16px rgba(243, 201, 105, 0.6);
+    filter: brightness(1.15);
+  }
+}
+
+@keyframes mythic-border-shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.rarity-mythic {
+  animation: mythic-glow 2.2s ease-in-out infinite;
+  position: relative;
+}
+
+.rarity-mythic::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    #f3c969,
+    #dc2626,
+    #fbbf24,
+    #dc2626,
+    #f3c969
+  );
+  background-size: 300% 300%;
+  animation: mythic-border-shimmer 4s ease-in-out infinite;
+  z-index: -1;
+  filter: blur(2px);
+}
