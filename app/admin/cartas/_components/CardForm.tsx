@@ -35,6 +35,7 @@ type Mode =
         abilityId: string | null;
         loreText: string;
         imageUrl: string;
+        frameUrl: string;
         isReleased: boolean;
       };
     };
@@ -60,6 +61,7 @@ export function CardForm(props: Mode) {
         abilityId: null as string | null,
         loreText: "",
         imageUrl: "",
+        frameUrl: "",
         isReleased: true,
       };
 
@@ -73,6 +75,7 @@ export function CardForm(props: Mode) {
   const [abilityId, setAbilityId]   = useState<string>(init.abilityId ?? "");
   const [loreText, setLoreText]     = useState(init.loreText);
   const [imageUrl, setImageUrl]     = useState(init.imageUrl);
+  const [frameUrl, setFrameUrl]     = useState(init.frameUrl);
   const [isReleased, setIsReleased] = useState(init.isReleased);
 
   function toggleRow(rowKey: string) {
@@ -102,6 +105,7 @@ export function CardForm(props: Mode) {
       abilityId: abilityId || null,
       loreText,
       imageUrl,
+      frameUrl,
       isReleased,
     };
 
@@ -299,6 +303,23 @@ export function CardForm(props: Mode) {
         </div>
 
         <div>
+          <label className="block text-sm text-zinc-300 mb-2">URL do frame customizado (opcional)</label>
+          <input
+            type="text"
+            value={frameUrl}
+            onChange={(e) => setFrameUrl(e.target.value)}
+            disabled={isPending}
+            className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg
+                       text-zinc-100 font-mono text-xs focus:outline-none focus:border-amber-500"
+            placeholder="https://... (PNG com transparência, sobrepõe a moldura padrão)"
+          />
+          <p className="text-xs text-zinc-500 mt-1 italic">
+            Se preenchido, substitui a moldura padrão. PNG transparente com mesmo aspect ratio 2:3.
+          </p>
+        </div>
+
+
+        <div>
           <label className="block text-sm text-zinc-300 mb-2">Lore / Citação (opcional)</label>
           <textarea
             value={loreText}
@@ -373,6 +394,7 @@ export function CardForm(props: Mode) {
             rarity,
             cardType,
             loreText: loreText || null,
+            frameUrl: frameUrl || null,
             imageUrl: imageUrl || null,
             faction: previewFaction
               ? { name: previewFaction.name, color: previewFaction.color }

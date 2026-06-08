@@ -1,17 +1,18 @@
 // app/components/CardPreview.tsx
-// Visual ornamentado de uma carta — estética de relíquia medieval.
-// Reutilizável em catálogo, deck builder, partida etc.
+// Visual ornamentado de uma carta - estetica de reliquia medieval.
+// Reutilizavel em catalogo, deck builder, partida etc.
 
 import { RARITIES, ROWS } from "@/lib/constants";
 
 export interface CardPreviewData {
   name: string;
   power: number;
-  rows: string;           // CSV "MELEE,RANGED"
+  rows: string;
   rarity: string;
   cardType: string;
   loreText?: string | null;
   imageUrl?: string | null;
+  frameUrl?: string | null;
   faction: { name: string; color: string };
   ability?: { name: string; description: string } | null;
 }
@@ -30,7 +31,7 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
     <div className="relative w-64" style={{ aspectRatio: "5 / 7" }}>
       {/* Moldura externa dourada */}
       <div className="frame-gold absolute inset-0 rounded-lg p-[3px] shadow-2xl">
-        {/* Faixa azul-noite interna (anel entre moldura e conteúdo) */}
+        {/* Faixa azul-noite interna (anel entre moldura e conteudo) */}
         <div
           className="w-full h-full rounded-md p-[2px]"
           style={{ backgroundColor: card.faction.color }}
@@ -38,19 +39,19 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
           {/* Pergaminho interno */}
           <div className="corner-ornament relative w-full h-full bg-parchment rounded-sm overflow-hidden flex flex-col">
 
-            {/* Cabeçalho: poder + fileiras */}
+            {/* Cabecalho: poder + fileiras */}
             <div
               className="flex items-center justify-between px-2 py-1.5 border-b-2"
               style={{
                 borderColor: card.faction.color,
-                background: `linear-gradient(180deg, ${card.faction.color}66 0%, transparent 100%)`,
+                background: "linear-gradient(180deg, " + card.faction.color + "66 0%, transparent 100%)",
               }}
             >
               <div className="relative">
                 <div
                   className="w-9 h-9 rounded-full flex items-center justify-center font-heading font-black text-lg shadow-md"
                   style={{
-                    background: `radial-gradient(circle at 35% 30%, #f4d97a, #d4af37 60%, #8b6914)`,
+                    background: "radial-gradient(circle at 35% 30%, #f4d97a, #d4af37 60%, #8b6914)",
                     color: "var(--ink)",
                     border: "2px solid var(--bronze)",
                   }}
@@ -80,7 +81,7 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
                 <div
                   className="w-full h-full"
                   style={{
-                    backgroundImage: `url(${card.imageUrl})`,
+                    backgroundImage: "url(" + card.imageUrl + ")",
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                   }}
@@ -124,24 +125,30 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
               </div>
             )}
 
-            {/* Rodapé: lore + gema */}
-            <div className="mt-auto px-2 pb-2 pt-1 flex items-end gap-2">
-              <div
-                className="gem w-5 h-5 rounded-full flex-shrink-0 border"
-                style={{
-                  ["--gem-color" as string]: card.faction.color,
-                  borderColor: "var(--bronze)",
-                }}
-              />
-              {card.loreText && (
-                <p className="font-lore italic text-[10px] text-[var(--ink)] leading-tight flex-1 text-right">
+            {/* Lore */}
+            {card.loreText && (
+              <div className="mx-2 mb-2 mt-auto pt-1 border-t" style={{ borderColor: "var(--bronze)" }}>
+                <p className="font-lore italic text-[10px] text-[var(--ink-soft)] leading-snug">
                   &ldquo;{card.loreText}&rdquo;
                 </p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Frame customizado opcional (PNG transparente sobrepoe tudo) */}
+      {card.frameUrl && (
+        <div
+          className="absolute inset-0 pointer-events-none rounded-lg"
+          style={{
+            backgroundImage: "url(" + card.frameUrl + ")",
+            backgroundSize: "100% 100%",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }}
+        />
+      )}
     </div>
   );
 }

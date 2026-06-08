@@ -82,6 +82,7 @@ model Card {
   isReleased  Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  frameUrl    String?  // URL de moldura PNG customizada (transparente); null = usa frame padrao
 
   factionId   String
   faction     Faction  @relation(fields: [factionId], references: [id])

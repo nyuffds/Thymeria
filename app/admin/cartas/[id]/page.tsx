@@ -46,6 +46,7 @@ export default async function EditarCartaPage({
           abilityId: card.abilityId,
           loreText: card.loreText ?? "",
           imageUrl: card.imageUrl ?? "",
+          frameUrl: card.frameUrl ?? "",
           isReleased: card.isReleased,
         }}
       />

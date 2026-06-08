@@ -232,6 +232,7 @@ export async function createCardAction(data: {
   abilityId: string | null;
   loreText: string;
   imageUrl: string;
+  frameUrl: string;
   isReleased: boolean;
 }) {
   const name = data.name.trim();
@@ -258,6 +259,7 @@ export async function createCardAction(data: {
       abilityId: data.abilityId || null,
       loreText: data.loreText.trim() || null,
       imageUrl: data.imageUrl.trim() || null,
+      frameUrl: data.frameUrl.trim() || null,
       isReleased: data.isReleased,
     },
   });
@@ -278,6 +280,7 @@ export async function updateCardAction(id: string, data: {
   abilityId: string | null;
   loreText: string;
   imageUrl: string;
+  frameUrl: string;
   isReleased: boolean;
 }) {
   const name = data.name.trim();
@@ -305,6 +308,7 @@ export async function updateCardAction(id: string, data: {
       abilityId: data.abilityId || null,
       loreText: data.loreText.trim() || null,
       imageUrl: data.imageUrl.trim() || null,
+      frameUrl: data.frameUrl.trim() || null,
       isReleased: data.isReleased,
     },
   });
