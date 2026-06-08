@@ -32,6 +32,6 @@ export const ENGINE_KEYS = [
   { key: "WEATHER",  label: "Clima" },
 ] as const;
 export const LEADER_MODES = [
-  { key: "PASSIVE", label: "Passivo" },
-  { key: "ACTIVE",  label: "Ativo" },
+  { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },
+  { key: "ACTIVE",  label: "Ativo",   desc: "Habilidade do lider ativada manualmente pelo jogador uma vez por partida." },
 ] as const;
