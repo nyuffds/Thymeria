@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# database (criado no servidor)
+/prisma/*.db
+/prisma/*.db-journal
+/prisma/dev.db.backup-*

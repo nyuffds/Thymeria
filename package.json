@@ -7,11 +7,12 @@
   "seed": "tsx prisma/seed.ts"
 },
 
-  "scripts": {
+"scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "build": "prisma generate && next build",
+    "start": "prisma migrate deploy && next start -p $PORT",
+    "lint": "eslint",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
