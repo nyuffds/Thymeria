@@ -35,3 +35,5 @@ export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },
   { key: "ACTIVE",  label: "Ativo",   desc: "Habilidade do lider ativada manualmente pelo jogador uma vez por partida." },
 ] as const;
+
+export type EngineKey = typeof ENGINE_KEYS[number]["key"];
