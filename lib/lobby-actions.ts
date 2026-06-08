@@ -164,7 +164,7 @@ export async function joinLobbyAction(data: {
 
   revalidatePath("/lobby");
   revalidatePath(`/partidas/${match.id}`);
-  notifyMatchChange(match.Id);
+  notifyMatchChange(match.id);
 }
 
 // ─────────────────────────────────────────────
