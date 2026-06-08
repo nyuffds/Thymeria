@@ -333,6 +333,10 @@ model Match {
   // Empate por acordo mútuo: armazena o lado que ofereceu empate
   drawOfferedBy   String?   // "A" ou "B" — null se não há oferta ativa
 
+  // Pausa: jogador pode pausar a partida (congela timeout)
+  pausedBy        String?   // "A" ou "B" — null se não está pausada
+  pausedAt        DateTime?
+
   players  MatchPlayer[]
   hands    MatchHand[]
   board    MatchBoardCard[]

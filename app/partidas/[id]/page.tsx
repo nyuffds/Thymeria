@@ -217,6 +217,7 @@ export default async function PartidaPage({
         mode={match.mode}
         viewerSide={viewerSide}
         drawOfferedBy={match.drawOfferedBy as "A" | "B" | null}
+        pausedBy={match.pausedBy as "A" | "B" | null}
       />
     </main>
   );

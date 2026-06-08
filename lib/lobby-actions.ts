@@ -48,7 +48,6 @@ export async function createLobbyAction(): Promise<{ matchId: string }> {
 
   revalidatePath("/lobby");
   return { matchId: match.id };
-  notifyMatchChange(matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -165,7 +164,7 @@ export async function joinLobbyAction(data: {
 
   revalidatePath("/lobby");
   revalidatePath(`/partidas/${match.id}`);
-  notifyMatchChange(matchId);
+  notifyMatchChange(match.Id);
 }
 
 // ─────────────────────────────────────────────

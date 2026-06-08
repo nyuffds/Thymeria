@@ -30,9 +30,24 @@ export async function GET(
   });
   if (!match) return new Response("Match not found", { status: 404 });
 
-  if (match.mode === "ONLINE") {
-    const allowed = match.players.some((p) => p.user.username === session.user!.name);
-    if (!allowed) return new Response("Forbidden", { status: 403 });
+if (match.mode === "ONLINE") {
+    // Permite acesso a:
+    //   1. Quem já é MatchPlayer (escolheu deck e entrou)
+    //   2. O criador da sala (ainda não escolheu deck)
+    //   3. Qualquer um se a sala está em LOBBY (pra ver lista de jogadores)
+    const isPlayer = match.players.some((p) => p.user.username === session.user!.name);
+    const isCreator = !!match.creatorUserId && (await (async () => {
+      const u = await prisma.user.findUnique({
+        where: { username: session.user!.name! },
+        select: { id: true },
+      });
+      return u?.id === match.creatorUserId;
+    })());
+    const isLobby = match.status === "LOBBY";
+
+    if (!isPlayer && !isCreator && !isLobby) {
+      return new Response("Forbidden", { status: 403 });
+    }
   }
 
   const encoder = new TextEncoder();

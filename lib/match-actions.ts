@@ -1000,3 +1000,111 @@ export async function respondDrawOfferAction(matchId: string, accept: boolean) {
   revalidatePath(`/partidas/${matchId}`);
   notifyMatchChange(matchId);
 }
+
+// ─────────────────────────────────────────────
+// 11. PAUSAR PARTIDA
+// ─────────────────────────────────────────────
+
+export async function pauseMatchAction(matchId: string) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const user = await prisma.user.findUnique({
+    where: { username: session.user.name },
+    select: { id: true },
+  });
+  if (!user) throw new Error("Usuário não encontrado.");
+
+  await prisma.$transaction(async (tx) => {
+    const match = await tx.match.findUnique({
+      where: { id: matchId },
+      include: { players: true },
+    });
+    if (!match) throw new Error("Partida não encontrada.");
+    if (match.status === "FINISHED") throw new Error("Partida já terminou.");
+    if (match.status === "LOBBY") throw new Error("Não dá pra pausar no lobby.");
+    if (match.pausedBy) throw new Error("Partida já está pausada.");
+
+    let mySide: Side;
+    if (match.mode === "ONLINE") {
+      const me = match.players.find((p) => p.userId === user.id);
+      if (!me) throw new Error("Você não está nesta partida.");
+      mySide = me.side as Side;
+    } else {
+      mySide = (match.currentTurnSide ?? "A") as Side;
+    }
+
+    await tx.match.update({
+      where: { id: matchId },
+      data: {
+        pausedBy: mySide,
+        pausedAt: new Date(),
+      },
+    });
+
+    await logEvent(tx, matchId, match.currentRound, mySide, "MATCH_PAUSED", {});
+  });
+
+  revalidatePath(`/partidas/${matchId}`);
+  notifyMatchChange(matchId);
+}
+
+// ─────────────────────────────────────────────
+// 12. RETOMAR PARTIDA (só quem pausou pode retomar)
+// ─────────────────────────────────────────────
+
+export async function resumeMatchAction(matchId: string) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const user = await prisma.user.findUnique({
+    where: { username: session.user.name },
+    select: { id: true },
+  });
+  if (!user) throw new Error("Usuário não encontrado.");
+
+  await prisma.$transaction(async (tx) => {
+    const match = await tx.match.findUnique({
+      where: { id: matchId },
+      include: { players: true },
+    });
+    if (!match) throw new Error("Partida não encontrada.");
+    if (!match.pausedBy) throw new Error("Partida não está pausada.");
+
+    let mySide: Side;
+    if (match.mode === "ONLINE") {
+      const me = match.players.find((p) => p.userId === user.id);
+      if (!me) throw new Error("Você não está nesta partida.");
+      mySide = me.side as Side;
+    } else {
+      mySide = match.pausedBy as Side;
+    }
+
+    if (mySide !== match.pausedBy) {
+      throw new Error("Só quem pausou pode retomar a partida.");
+    }
+
+    // Ao retomar, reseta o lastSeenAt de todos pra evitar timeout imediato
+    // (eles podem ter ficado parados durante a pausa)
+    const now = new Date();
+    for (const p of match.players) {
+      await tx.matchPlayer.update({
+        where: { id: p.id },
+        data: { lastSeenAt: now, connectionStatus: "ONLINE" },
+      });
+    }
+
+    await tx.match.update({
+      where: { id: matchId },
+      data: {
+        pausedBy: null,
+        pausedAt: null,
+      },
+    });
+
+    await logEvent(tx, matchId, match.currentRound, mySide, "MATCH_RESUMED", {});
+  });
+
+  revalidatePath(`/partidas/${matchId}`);
+  notifyMatchChange(matchId);
+}

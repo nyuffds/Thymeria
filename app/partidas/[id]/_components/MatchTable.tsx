@@ -6,6 +6,7 @@ import {
   redrawAction, skipRedrawAction, playCardAction,
   passRoundAction, activateLeaderAction, abandonMatchAction,
   offerDrawAction, respondDrawOfferAction,
+  pauseMatchAction, resumeMatchAction,
 } from "@/lib/match-actions";
 import { RARITIES, ROWS } from "@/lib/constants";
 
@@ -82,6 +83,7 @@ interface Props {
   mode: string;                          // HOTSEAT | ONLINE
   viewerSide: "A" | "B" | null;          // em ONLINE, qual lado o usuário logado está
   drawOfferedBy: "A" | "B" | null;
+  pausedBy: "A" | "B" | null;
 }
 
 const ROW_LABEL: Record<Row, string> = {
@@ -284,6 +286,19 @@ function handleAbandon() {
     guard(async () => { await respondDrawOfferAction(props.matchId, accept); });
   }
 
+  function handlePause() {
+    if (!confirm("Pausar a partida? O timeout fica congelado até alguém retomar.")) return;
+    guard(async () => { await pauseMatchAction(props.matchId); });
+  }
+
+  function handleResume() {
+    guard(async () => { await resumeMatchAction(props.matchId); });
+  }
+
+  // Quem é "eu" (pra saber se posso retomar a pausa)
+  const mySide: "A" | "B" | null = isOnline ? props.viewerSide : turnSide;
+  const canResumePause = props.pausedBy !== null && mySide === props.pausedBy;
+
   function rowsAllowed(card: HandCard | null): Row[] {
     if (!card) return [];
     return card.rows.split(",").filter(Boolean) as Row[];
@@ -338,6 +353,37 @@ function handleAbandon() {
           {error}
         </p>
       )}
+
+      {props.pausedBy && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border-2 border-amber-700 rounded-2xl p-8 max-w-md text-center shadow-2xl">
+            <p className="text-xs uppercase tracking-widest text-amber-400 mb-2">Partida pausada</p>
+            <p className="font-heading text-3xl text-amber-200 mb-3">
+              ⏸ Pausa
+            </p>
+            <p className="text-sm text-zinc-300 mb-6">
+              Pausada por {props.players[props.pausedBy].username} (lado {props.pausedBy}).
+              {canResumePause
+                ? " Você pausou — clique abaixo pra retomar."
+                : " Aguardando o jogador que pausou retomar."}
+            </p>
+            {canResumePause ? (
+              <button
+                onClick={handleResume}
+                disabled={isPending}
+                className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-zinc-950 font-semibold px-6 py-2 rounded-lg transition"
+              >
+                {isPending ? "Retomando..." : "▶ Retomar partida"}
+              </button>
+            ) : (
+              <p className="text-xs text-zinc-500 italic">
+                Aproveite a pausa.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {props.drawOfferedBy && (() => {
         const offeredByMe = isOnline
@@ -677,6 +723,14 @@ const isTargetable = canAct && (
               title={props.drawOfferedBy ? "Já há oferta de empate ativa" : "Oferecer empate ao oponente"}
             >
               Oferecer empate
+            </button>
+           <button
+              onClick={handlePause}
+              disabled={isPending || !!props.pausedBy}
+              className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-300 px-3 py-1.5 rounded text-xs transition"
+              title="Pausar a partida"
+            >
+              ⏸ Pausar
             </button>
             <button
               onClick={handleAbandon}
