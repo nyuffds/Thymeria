@@ -43,8 +43,7 @@ export default async function PartidaPage({
         include: { card: { include: { faction: true, ability: true } } },
       },
       events: {
-        where: { type: "ROUND_END" },
-        orderBy: { round: "asc" },
+        orderBy: { createdAt: "asc" },
       },
     },
   });
@@ -204,7 +203,10 @@ export default async function PartidaPage({
           affectedRow: w.affectedRow as "MELEE" | "RANGED" | "SIEGE",
           cardName: w.card.name,
         }))}
-        roundResults={match.events.map((e) => {
+
+        roundResults={match.events
+          .filter((e) => e.type === "ROUND_END")
+          .map((e) => {
           const payload = JSON.parse(e.payload) as { winner: "A" | "B" | "DRAW"; powerA: number; powerB: number };
           return {
             round: e.round,
@@ -213,6 +215,16 @@ export default async function PartidaPage({
             powerB: payload.powerB,
           };
         })}
+
+        currentRoundEvents={match.events
+          .filter((e) => e.round === match.currentRound)
+          .map((e) => ({
+            id: e.id,
+            type: e.type,
+            side: e.side as "A" | "B" | null,
+            payload: e.payload,
+            createdAt: e.createdAt.toISOString(),
+          }))}
 
         mode={match.mode}
         viewerSide={viewerSide}

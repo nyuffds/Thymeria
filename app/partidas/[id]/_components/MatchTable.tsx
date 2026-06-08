@@ -9,6 +9,8 @@ import {
   pauseMatchAction, resumeMatchAction,
 } from "@/lib/match-actions";
 import { RARITIES, ROWS } from "@/lib/constants";
+import { MatchEventLog } from "./MatchEventLog";
+import { CardTooltip } from "./CardTooltip";
 
 type Side = "A" | "B";
 type Row = "MELEE" | "RANGED" | "SIEGE";
@@ -84,6 +86,7 @@ interface Props {
   viewerSide: "A" | "B" | null;          // em ONLINE, qual lado o usuário logado está
   drawOfferedBy: "A" | "B" | null;
   pausedBy: "A" | "B" | null;
+  currentRoundEvents: { id: string; type: string; side: "A" | "B" | null; payload: string; createdAt: string }[];
 }
 
 const ROW_LABEL: Record<Row, string> = {
@@ -238,9 +241,11 @@ export function MatchTable(props: Props) {
     setTargetMode("NONE");
   }
 
-  function handlePass() {
+function handlePass() {
+    if (!turnSide) return;
+    if (isPending) return; // bloqueia clique duplo
     if (!confirm("Passar a vez? Você não joga mais nesta ronda.")) return;
-    guard(async () => { await passRoundAction(props.matchId, turnSide!); });
+    guard(async () => { await passRoundAction(props.matchId, turnSide); });
   }
 
   function handleActivateLeader() {
@@ -272,12 +277,14 @@ export function MatchTable(props: Props) {
     setLeaderTargetMode("NONE");
   }
 
-function handleAbandon() {
+  function handleAbandon() {
+    if (isPending) return;
     if (!confirm("Abandonar a partida? Você será considerado derrotado.")) return;
     guard(async () => { await abandonMatchAction(props.matchId); });
   }
 
   function handleOfferDraw() {
+    if (isPending) return;
     if (!confirm("Oferecer empate ao oponente? Ele precisará aceitar.")) return;
     guard(async () => { await offerDrawAction(props.matchId); });
   }
@@ -287,6 +294,7 @@ function handleAbandon() {
   }
 
   function handlePause() {
+    if (isPending) return;
     if (!confirm("Pausar a partida? O timeout fica congelado até alguém retomar.")) return;
     guard(async () => { await pauseMatchAction(props.matchId); });
   }
@@ -322,8 +330,9 @@ function handleAbandon() {
 
   const turnPlayer = turnSide ? props.players[turnSide] : null;
 
-  return (
-    <div className="space-y-3">
+return (
+    <div className="flex gap-4">
+      <div className="flex-1 space-y-3 min-w-0">
       {/* Banner gigante de turno */}
       {turnSide && turnPlayer && (
         <div
@@ -446,12 +455,21 @@ function handleAbandon() {
         </div>
       )}
 
-      {activatingLeader && leaderTargetMode !== "NONE" && (
+{activatingLeader && leaderTargetMode !== "NONE" && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-purple-900/90 text-purple-100 text-sm px-4 py-2 rounded-lg shadow-xl z-40 border border-purple-600">
           Líder: clique numa carta {leaderTargetMode === "ALLY" ? "aliada" : "inimiga"}
           <button onClick={cancelLeaderActivation} className="ml-3 underline text-purple-200">cancelar</button>
         </div>
       )}
+      </div>
+
+      <div className="hidden md:block flex-shrink-0">
+        <MatchEventLog
+          events={props.currentRoundEvents}
+          playerNames={{ A: props.players.A.username, B: props.players.B.username }}
+          currentRound={props.round}
+        />
+      </div>
     </div>
   );
 
@@ -570,27 +588,41 @@ const isTargetable = canAct && (
       (leaderTargetMode === "ENEMY" && c.side !== activatingLeader)
     );
 
-    return (
-      <button
+return (
+      <CardTooltip
         key={c.boardId}
-        onClick={isTargetable
-          ? (activatingLeader ? () => handleLeaderTargetClick(c) : () => handleTargetClick(c))
-          : undefined}
-        disabled={!isTargetable}
-        className={"relative w-14 h-16 rounded border-2 bg-zinc-800 flex flex-col items-center justify-between p-0.5 text-[10px] " +
-          (isTargetable ? "ring-2 ring-amber-400 cursor-pointer hover:scale-105 transition" : "cursor-default")}
-        style={{ borderColor: rarity?.color ?? "#aaa" }}
-        title={c.name + (c.ability ? " — " + c.ability.name : "")}
+card={{
+          name: c.name,
+          power: c.power,
+          basePower: c.basePower,
+          rarity: c.rarity,
+          cardType: c.cardType,
+          imageUrl: c.imageUrl,
+          faction: c.faction,
+          ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
+          shielded: c.shielded,
+          isToken: c.isToken,
+        }}
       >
-        <span className="font-mono font-bold text-amber-300 text-sm">{c.power}</span>
-        <span className="truncate w-full text-zinc-300 text-center leading-tight">
-          {c.name.slice(0, 8)}
-        </span>
-        <div className="flex gap-0.5">
-          {c.shielded && <span className="text-blue-400">◆</span>}
-          {c.isToken && <span className="text-zinc-500">•</span>}
-        </div>
-      </button>
+        <button
+          onClick={isTargetable
+            ? (activatingLeader ? () => handleLeaderTargetClick(c) : () => handleTargetClick(c))
+            : undefined}
+          disabled={!isTargetable}
+          className={"relative w-14 h-16 rounded border-2 bg-zinc-800 flex flex-col items-center justify-between p-0.5 text-[10px] " +
+            (isTargetable ? "ring-2 ring-amber-400 cursor-pointer hover:scale-105 transition" : "cursor-default")}
+          style={{ borderColor: rarity?.color ?? "#aaa" }}
+        >
+          <span className="font-mono font-bold text-amber-300 text-sm">{c.power}</span>
+          <span className="truncate w-full text-zinc-300 text-center leading-tight">
+            {c.name.slice(0, 8)}
+          </span>
+          <div className="flex gap-0.5">
+            {c.shielded && <span className="text-blue-400">◆</span>}
+            {c.isToken && <span className="text-zinc-500">•</span>}
+          </div>
+        </button>
+      </CardTooltip>
     );
   }
 
@@ -610,10 +642,26 @@ const isTargetable = canAct && (
       return renderRedrawPanel(displaySide);
     }
 
-    if (p.hasPassed) {
+if (p.hasPassed) {
       return (
-        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 text-center text-zinc-400">
-          Você passou. Aguarde o oponente.
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 text-center">
+          <p className="text-zinc-400 mb-3">Você passou. Aguarde o oponente.</p>
+          <div className="flex justify-center gap-2">
+            <button
+              onClick={handlePause}
+              disabled={isPending || !!props.pausedBy}
+              className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-300 px-3 py-1.5 rounded text-xs transition"
+            >
+              ⏸ Pausar
+            </button>
+            <button
+              onClick={handleAbandon}
+              disabled={isPending}
+              className="text-red-400 hover:text-red-300 px-3 py-1.5 rounded text-xs transition"
+            >
+              Abandonar
+            </button>
+          </div>
         </div>
       );
     }
@@ -647,21 +695,42 @@ const isTargetable = canAct && (
         <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 mb-3">
           {hand.map((c) => {
             const selected = redrawSelection.has(c.handId);
-            return (
-              <button
+return (
+              <CardTooltip
                 key={c.handId}
-                onClick={() => toggleRedraw(c.handId)}
-                disabled={isPending}
-                className={"relative aspect-[2/3] rounded border-2 bg-zinc-800 flex flex-col items-center justify-between p-1 text-[10px] " +
-                  (selected ? "ring-2 ring-amber-500 opacity-70" : "hover:border-zinc-500")}
-                style={{ borderColor: selected ? "#f59e0b" : c.faction.color + "88" }}
+                  card={{
+                  name: c.name,
+                  power: c.power,
+                  rarity: c.rarity,
+                  cardType: c.cardType,
+                  imageUrl: c.imageUrl,
+                  faction: c.faction,
+                  ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
+                }}
               >
-                <span className="font-mono font-bold text-amber-300">{c.power}</span>
-                <span className="truncate w-full text-zinc-200 text-center leading-tight">
-                  {c.name.slice(0, 10)}
-                </span>
-                <span className="text-[8px] text-zinc-500 uppercase">{c.cardType.slice(0, 3)}</span>
-              </button>
+<button
+                  onClick={() => toggleRedraw(c.handId)}
+                  disabled={isPending}
+                  className={"relative aspect-[2/3] rounded border-2 overflow-hidden w-full h-full transition " +
+                    (selected ? "ring-2 ring-amber-500 opacity-60" : "hover:scale-105 hover:z-10")}
+                  style={{
+                    borderColor: selected ? "#f59e0b" : c.faction.color + "88",
+                    backgroundImage: c.imageUrl ? "url(" + c.imageUrl + ")" : undefined,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    backgroundColor: "#27272a",
+                  }}
+                >
+                  {/* Poder no canto superior esquerdo */}
+                  <span className="absolute top-0.5 left-0.5 font-mono font-bold text-amber-300 text-xs bg-black/70 px-1 rounded">
+                    {c.power}
+                  </span>
+                  {/* Nome em rodapé sobre gradiente */}
+                  <span className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-[9px] text-zinc-100 text-center truncate bg-gradient-to-t from-black/90 to-transparent">
+                    {c.name}
+                  </span>
+                </button>
+              </CardTooltip>
             );
           })}
         </div>
@@ -760,22 +829,39 @@ const isTargetable = canAct && (
           ) : (
             hand.map((c) => {
               const isSelected = selectedHandCard?.handId === c.handId;
-              return (
-                <button
+return (
+                <CardTooltip
                   key={c.handId}
-                  onClick={() => handleSelectHandCard(c)}
-                  disabled={isPending}
-                  className={"relative aspect-[2/3] rounded border-2 bg-zinc-800 flex flex-col items-center justify-between p-1 text-[10px] transition " +
-                    (isSelected ? "ring-2 ring-amber-500 scale-105" : "hover:border-zinc-500")}
-                  style={{ borderColor: c.faction.color + "88" }}
-                  title={c.name + (c.ability ? " — " + c.ability.name + ": " + c.ability.description : "")}
+                  card={{
+                    name: c.name,
+                    power: c.power,
+                    rarity: c.rarity,
+                    cardType: c.cardType,
+                    faction: c.faction,
+                    ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
+                  }}
                 >
-                  <span className="font-mono font-bold text-amber-300">{c.power}</span>
-                  <span className="truncate w-full text-zinc-200 text-center leading-tight">
-                    {c.name.slice(0, 10)}
-                  </span>
-                  <span className="text-[8px] text-zinc-500 uppercase">{c.cardType.slice(0, 3)}</span>
-                </button>
+<button
+                    onClick={() => handleSelectHandCard(c)}
+                    disabled={isPending}
+                    className={"relative aspect-[2/3] rounded border-2 overflow-hidden w-full h-full transition " +
+                      (isSelected ? "ring-2 ring-amber-500 scale-105 z-10" : "hover:scale-105 hover:z-10")}
+                    style={{
+                      borderColor: c.faction.color + "88",
+                      backgroundImage: c.imageUrl ? "url(" + c.imageUrl + ")" : undefined,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      backgroundColor: "#27272a",
+                    }}
+                  >
+                    <span className="absolute top-0.5 left-0.5 font-mono font-bold text-amber-300 text-xs bg-black/70 px-1 rounded">
+                      {c.power}
+                    </span>
+                    <span className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-[9px] text-zinc-100 text-center truncate bg-gradient-to-t from-black/90 to-transparent">
+                      {c.name}
+                    </span>
+                  </button>
+                </CardTooltip>
               );
             })
           )}
@@ -842,8 +928,11 @@ const isTargetable = canAct && (
               </div>
             );
           })}
-        </div>
-        <a href="/partidas" className="inline-block bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold px-6 py-2 rounded transition">
+          </div>
+        <a
+          href={props.mode === "ONLINE" ? "/lobby" : "/partidas"}
+          className="inline-block bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold px-6 py-2 rounded transition"
+        >
           Voltar
         </a>
       </div>
