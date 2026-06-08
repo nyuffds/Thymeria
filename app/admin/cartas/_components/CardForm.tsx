@@ -1,6 +1,3 @@
-// app/admin/cartas/_components/CardForm.tsx
-// Formulário de carta com preview ao vivo ao lado.
-
 "use client";
 
 import { useState, useTransition } from "react";
@@ -10,7 +7,7 @@ import {
   updateCardAction,
   deleteCardAction,
 } from "@/lib/actions";
-import { ROWS, RARITIES, CARD_TYPES } from "@/lib/constants";
+import { ROWS, RARITIES, CARD_TYPES, LEADER_MODES } from "@/lib/constants";
 import { CardPreview } from "@/app/components/CardPreview";
 
 interface FactionOpt { id: string; name: string; color: string; }
@@ -34,6 +31,7 @@ type Mode =
         rows: string[];
         rarity: string;
         cardType: string;
+        leaderMode: string | null;
         abilityId: string | null;
         loreText: string;
         imageUrl: string;
@@ -58,6 +56,7 @@ export function CardForm(props: Mode) {
         rows: ["MELEE"] as string[],
         rarity: "COMMON",
         cardType: "UNIT",
+        leaderMode: null as string | null,
         abilityId: null as string | null,
         loreText: "",
         imageUrl: "",
@@ -70,6 +69,7 @@ export function CardForm(props: Mode) {
   const [rows, setRows]             = useState<string[]>(init.rows);
   const [rarity, setRarity]         = useState(init.rarity);
   const [cardType, setCardType]     = useState(init.cardType);
+  const [leaderMode, setLeaderMode] = useState<string>(init.leaderMode ?? "PASSIVE");
   const [abilityId, setAbilityId]   = useState<string>(init.abilityId ?? "");
   const [loreText, setLoreText]     = useState(init.loreText);
   const [imageUrl, setImageUrl]     = useState(init.imageUrl);
@@ -98,6 +98,7 @@ export function CardForm(props: Mode) {
       rows,
       rarity,
       cardType,
+      leaderMode: cardType === "LEADER" ? leaderMode : null,
       abilityId: abilityId || null,
       loreText,
       imageUrl,
@@ -135,13 +136,12 @@ export function CardForm(props: Mode) {
     });
   }
 
-  // Dados para o preview ao vivo
   const previewFaction = props.factions.find((f) => f.id === factionId);
   const previewAbility = props.abilities.find((a) => a.id === abilityId);
+  const selectedLeaderMode = LEADER_MODES.find((m) => m.key === leaderMode);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-8 items-start">
-      {/* FORMULÁRIO */}
       <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
         <div>
           <label className="block text-sm text-zinc-300 mb-2">Nome</label>
@@ -207,6 +207,11 @@ export function CardForm(props: Mode) {
               </label>
             ))}
           </div>
+          {cardType === "WEATHER" && (
+            <p className="text-xs text-zinc-500 mt-2 italic">
+              Cartas de clima não entram em fileira; a fileira escolhida determina onde o efeito é aplicado.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -240,6 +245,26 @@ export function CardForm(props: Mode) {
             </select>
           </div>
         </div>
+
+        {cardType === "LEADER" && (
+          <div className="bg-zinc-900/40 border border-amber-700/30 rounded-lg p-4 space-y-2">
+            <label className="block text-sm text-amber-200 mb-2">Modo do líder</label>
+            <select
+              value={leaderMode}
+              onChange={(e) => setLeaderMode(e.target.value)}
+              disabled={isPending}
+              className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg
+                         text-zinc-100 focus:outline-none focus:border-amber-500"
+            >
+              {LEADER_MODES.map((m) => (
+                <option key={m.key} value={m.key}>{m.label}</option>
+              ))}
+            </select>
+            {selectedLeaderMode && (
+              <p className="text-xs text-zinc-400 italic">{selectedLeaderMode.desc}</p>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="block text-sm text-zinc-300 mb-2">Habilidade</label>
@@ -338,7 +363,6 @@ export function CardForm(props: Mode) {
         </div>
       </form>
 
-      {/* PREVIEW AO VIVO */}
       <div className="lg:sticky lg:top-20">
         <p className="text-xs uppercase text-zinc-500 mb-3 tracking-wide">Pré-visualização</p>
         <CardPreview

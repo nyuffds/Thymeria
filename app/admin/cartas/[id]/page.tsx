@@ -40,6 +40,7 @@ export default async function EditarCartaPage({
           rows: card.rows.split(",").filter(Boolean),
           rarity: card.rarity,
           cardType: card.cardType,
+          leaderMode: card.leaderMode,
           abilityId: card.abilityId,
           loreText: card.loreText ?? "",
           imageUrl: card.imageUrl ?? "",

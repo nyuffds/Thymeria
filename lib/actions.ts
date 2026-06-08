@@ -225,9 +225,10 @@ export async function createCardAction(data: {
   name: string;
   factionId: string;
   power: number;
-  rows: string[];                // ex: ["MELEE", "RANGED"]
+  rows: string[];
   rarity: string;
   cardType: string;
+  leaderMode: string | null;
   abilityId: string | null;
   loreText: string;
   imageUrl: string;
@@ -238,6 +239,9 @@ export async function createCardAction(data: {
   if (!data.factionId) throw new Error("Facção é obrigatória.");
   if (data.rows.length === 0) throw new Error("Selecione pelo menos uma fileira.");
   if (Number.isNaN(data.power)) throw new Error("Poder deve ser um número.");
+
+  // leaderMode só faz sentido pra LEADER
+  const leaderMode = data.cardType === "LEADER" ? (data.leaderMode || "PASSIVE") : null;
 
   const exists = await prisma.card.findUnique({ where: { name } });
   if (exists) throw new Error("Já existe uma carta com esse nome.");
@@ -250,6 +254,7 @@ export async function createCardAction(data: {
       rows: data.rows.join(","),
       rarity: data.rarity,
       cardType: data.cardType,
+      leaderMode,
       abilityId: data.abilityId || null,
       loreText: data.loreText.trim() || null,
       imageUrl: data.imageUrl.trim() || null,
@@ -269,6 +274,7 @@ export async function updateCardAction(id: string, data: {
   rows: string[];
   rarity: string;
   cardType: string;
+  leaderMode: string | null;
   abilityId: string | null;
   loreText: string;
   imageUrl: string;
@@ -278,6 +284,8 @@ export async function updateCardAction(id: string, data: {
   if (!name) throw new Error("Nome é obrigatório.");
   if (!data.factionId) throw new Error("Facção é obrigatória.");
   if (data.rows.length === 0) throw new Error("Selecione pelo menos uma fileira.");
+
+  const leaderMode = data.cardType === "LEADER" ? (data.leaderMode || "PASSIVE") : null;
 
   const conflict = await prisma.card.findFirst({
     where: { name, NOT: { id } },
@@ -293,6 +301,7 @@ export async function updateCardAction(id: string, data: {
       rows: data.rows.join(","),
       rarity: data.rarity,
       cardType: data.cardType,
+      leaderMode,
       abilityId: data.abilityId || null,
       loreText: data.loreText.trim() || null,
       imageUrl: data.imageUrl.trim() || null,

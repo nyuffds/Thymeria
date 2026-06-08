@@ -30,6 +30,7 @@ model User {
   unopened      UnopenedBooster[]
   pity          UserPity[]
   decks         Deck[]
+  matchPlayers  MatchPlayer[]
 
 }
 
@@ -75,6 +76,7 @@ model Card {
   rows        String
   rarity      String   @default("COMMON")
   cardType    String   @default("UNIT")
+  leaderMode  String?  // ACTIVE | PERSISTENT | PASSIVE (apenas para cartas LEADER)
   loreText    String?
   imageUrl    String?
   isReleased  Boolean  @default(true)
@@ -95,6 +97,9 @@ model Card {
   openingResults     BoosterOpeningResult[]
   inDecksAsLeader    DeckLeader[]
   inDecks            DeckCard[]
+  inHands       MatchHand[]
+  onBoard       MatchBoardCard[]
+  weatherCard   MatchWeather[]
 }
 
 // ─────────────────────────────────────────────
@@ -273,6 +278,7 @@ model Deck {
 
   leader  DeckLeader?
   cards   DeckCard[]
+  matchPlayers MatchPlayer[]
 
   @@index([userId])
 }
@@ -300,4 +306,129 @@ model DeckCard {
 
   @@index([deckId])
   @@index([cardId])
+}
+
+// ─────────────────────────────────────────────
+// PARTIDAS
+// ─────────────────────────────────────────────
+
+// status: SETUP | REDRAW | PLAYING | FINISHED
+// mode: HOTSEAT (Fase 4) | ONLINE (Fase 5)
+model Match {
+  id              String   @id @default(cuid())
+  mode            String   @default("HOTSEAT")
+  status          String   @default("SETUP")
+  currentRound    Int      @default(1)        // 1, 2 ou 3
+  currentTurnSide String?  // "A" ou "B" — qual lado está jogando agora
+  winnerSide      String?  // "A", "B", "DRAW" ou null se ainda não terminou
+  startsRoundSide String?  // quem começa a próxima ronda
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  finishedAt      DateTime?
+
+  players  MatchPlayer[]
+  hands    MatchHand[]
+  board    MatchBoardCard[]
+  weather  MatchWeather[]
+  events   MatchEvent[]
+
+  @@index([status])
+}
+
+// Cada partida tem exatamente 2 MatchPlayer (lado A e lado B).
+model MatchPlayer {
+  id              String   @id @default(cuid())
+  matchId         String
+  side            String   // "A" ou "B"
+  userId          String
+  deckId          String
+  roundsWon       Int      @default(0)
+  hasPassed       Boolean  @default(false)   // passou na ronda atual?
+  leaderUsed      Boolean  @default(false)   // já usou habilidade do líder?
+  redrawsLeft     Int      @default(3)       // recomeça a cada ronda (3/2/1)
+  deckCardCount   Int      @default(0)       // quantas cartas restam no deck (não-jogadas)
+
+  match   Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user    User  @relation(fields: [userId], references: [id])
+  deck    Deck  @relation(fields: [deckId], references: [id])
+
+  @@unique([matchId, side])
+  @@index([matchId])
+}
+
+// Cartas embaralhadas e disponíveis: tanto as que estão na mão quanto
+// as que ainda estão no deck (zone).
+// zone: DECK | HAND | DISCARD
+model MatchHand {
+  id        String   @id @default(cuid())
+  matchId   String
+  side      String   // "A" ou "B"
+  cardId    String
+  zone      String   @default("DECK")
+  deckOrder Int      // posição original no embaralhamento (pra compras determinísticas)
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  card  Card  @relation(fields: [cardId], references: [id])
+
+  @@index([matchId, side, zone])
+}
+
+// Cartas que estão no tabuleiro (uma por unidade jogada).
+// power: poder atual (já com modificadores)
+// basePower: poder original
+// row: MELEE | RANGED | SIEGE
+// shielded: true se tem shield ativo
+// isToken: true se foi gerada por SPAWN (não vai pro descarte do dono)
+model MatchBoardCard {
+  id           String   @id @default(cuid())
+  matchId      String
+  side         String   // dono atual da carta na mesa (pode ter virado por SPY)
+  cardId       String
+  row          String   // MELEE | RANGED | SIEGE
+  basePower    Int
+  power        Int
+  shielded     Boolean  @default(false)
+  isToken      Boolean  @default(false)
+  playedAt     DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  card  Card  @relation(fields: [cardId], references: [id])
+
+  @@index([matchId, side, row])
+}
+
+// Climas ativos por fileira.
+// weatherKey: WEATHER_RAIN | WEATHER_FROST | WEATHER_FOG | WEATHER_STORM
+// affectedRow: MELEE | RANGED | SIEGE
+model MatchWeather {
+  id           String   @id @default(cuid())
+  matchId      String
+  weatherKey   String
+  affectedRow  String
+  cardId       String   // carta de clima que ativou (pra referência)
+  appliedAt    DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  card  Card  @relation(fields: [cardId], references: [id])
+
+  @@index([matchId])
+}
+
+// Log de eventos da partida (auditoria / replay).
+// type: REDRAW | PLAY_CARD | PASS | WEATHER | LEADER_ABILITY |
+//       ROUND_END | MATCH_END | DAMAGE | BOOST | etc.
+// payload: JSON serializado com detalhes
+model MatchEvent {
+  id        String   @id @default(cuid())
+  matchId   String
+  round     Int
+  side      String?
+  type      String
+  payload   String   // JSON
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId])
+  @@index([matchId, round])
 }
