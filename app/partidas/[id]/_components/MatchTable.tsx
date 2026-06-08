@@ -114,13 +114,39 @@ export function MatchTable(props: Props) {
   const displaySide: Side | null = isOnline ? props.viewerSide : turnSide;
   const canAct = isOnline ? (turnSide === props.viewerSide) : true;
 
-// Polling em ONLINE (provisório até SSE da 5.4)
+// SSE: escuta mudanças do servidor em tempo real
   useEffect(() => {
-    if (!isOnline) return;
-    if (props.status === "FINISHED") return;
-    const interval = setInterval(() => router.refresh(), 3000);
-    return () => clearInterval(interval);
-  }, [isOnline, props.status, router]);
+    console.log("[MatchTable SSE] useEffect rodou. isOnline=", isOnline, "status=", props.status);
+    if (!isOnline) {
+      console.log("[MatchTable SSE] NÃO conectando (isOnline=false)");
+      return;
+    }
+    if (props.status === "FINISHED") {
+      console.log("[MatchTable SSE] NÃO conectando (FINISHED)");
+      return;
+    }
+
+    console.log("[MatchTable SSE] conectando no stream...");
+    const eventSource = new EventSource("/api/partidas/" + props.matchId + "/stream");
+
+    eventSource.addEventListener("connected", (e) => {
+      console.log("[MatchTable SSE] CONNECTED:", e.data);
+    });
+
+    eventSource.addEventListener("change", (e) => {
+      console.log("[MatchTable SSE] CHANGE recebido, chamando router.refresh()", e.data);
+      router.refresh();
+    });
+
+    eventSource.addEventListener("error", (e) => {
+      console.log("[MatchTable SSE] ERROR:", e);
+    });
+
+    return () => {
+      console.log("[MatchTable SSE] desconectando...");
+      eventSource.close();
+    };
+  }, [isOnline, props.status, props.matchId, router]);
 
   function guard(fn: () => Promise<void>) {
     setError(null);

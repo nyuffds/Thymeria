@@ -11,6 +11,7 @@ import {
   shuffle, cardAllowsRow, recomputePower, decideRoundWinner,
   redrawsForRound, nextStartingSide, matchWinner, otherSide, weatherToRow,
 } from "./match-engine";
+import { notifyMatchChange } from "./match-events";
 
 const prisma = new PrismaClient();
 
@@ -214,6 +215,7 @@ export async function createHotseatMatchAction(data: {
 
   revalidatePath("/partidas");
   revalidatePath(`/partidas/${result.id}`);
+  notifyMatchChange(result.id);
   return { matchId: result.id };
 }
 
@@ -309,7 +311,8 @@ export async function redrawAction(matchId: string, side: Side, cardHandIds: str
     }
   });
 
-  revalidatePath(`/partidas/${matchId}`);
+revalidatePath(`/partidas/${matchId}`);
+  notifyMatchChange(matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -541,6 +544,7 @@ export async function playCardAction(data: {
   });
 
   revalidatePath(`/partidas/${data.matchId}`);
+  notifyMatchChange(data.matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -583,6 +587,7 @@ export async function passRoundAction(matchId: string, side: Side) {
   });
 
   revalidatePath(`/partidas/${matchId}`);
+  notifyMatchChange(matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -681,6 +686,7 @@ export async function activateLeaderAction(data: {
   });
 
   revalidatePath(`/partidas/${data.matchId}`);
+  notifyMatchChange(data.matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -823,6 +829,7 @@ export async function skipRedrawAction(matchId: string, side: Side) {
   });
 
   revalidatePath(`/partidas/${matchId}`);
+  notifyMatchChange(matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -878,6 +885,7 @@ export async function abandonMatchAction(matchId: string) {
 
   revalidatePath(`/partidas/${matchId}`);
   revalidatePath("/partidas");
+  notifyMatchChange(matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -924,6 +932,7 @@ export async function offerDrawAction(matchId: string) {
   });
 
   revalidatePath(`/partidas/${matchId}`);
+  notifyMatchChange(matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -989,4 +998,5 @@ export async function respondDrawOfferAction(matchId: string, accept: boolean) {
   });
 
   revalidatePath(`/partidas/${matchId}`);
+  notifyMatchChange(matchId);
 }

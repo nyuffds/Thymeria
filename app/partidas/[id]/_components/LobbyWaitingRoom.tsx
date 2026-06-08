@@ -72,13 +72,18 @@ export function LobbyWaitingRoom({
     return () => { cancelled = true; };
   }, []);
 
-  // Polling simples até o SSE da Fase 5.4: refresca a cada 3s pra ver quem entrou
+// SSE: escuta mudanças do servidor (entrada/saída de jogadores, partida começou)
   useEffect(() => {
-    const interval = setInterval(() => {
+    const eventSource = new EventSource("/api/partidas/" + matchId + "/stream");
+
+    eventSource.addEventListener("change", () => {
       router.refresh();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [router]);
+    });
+
+    return () => {
+      eventSource.close();
+    };
+  }, [matchId, router]);
 
   function handleJoin() {
     if (!selectedDeckId) return;

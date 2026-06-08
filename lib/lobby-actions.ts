@@ -7,6 +7,7 @@ import { PrismaClient } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { shuffle, redrawsForRound, type Side } from "./match-engine";
+import { notifyMatchChange } from "./match-events";
 
 const prisma = new PrismaClient();
 
@@ -47,6 +48,7 @@ export async function createLobbyAction(): Promise<{ matchId: string }> {
 
   revalidatePath("/lobby");
   return { matchId: match.id };
+  notifyMatchChange(matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -77,6 +79,7 @@ export async function cancelLobbyAction(matchId: string) {
   await prisma.match.delete({ where: { id: matchId } });
 
   revalidatePath("/lobby");
+  notifyMatchChange(matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -162,6 +165,7 @@ export async function joinLobbyAction(data: {
 
   revalidatePath("/lobby");
   revalidatePath(`/partidas/${match.id}`);
+  notifyMatchChange(matchId);
 }
 
 // ─────────────────────────────────────────────
@@ -273,4 +277,5 @@ export async function leaveLobbyAction(matchId: string) {
 
   revalidatePath("/lobby");
   revalidatePath(`/partidas/${matchId}`);
+  notifyMatchChange(matchId);
 }
