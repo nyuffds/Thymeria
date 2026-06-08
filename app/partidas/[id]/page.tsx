@@ -208,18 +208,6 @@ export default async function PartidaPage({
           cardName: w.card.name,
         }))}
 
-        roundResults={match.events
-          .filter((e) => e.type === "ROUND_END")
-          .map((e) => {
-          const payload = JSON.parse(e.payload) as { winner: "A" | "B" | "DRAW"; powerA: number; powerB: number };
-          return {
-            round: e.round,
-            winner: payload.winner,
-            powerA: payload.powerA,
-            powerB: payload.powerB,
-          };
-        })}
-
         currentRoundEvents={match.events
           .filter((e) => e.round === match.currentRound)
           .map((e) => ({
