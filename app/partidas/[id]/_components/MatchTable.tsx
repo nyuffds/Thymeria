@@ -12,6 +12,7 @@ import { RARITIES, ROWS } from "@/lib/constants";
 import { MatchEventLog } from "./MatchEventLog";
 import { CardTooltip } from "./CardTooltip";
 import { DeckPiles } from "./DeckPiles";
+import { AnimatedNumber } from "./AnimatedNumber";
 
 type Side = "A" | "B";
 type Row = "MELEE" | "RANGED" | "SIEGE";
@@ -567,7 +568,7 @@ return (
             ))}
           </div>
           <div className="text-2xl font-mono font-bold text-amber-300 w-12 text-right">
-            {sideTotal(side)}
+            <AnimatedNumber value={sideTotal(side)} />
           </div>
         </div>
       </div>
@@ -598,7 +599,7 @@ const isAvailableToPlay =
     return (
 <div
         key={side + row}
-        className={"flex items-center gap-3 px-3 py-2 rounded-lg border-2 transition min-h-[110px] " +
+        className={"flex items-center gap-3 px-3 py-2 rounded-lg border-2 transition min-h-[170px] " +
           (isAvailableToPlay ? " ring-2 ring-amber-400 cursor-pointer hover:brightness-125" : "")}
 style={{
           borderColor: w
@@ -623,7 +624,7 @@ style={{
           <span className="hidden sm:inline font-heading">{ROW_LABEL[row]}</span>
         </div>
 
-          <div className="flex-1 flex flex-wrap gap-1.5 items-center content-center">
+          <div className="flex-1 flex gap-1.5 items-center overflow-x-auto overflow-y-visible py-1 scrollbar-thin">
           {cards.length === 0 ? (
             <span className="text-xs text-zinc-700 italic">vazia</span>
           ) : (
@@ -636,14 +637,14 @@ style={{
           )}
         </div>
 
-        <div
+<div
           className="w-12 text-right font-mono font-bold text-xl"
           style={{
             color: "#f3c969",
             textShadow: "0 0 8px rgba(243, 201, 105, 0.5), 0 2px 4px rgba(0,0,0,0.8)",
           }}
         >
-          {total}
+          <AnimatedNumber value={total} />
         </div>
       </div>
     );
@@ -679,31 +680,68 @@ card={{
             ? (activatingLeader ? () => handleLeaderTargetClick(c) : () => handleTargetClick(c))
             : undefined}
           disabled={!isTargetable}
-          className={"relative w-16 h-24 rounded border-2 overflow-hidden transition flex-shrink-0 " +
-            (isTargetable ? "ring-2 ring-amber-400 cursor-pointer hover:scale-105 hover:z-10" : "cursor-default")}
+          className={"relative rounded-md transition flex-shrink-0 animate-card-enter " +
+            (isTargetable ? "ring-2 ring-amber-400 cursor-pointer hover:scale-110 hover:z-20" : "cursor-default")}
           style={{
-            borderColor: rarity?.color ?? "#aaa",
-            backgroundImage: c.imageUrl ? "url(" + c.imageUrl + ")" : undefined,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundColor: "#27272a",
+            width: "100px",
+            height: "150px",
+            padding: "3px",
+            background: "linear-gradient(135deg, #6b4423 0%, " + (rarity?.color ?? "#8b6019") + " 50%, #3d2817 100%)",
+            boxShadow: "0 4px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(212, 160, 74, 0.4)",
           }}
         >
-          {/* Poder no canto superior esquerdo */}
-          <span className="absolute top-0.5 left-0.5 font-mono font-bold text-amber-300 text-sm bg-black/80 px-1 rounded leading-none py-0.5">
-            {c.power}
-          </span>
-          {/* Estados no canto superior direito */}
-          {(c.shielded || c.isToken) && (
-            <div className="absolute top-0.5 right-0.5 flex flex-col gap-0.5">
-              {c.shielded && <span className="text-blue-400 text-xs bg-black/80 px-1 rounded">◆</span>}
-              {c.isToken && <span className="text-zinc-300 text-xs bg-black/80 px-1 rounded">•</span>}
+          {/* Container interno com imagem */}
+          <div
+            className="relative w-full h-full rounded overflow-hidden"
+            style={{
+              backgroundImage: c.imageUrl ? "url(" + c.imageUrl + ")" : undefined,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundColor: "#27272a",
+            }}
+          >
+            {/* Selo de poder no canto superior esquerdo */}
+            <div
+              className="absolute top-1 left-1 w-7 h-7 rounded-full flex items-center justify-center font-mono font-bold text-base shadow-lg border-2"
+              style={{
+                background: "radial-gradient(circle, #d4a04a 0%, #8b6019 100%)",
+                borderColor: "#3d2817",
+                color: "#1a0f06",
+                textShadow: "0 1px 0 rgba(255, 215, 130, 0.6)",
+              }}
+            >
+              {c.power}
             </div>
-          )}
-          {/* Nome no rodapé sobre gradiente */}
-          <span className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-[9px] text-zinc-100 text-center truncate bg-gradient-to-t from-black/95 via-black/70 to-transparent leading-tight">
-            {c.name}
-          </span>
+
+            {/* Estados no canto superior direito */}
+            {(c.shielded || c.isToken) && (
+              <div className="absolute top-1 right-1 flex flex-col gap-0.5">
+                {c.shielded && (
+                  <span className="w-5 h-5 rounded-full bg-blue-900/90 border border-blue-400 flex items-center justify-center text-blue-200 text-xs shadow">
+                    ◆
+                  </span>
+                )}
+                {c.isToken && (
+                  <span className="w-5 h-5 rounded-full bg-zinc-800/90 border border-zinc-500 flex items-center justify-center text-zinc-300 text-[10px] shadow">
+                    •
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Rodapé com nome em pergaminho */}
+            <div
+              className="absolute bottom-0 left-0 right-0 px-1.5 py-1 text-center"
+              style={{
+                background: "linear-gradient(to top, rgba(20, 12, 4, 0.98) 0%, rgba(20, 12, 4, 0.85) 60%, transparent 100%)",
+              }}
+            >
+              <p className="text-[10px] text-amber-100 font-heading leading-tight truncate"
+                 style={{ textShadow: "0 1px 2px rgba(0,0,0,0.9)" }}>
+                {c.name}
+              </p>
+            </div>
+          </div>
         </button>
       </CardTooltip>
     );

@@ -100,3 +100,60 @@
 .animate-fade-in {
   animation: fade-in 0.4s ease-out;
 }
+
+/* ─────────────────────────────────────────────
+   Animações de partida
+   ───────────────────────────────────────────── */
+
+@keyframes card-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotate(-15deg);
+    filter: brightness(2);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.15) rotate(2deg);
+    filter: brightness(1.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1);
+  }
+}
+
+@keyframes power-pulse {
+  0%, 100% {
+    transform: scale(1);
+    text-shadow: 0 0 8px rgba(243, 201, 105, 0.5), 0 2px 4px rgba(0,0,0,0.8);
+  }
+  50% {
+    transform: scale(1.2);
+    text-shadow: 0 0 20px rgba(243, 201, 105, 1), 0 0 30px rgba(243, 201, 105, 0.6), 0 2px 4px rgba(0,0,0,0.8);
+  }
+}
+
+@keyframes shimmer-gold {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.animate-card-enter {
+  animation: card-enter 0.5s ease-out;
+}
+
+.animate-power-change {
+  animation: power-pulse 0.6s ease-in-out;
+}
+
+.animate-shimmer-gold {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(243, 201, 105, 0.4) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-gold 1.5s ease-in-out;
+}
