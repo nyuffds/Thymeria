@@ -71,6 +71,7 @@ export default async function CartasPublicPage() {
           cardType: c.cardType,
           loreText: c.loreText,
           imageUrl: c.imageUrl,
+          frameUrl: c.frameUrl,
           faction: { name: c.faction.name, color: c.faction.color },
           ability: c.ability
             ? { name: c.ability.name, description: c.ability.description }

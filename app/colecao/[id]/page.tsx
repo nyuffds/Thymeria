@@ -40,11 +40,11 @@ export default async function ColecaoDetailPage({
 
   if (!card) notFound();
   if (!entry || entry.quantity < 1) {
-    // Jogador não tem essa carta — redireciona pra coleção
+    // Jogador nÃ£o tem essa carta â€” redireciona pra coleÃ§Ã£o
     redirect("/colecao");
   }
 
-  // Calcula preço unitário de venda
+  // Calcula preÃ§o unitÃ¡rio de venda
   const defaultByRarity: Record<string, number> = {
     COMMON:    settings.sellPriceCommon,
     RARE:      settings.sellPriceRare,
@@ -56,7 +56,7 @@ export default async function ColecaoDetailPage({
   return (
     <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
       <Link href="/colecao" className="text-sm text-zinc-500 hover:text-amber-200">
-        ← Minha coleção
+        â† Minha coleÃ§Ã£o
       </Link>
 
       <CardDetailWithSell
@@ -69,6 +69,7 @@ export default async function ColecaoDetailPage({
           cardType: card.cardType,
           loreText: card.loreText,
           imageUrl: card.imageUrl,
+          frameUrl: card.frameUrl,
           faction: { name: card.faction.name, color: card.faction.color },
           ability: card.ability
             ? { name: card.ability.name, description: card.ability.description }
