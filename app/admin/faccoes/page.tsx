@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/admin/faccoes/page.tsx
 // Lista todas as facções com link de edição e botão "Nova".
 

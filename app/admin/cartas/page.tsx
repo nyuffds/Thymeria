@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/admin/cartas/page.tsx
 // Grade visual de todas as cartas com botão de "Nova".
 

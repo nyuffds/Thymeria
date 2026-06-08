@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/conta/page.tsx
 // Página pessoal do jogador (e do admin também).
 // Mostra saldo, info da conta e extrato das últimas 5 transações.

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/estante/page.tsx
 // Mostra os boosters fechados do jogador, agrupados por tipo.
 

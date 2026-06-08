@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/admin/habilidades/page.tsx
 import Link from "next/link";
 import { PrismaClient } from "@prisma/client";

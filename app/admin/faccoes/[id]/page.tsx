@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/admin/faccoes/[id]/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";

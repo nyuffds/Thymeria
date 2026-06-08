@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/admin/habilidades/nova/page.tsx
 import Link from "next/link";
 import { AbilityForm } from "../_components/AbilityForm";

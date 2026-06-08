@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/cartas/[id]/page.tsx
 // Página de detalhe de uma carta: arte ampliada + lore expandida.
 

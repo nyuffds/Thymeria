@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/loja/page.tsx
 // Loja de boosters: lista boosters ativos com botão de compra.
 

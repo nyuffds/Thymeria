@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/admin/page.tsx
 // Hub do painel admin.
 

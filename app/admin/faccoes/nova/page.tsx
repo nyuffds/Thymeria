@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/admin/faccoes/nova/page.tsx
 import Link from "next/link";
 import { FactionForm } from "../_components/FactionForm";

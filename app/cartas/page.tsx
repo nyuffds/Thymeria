@@ -1,6 +1,8 @@
-ï»¿// app/cartas/page.tsx
-// CatÃ¡logo pÃºblico de cartas liberadas.
-// Jogadores veem apenas cartas que possuem na coleÃ§Ã£o. Admin vÃª tudo.
+export const dynamic = "force-dynamic";
+
+// app/cartas/page.tsx
+// Catálogo público de cartas liberadas.
+// Jogadores veem apenas cartas que possuem na coleção. Admin vê tudo.
 
 import { PrismaClient } from "@prisma/client";
 import { auth } from "@/auth";
@@ -47,15 +49,15 @@ export default async function CartasPublicPage() {
   return (
     <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-amber-200 font-heading">CatÃ¡logo de Cartas</h1>
+        <h1 className="text-3xl font-bold text-amber-200 font-heading">Catálogo de Cartas</h1>
         <p className="text-sm text-zinc-400 mt-1 font-lore italic">
           {isAdmin
-            ? "As relÃ­quias e personagens de Thymeria â€” visÃ£o admin (todas as cartas)."
-            : "As relÃ­quias e personagens que vocÃª descobriu em Thymeria."}
+            ? "As relíquias e personagens de Thymeria — visão admin (todas as cartas)."
+            : "As relíquias e personagens que você descobriu em Thymeria."}
         </p>
         {!isAdmin && cards.length === 0 && (
           <p className="text-sm text-amber-400 mt-3 italic">
-            Sua coleÃ§Ã£o estÃ¡ vazia. Abra boosters na loja pra descobrir cartas.
+            Sua coleção está vazia. Abra boosters na loja pra descobrir cartas.
           </p>
         )}
       </div>
