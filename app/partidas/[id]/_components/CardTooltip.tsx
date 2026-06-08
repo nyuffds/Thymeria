@@ -7,7 +7,7 @@ interface CardData {
   power: number;
   rarity: string;
   cardType: string;
-  imageUrl: string | null;
+  imageUrl?: string | null;
   faction: { name: string; color: string };
   ability: { name: string; description: string } | null;
   basePower?: number;
