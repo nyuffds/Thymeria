@@ -82,6 +82,13 @@ export const RARITY_SYMBOLS: Record<string, RaritySymbol> = {
     color: "#fbbf24",
     gemColor: "#fde68a",
     gemSecondary: "#b45309",
+  }, 
+    MYTHIC: {
+    key: "MYTHIC",
+    label: "Mitica",
+    color: "#dc2626",
+    gemColor: "#fecaca",
+    gemSecondary: "#7f1d1d",
   },
 };
 
