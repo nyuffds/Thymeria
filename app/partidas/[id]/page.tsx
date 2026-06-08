@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
 import { MatchTable } from "./_components/MatchTable";
+import { LobbyWaitingRoom } from "./_components/LobbyWaitingRoom";
 
 const prisma = new PrismaClient();
 
@@ -49,7 +50,9 @@ export default async function PartidaPage({
   });
 
   if (!match) notFound();
-
+  if (match.status === "LOBBY") {
+    return <LobbyWaitingRoom matchId={match.id} match={match} sessionUserName={session.user.name} />;
+  }
   const pA = match.players.find((p) => p.side === "A");
   const pB = match.players.find((p) => p.side === "B");
   if (!pA || !pB) notFound();

@@ -312,7 +312,7 @@ model DeckCard {
 // PARTIDAS
 // ─────────────────────────────────────────────
 
-// status: SETUP | REDRAW | PLAYING | FINISHED
+  // status: LOBBY | SETUP | REDRAW | PLAYING | FINISHED
 // mode: HOTSEAT (Fase 4) | ONLINE (Fase 5)
 model Match {
   id              String   @id @default(cuid())
@@ -325,6 +325,11 @@ model Match {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   finishedAt      DateTime?
+
+  // Lobby / Multiplayer
+  lobbyOpen       Boolean  @default(false)  // true enquanto está em status "LOBBY" esperando oponente
+  creatorUserId   String?                    // quem criou o lobby (referência simples, não relacional)
+  isPrivate       Boolean  @default(false)  // reservado p/ futuro: lobbies só por convite
 
   players  MatchPlayer[]
   hands    MatchHand[]
@@ -347,6 +352,11 @@ model MatchPlayer {
   leaderUsed      Boolean  @default(false)   // já usou habilidade do líder?
   redrawsLeft     Int      @default(3)       // recomeça a cada ronda (3/2/1)
   deckCardCount   Int      @default(0)       // quantas cartas restam no deck (não-jogadas)
+
+// Multiplayer / desconexão
+  lastSeenAt        DateTime  @default(now())
+  connectionStatus  String    @default("ONLINE")  // ONLINE | OFFLINE | TIMEOUT
+
 
   match   Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   user    User  @relation(fields: [userId], references: [id])
