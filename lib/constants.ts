@@ -24,12 +24,12 @@ export const CARD_TYPES = [
 
 
 export const ENGINE_KEYS = [
-  { key: "BOOST",    label: "Reforço" },
-  { key: "DAMAGE",   label: "Investida" },
-  { key: "SPAWN",    label: "Convocar aliado" },
-  { key: "HEAL",     label: "Cura" },
-  { key: "SHIELD",   label: "Escudo" },
-  { key: "WEATHER",  label: "Clima" },
+  { key: "BOOST",   label: "Reforço",          desc: "Aumenta o poder de uma carta aliada." },
+  { key: "DAMAGE",  label: "Investida",        desc: "Causa dano a uma carta inimiga." },
+  { key: "SPAWN",   label: "Convocar aliado",  desc: "Invoca uma copia de menor poder ao ser jogada." },
+  { key: "HEAL",    label: "Cura",             desc: "Restaura poder de uma carta aliada." },
+  { key: "SHIELD",  label: "Escudo",           desc: "Protege uma carta de dano por uma rodada." },
+  { key: "WEATHER", label: "Clima",            desc: "Afeta uma fileira inteira do tabuleiro." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },
