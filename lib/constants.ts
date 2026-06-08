@@ -24,12 +24,19 @@ export const CARD_TYPES = [
 
 
 export const ENGINE_KEYS = [
-  { key: "BOOST",   label: "Reforço",          desc: "Aumenta o poder de uma carta aliada." },
-  { key: "DAMAGE",  label: "Investida",        desc: "Causa dano a uma carta inimiga." },
-  { key: "SPAWN",   label: "Convocar aliado",  desc: "Invoca uma copia de menor poder ao ser jogada." },
-  { key: "HEAL",    label: "Cura",             desc: "Restaura poder de uma carta aliada." },
-  { key: "SHIELD",  label: "Escudo",           desc: "Protege uma carta de dano por uma rodada." },
-  { key: "WEATHER", label: "Clima",            desc: "Afeta uma fileira inteira do tabuleiro." },
+  { key: "BOOST",         label: "Reforço",            desc: "Aumenta o poder de uma carta aliada." },
+  { key: "DAMAGE",        label: "Investida",          desc: "Causa dano a uma carta inimiga." },
+  { key: "SPAWN",         label: "Convocar aliado",    desc: "Invoca uma copia de menor poder ao ser jogada." },
+  { key: "HEAL",          label: "Cura",               desc: "Restaura poder de uma carta aliada." },
+  { key: "SHIELD",        label: "Escudo",             desc: "Protege uma carta de dano por uma rodada." },
+  { key: "BOND",          label: "Vinculo",            desc: "Cartas iguais na mesma fileira somam-se entre si." },
+  { key: "DRAW",          label: "Saque",              desc: "Compra cartas adicionais do baralho." },
+  { key: "SPY",           label: "Espião",             desc: "Joga no campo inimigo e permite saque adicional." },
+  { key: "WEATHER_FROST", label: "Clima: Geada",       desc: "Reduz poder de unidades corpo-a-corpo." },
+  { key: "WEATHER_FOG",   label: "Clima: Névoa",       desc: "Reduz poder de unidades a distância." },
+  { key: "WEATHER_RAIN",  label: "Clima: Chuva",       desc: "Reduz poder de unidades de cerco." },
+  { key: "WEATHER_STORM", label: "Clima: Tempestade",  desc: "Reduz poder de varias fileiras simultaneamente." },
+  { key: "CLEAR_WEATHER", label: "Limpar clima",       desc: "Remove todos os efeitos climaticos do tabuleiro." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },
