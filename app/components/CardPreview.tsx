@@ -62,12 +62,23 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
 
                 {/* Cabecalho: poder + fileiras */}
                 <div
-                  className="flex items-center justify-between px-2 py-1.5 border-b-2"
+                  className="relative z-20 flex items-center justify-between px-2 py-1.5 border-b-2"
                   style={{
                     borderColor: card.faction.color,
                     background: "linear-gradient(180deg, " + card.faction.color + "66 0%, transparent 100%)",
                   }}
                 >
+                  <div className="flex gap-1 text-base">
+                    {rowList.map((r) => (
+                      <span
+                        key={r}
+                        title={ROWS.find((x) => x.key === r)?.label}
+                        style={{ filter: "drop-shadow(0 1px 0 rgba(0,0,0,0.4))" }}
+                      >
+                        {ROW_ICON[r] ?? "?"}
+                      </span>
+                    ))}
+                  </div>
                   <div className="relative">
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center font-heading font-black text-lg shadow-md"
@@ -79,17 +90,6 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
                     >
                       {card.power}
                     </div>
-                  </div>
-                  <div className="flex gap-1 text-base">
-                    {rowList.map((r) => (
-                      <span
-                        key={r}
-                        title={ROWS.find((x) => x.key === r)?.label}
-                        style={{ filter: "drop-shadow(0 1px 0 rgba(0,0,0,0.4))" }}
-                      >
-                        {ROW_ICON[r] ?? "?"}
-                      </span>
-                    ))}
                   </div>
                 </div>
 
@@ -116,7 +116,7 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
 
                 {/* Faixa do nome */}
                 <div
-                  className="mx-2 mt-2 px-2 py-1 text-center border-y"
+                  className="relative z-20 mx-2 mt-2 px-2 py-1 text-center border-y"
                   style={{
                     borderColor: "var(--bronze)",
                     background: "linear-gradient(180deg, var(--parchment) 0%, var(--parchment-dark) 100%)",
@@ -161,7 +161,7 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
           {/* Frame customizado opcional (PNG transparente sobre a moldura padrao) */}
           {card.frameUrl && (
             <div
-              className="absolute inset-0 pointer-events-none rounded-lg"
+              className="absolute inset-0 pointer-events-none rounded-lg z-10"
               style={{
                 backgroundImage: "url(" + card.frameUrl + ")",
                 backgroundSize: "100% 100%",
