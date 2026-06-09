@@ -635,7 +635,14 @@ export interface OpenedCard {
   id: string;
   name: string;
   rarity: string;
+  cardType: string;
+  rows: string;
+  power: number;
+  imageUrl: string | null;
+  frameUrl: string | null;
+  loreText: string | null;
   faction: { name: string; color: string };
+  ability: { name: string; description: string } | null;
   wasNew: boolean;
 }
 
@@ -932,7 +939,7 @@ function buildBoosterCardFilter(
     // Busca dados completos das cartas pra UI
     const fullCards = await tx.card.findMany({
       where: { id: { in: Array.from(counts.keys()) } },
-      include: { faction: true },
+      include: { faction: true, ability: true },
     });
     const fullById = new Map(fullCards.map((c) => [c.id, c]));
 
@@ -944,12 +951,19 @@ function buildBoosterCardFilter(
       seenInBooster.add(id);
       const wasNew = !alreadyOwned.has(id) && isFirstInBooster;
       return {
-        id: c.id,
-        name: c.name,
-        rarity: c.rarity,
-        faction: { name: c.faction.name, color: c.faction.color },
-        wasNew,
-      };
+          id: c.id,
+          name: c.name,
+          rarity: c.rarity,
+          cardType: c.cardType,
+          rows: c.rows,
+          power: c.power,
+          imageUrl: c.imageUrl,
+          frameUrl: c.frameUrl,
+          loreText: c.loreText,
+          faction: { name: c.faction.name, color: c.faction.color },
+          ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
+          wasNew,
+        };
     });
 
     return { openingId: opening.id, opened };

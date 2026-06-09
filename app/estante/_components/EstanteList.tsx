@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { openUnopenedBoosterAction, type OpenedCard } from "@/lib/actions";
+import { CardPreview } from "@/app/components/CardPreview";
 import { RARITIES } from "@/lib/constants";
 
 interface Group {
@@ -118,7 +119,10 @@ export function EstanteList({ groups }: { groups: Group[] }) {
               className="reveal-animation mx-auto bg-gradient-to-br from-zinc-900 to-zinc-950 border-4 rounded-2xl p-8 shadow-2xl"
               style={{ borderColor: currentRarity ? currentRarity.color : "#aaa" }}
             >
-              <p
+                <div className="flex justify-center mb-6">
+                  <CardPreview card={currentCard} />
+                </div>
+                <p
                 className="font-heading text-3xl font-bold uppercase tracking-wider mb-2"
                 style={{ color: currentCard.faction.color }}
               >
