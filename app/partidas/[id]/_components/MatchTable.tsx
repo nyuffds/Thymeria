@@ -34,6 +34,7 @@ interface PlayerInfo {
       cardId: string;
       name: string;
       imageUrl: string | null;
+  frameUrl: string | null;
       leaderMode: string | null;
       ability: { name: string; description: string; engineKey: string | null } | null;
     } | null;
@@ -49,6 +50,7 @@ interface HandCard {
   rarity: string;
   cardType: string;
   imageUrl: string | null;
+  frameUrl: string | null;
   faction: { name: string; color: string };
   ability: { name: string; description: string; engineKey: string | null; engineValue: number | null } | null;
 }
@@ -66,6 +68,7 @@ interface BoardCard {
   rarity: string;
   cardType: string;
   imageUrl: string | null;
+  frameUrl: string | null;
   faction: { name: string; color: string };
   ability: { name: string; description: string } | null;
 }
@@ -694,7 +697,7 @@ card={{
           <div
             className="relative w-full h-full rounded overflow-hidden"
             style={{
-              backgroundImage: c.imageUrl ? "url(" + c.imageUrl + ")" : undefined,
+              backgroundImage: c.frameUrl ? "url(" + c.frameUrl + ")" : (c.imageUrl ? "url(" + c.imageUrl + ")" : undefined),
               backgroundSize: "cover",
               backgroundPosition: "center",
               backgroundColor: "#27272a",
@@ -702,7 +705,7 @@ card={{
           >
             {/* Selo de poder no canto superior esquerdo */}
             <div
-              className="absolute top-1 left-1 w-7 h-7 rounded-full flex items-center justify-center font-mono font-bold text-base shadow-lg border-2"
+              className="absolute top-1 right-1 w-7 h-7 rounded-full flex items-center justify-center font-mono font-bold text-base shadow-lg border-2"
               style={{
                 background: "radial-gradient(circle, #d4a04a 0%, #8b6019 100%)",
                 borderColor: "#3d2817",
@@ -715,7 +718,7 @@ card={{
 
             {/* Estados no canto superior direito */}
             {(c.shielded || c.isToken) && (
-              <div className="absolute top-1 right-1 flex flex-col gap-0.5">
+              <div className="absolute top-1 left-1 flex flex-col gap-0.5">
                 {c.shielded && (
                   <span className="w-5 h-5 rounded-full bg-blue-900/90 border border-blue-400 flex items-center justify-center text-blue-200 text-xs shadow">
                     ◆
@@ -836,14 +839,14 @@ return (
                     (selected ? "ring-2 ring-amber-500 opacity-60" : "hover:scale-105 hover:z-10")}
                   style={{
                     borderColor: selected ? "#f59e0b" : c.faction.color + "88",
-                    backgroundImage: c.imageUrl ? "url(" + c.imageUrl + ")" : undefined,
+                    backgroundImage: c.frameUrl ? "url(" + c.frameUrl + ")" : (c.imageUrl ? "url(" + c.imageUrl + ")" : undefined),
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                     backgroundColor: "#27272a",
                   }}
                 >
                   {/* Poder no canto superior esquerdo */}
-                  <span className="absolute top-0.5 left-0.5 font-mono font-bold text-amber-300 text-xs bg-black/70 px-1 rounded">
+                  <span className="absolute top-0.5 right-0.5 font-mono font-bold text-amber-300 text-xs bg-black/70 px-1 rounded">
                     {c.power}
                   </span>
                   {/* Nome em rodapé sobre gradiente */}
@@ -969,13 +972,13 @@ return (
                       (isSelected ? "ring-2 ring-amber-500 scale-105 z-10" : "hover:scale-105 hover:z-10")}
                     style={{
                       borderColor: c.faction.color + "88",
-                      backgroundImage: c.imageUrl ? "url(" + c.imageUrl + ")" : undefined,
+                      backgroundImage: c.frameUrl ? "url(" + c.frameUrl + ")" : (c.imageUrl ? "url(" + c.imageUrl + ")" : undefined),
                       backgroundSize: "cover",
                       backgroundPosition: "center",
                       backgroundColor: "#27272a",
                     }}
                   >
-                    <span className="absolute top-0.5 left-0.5 font-mono font-bold text-amber-300 text-xs bg-black/70 px-1 rounded">
+                    <span className="absolute top-0.5 right-0.5 font-mono font-bold text-amber-300 text-xs bg-black/70 px-1 rounded">
                       {c.power}
                     </span>
                     <span className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-[9px] text-zinc-100 text-center truncate bg-gradient-to-t from-black/90 to-transparent">

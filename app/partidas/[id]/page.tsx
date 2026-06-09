@@ -109,6 +109,7 @@ export default async function PartidaPage({
                 cardId: pA.deck.leader.cardId,
                 name: pA.deck.leader.card.name,
                 imageUrl: pA.deck.leader.card.imageUrl,
+                frameUrl: pA.deck.leader.card.frameUrl,
                 leaderMode: pA.deck.leader.card.leaderMode,
                 ability: pA.deck.leader.card.ability ? {
                   name: pA.deck.leader.card.ability.name,
@@ -135,6 +136,7 @@ export default async function PartidaPage({
                 cardId: pB.deck.leader.cardId,
                 name: pB.deck.leader.card.name,
                 imageUrl: pB.deck.leader.card.imageUrl,
+                frameUrl: pB.deck.leader.card.frameUrl,
                 leaderMode: pB.deck.leader.card.leaderMode,
                 ability: pB.deck.leader.card.ability ? {
                   name: pB.deck.leader.card.ability.name,
@@ -156,6 +158,7 @@ export default async function PartidaPage({
                 rarity: h.card.rarity,
                 cardType: h.card.cardType,
                 imageUrl: h.card.imageUrl,
+                frameUrl: h.card.frameUrl,
                 faction: { name: h.card.faction.name, color: h.card.faction.color },
                 ability: h.card.ability ? {
                   name: h.card.ability.name,
@@ -175,6 +178,7 @@ export default async function PartidaPage({
                 rarity: h.card.rarity,
                 cardType: h.card.cardType,
                 imageUrl: h.card.imageUrl,
+                frameUrl: h.card.frameUrl,
                 faction: { name: h.card.faction.name, color: h.card.faction.color },
                 ability: h.card.ability ? {
                   name: h.card.ability.name,
@@ -198,6 +202,7 @@ export default async function PartidaPage({
           rarity: b.card.rarity,
           cardType: b.card.cardType,
           imageUrl: b.card.imageUrl,
+          frameUrl: b.card.frameUrl,
           faction: { name: b.card.faction.name, color: b.card.faction.color },
           ability: b.card.ability ? {
             name: b.card.ability.name,
