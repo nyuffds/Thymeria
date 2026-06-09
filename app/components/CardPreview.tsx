@@ -36,7 +36,7 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
 
   return (
     <div
-      className={"relative w-64 " + (card.rarity === "MYTHIC" ? "rarity-mythic" : "")}
+      className={"relative w-80 " + (card.rarity === "MYTHIC" ? "rarity-mythic" : "")}
       style={{ aspectRatio: "5 / 7" }}
     >
       {frameOnly ? (

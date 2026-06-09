@@ -683,8 +683,8 @@ card={{
           className={"relative rounded-md transition flex-shrink-0 animate-card-enter " +
             (isTargetable ? "ring-2 ring-amber-400 cursor-pointer hover:scale-110 hover:z-20" : "cursor-default")}
           style={{
-            width: "100px",
-            height: "150px",
+            width: "130px",
+            height: "195px",
             padding: "3px",
             background: "linear-gradient(135deg, #6b4423 0%, " + (rarity?.color ?? "#8b6019") + " 50%, #3d2817 100%)",
             boxShadow: "0 4px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(212, 160, 74, 0.4)",
