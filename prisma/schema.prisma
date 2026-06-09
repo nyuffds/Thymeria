@@ -78,6 +78,7 @@ model Card {
   rows        String
   rarity      String   @default("COMMON")
   cardType    String   @default("UNIT")
+  isElite     Boolean  @default(false) // Elite: imune a todos efeitos, max 1 copia por nome no deck
   leaderMode  String?  // ACTIVE | PERSISTENT | PASSIVE (apenas para cartas LEADER)
   loreText    String?
   imageUrl    String?

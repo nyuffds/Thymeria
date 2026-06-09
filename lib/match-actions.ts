@@ -46,6 +46,7 @@ async function buildCardDefs(cardIds: string[]): Promise<Map<string, CardDef>> {
       power: c.power,
       rows: c.rows,
       cardType: c.cardType,
+      isElite: c.isElite,
       leaderMode: c.leaderMode,
       ability: c.ability
         ? { engineKey: c.ability.engineKey, engineValue: c.ability.engineValue }

@@ -35,6 +35,7 @@ export interface CardDef {
   power: number;
   rows: string;        // CSV
   cardType: string;    // UNIT | SPECIAL | LEADER | WEATHER
+  isElite: boolean;    // Elite: imune a todos efeitos
   leaderMode?: string | null;
   ability?: { engineKey: string | null; engineValue: number | null } | null;
 }
@@ -116,6 +117,12 @@ export function recomputePower(
   }
 
   return board.map((c) => {
+    // ELITE: cartas Elite sao imunes a TUDO (clima, BOND, boost, dano).
+    // Mantemos power = basePower fixo.
+    const elDef = cardDefs.get(c.cardId);
+    if (elDef?.isElite) {
+      return { ...c, power: c.basePower };
+    }
     if (weatheredRows.has(c.row)) {
       return { ...c, power: 1 };
     }
@@ -210,5 +217,5 @@ export function otherSide(s: Side): Side {
 
 export const KNOWN_ENGINE_KEYS: ReadonlySet<EngineKey> = new Set([
   "BOOST", "DAMAGE", "SPAWN", "BOND", "SPY", "DRAW", "HEAL", "SHIELD",
-  "WEATHER_RAIN", "WEATHER_FROST", "WEATHER_FOG", "WEATHER_STORM", "CLEAR_WEATHER",
+  "WEATHER_RAIN", "WEATHER_FROST", "WEATHER_FOG", "WEATHER_STORM", "CLEAR_WEATHER", "PULL_BY_NAME",
 ]);

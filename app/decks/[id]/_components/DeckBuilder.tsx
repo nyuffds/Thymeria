@@ -17,6 +17,7 @@ interface CardData {
   rows: string;
   rarity: string;
   cardType: string;
+  isElite: boolean;
   loreText: string | null;
   imageUrl: string | null;
   faction: { name: string; color: string };
@@ -32,6 +33,7 @@ interface DeckCardData {
   rows: string;
   rarity: string;
   cardType: string;
+  isElite: boolean;
   loreText: string | null;
   imageUrl: string | null;
   faction: { name: string; color: string };
@@ -116,7 +118,7 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
       if (rarityFilter && e.card.rarity !== rarityFilter) return false;
       if (query && !e.card.name.toLowerCase().includes(query.toLowerCase())) return false;
       if (hideMaxed) {
-        const maxAllowed = e.card.maxPerDeckOverride ?? settings.maxPerRarity[e.card.rarity] ?? 1;
+        const maxAllowed = e.card.isElite ? 1 : (e.card.maxPerDeckOverride ?? settings.maxPerRarity[e.card.rarity] ?? 1);
         const remainingByLimit = maxAllowed - e.quantityInDeck;
         const remainingByOwn   = e.quantityOwned - e.quantityInDeck;
         if (Math.min(remainingByLimit, remainingByOwn) <= 0) return false;
@@ -311,7 +313,7 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                         {g.card.power}
                       </span>
                       <span className="flex-1 min-w-0 truncate text-sm text-zinc-200">
-                        {g.card.name}
+                        {g.card.isElite && <span title="Elite">👑 </span>}{g.card.name}
                       </span>
                       <span className="text-xs font-mono text-zinc-500 w-8 text-center">
                         ×{g.count}
@@ -383,7 +385,7 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
             <ul className="space-y-1">
               {filteredCollection.map((e) => {
                 const rarity = RARITIES.find((r) => r.key === e.card.rarity);
-                const maxAllowed = e.card.maxPerDeckOverride ?? settings.maxPerRarity[e.card.rarity] ?? 1;
+                const maxAllowed = e.card.isElite ? 1 : (e.card.maxPerDeckOverride ?? settings.maxPerRarity[e.card.rarity] ?? 1);
                 const limitReached = e.quantityInDeck >= maxAllowed;
                 const ownReached = e.quantityInDeck >= e.quantityOwned;
                 const deckFull = totalCards >= settings.maxCards;
@@ -415,7 +417,7 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                       {e.card.power}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-zinc-100 truncate">{e.card.name}</p>
+                      <p className="text-sm text-zinc-100 truncate">{e.card.isElite && <span title="Elite">👑 </span>}{e.card.name}</p>
                       <p className="text-xs" style={{ color: e.card.faction.color }}>
                         {e.card.faction.name}
                         {e.card.ability && <span className="text-zinc-500"> · ⚡ {e.card.ability.name}</span>}

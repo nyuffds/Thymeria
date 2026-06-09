@@ -31,6 +31,7 @@ type Mode =
         rows: string[];
         rarity: string;
         cardType: string;
+        isElite: boolean;
         leaderMode: string | null;
         abilityId: string | null;
         loreText: string;
@@ -57,6 +58,7 @@ export function CardForm(props: Mode) {
         rows: ["MELEE"] as string[],
         rarity: "COMMON",
         cardType: "UNIT",
+        isElite: false,
         leaderMode: null as string | null,
         abilityId: null as string | null,
         loreText: "",
@@ -71,6 +73,7 @@ export function CardForm(props: Mode) {
   const [rows, setRows]             = useState<string[]>(init.rows);
   const [rarity, setRarity]         = useState(init.rarity);
   const [cardType, setCardType]     = useState(init.cardType);
+  const [isElite, setIsElite]       = useState(init.isElite);
   const [leaderMode, setLeaderMode] = useState<string>(init.leaderMode ?? "PASSIVE");
   const [abilityId, setAbilityId]   = useState<string>(init.abilityId ?? "");
   const [loreText, setLoreText]     = useState(init.loreText);
@@ -102,6 +105,7 @@ export function CardForm(props: Mode) {
       rarity,
       cardType,
       leaderMode: cardType === "LEADER" ? leaderMode : null,
+      isElite,
       abilityId: abilityId || null,
       loreText,
       imageUrl,
@@ -249,6 +253,28 @@ export function CardForm(props: Mode) {
             </select>
           </div>
         </div>
+
+                {/* Elite (categoria especial: imune a tudo, max 1 copia por nome no deck) */}
+        {cardType !== "LEADER" && cardType !== "WEATHER" && (
+          <div className="bg-zinc-900/40 border border-amber-700/30 rounded-lg p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isElite}
+                onChange={(e) => setIsElite(e.target.checked)}
+                disabled={isPending}
+                className="mt-1 w-4 h-4 accent-amber-500"
+              />
+              <div>
+                <span className="text-sm text-amber-200 font-semibold">👑 Carta Elite</span>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Carta unica e poderosa. Imune a todos os efeitos (boost, dano, climas, BOND). 
+                  Apenas <span className="text-amber-300">1 copia por nome</span> permitida em cada deck.
+                </p>
+              </div>
+            </label>
+          </div>
+        )}
 
         {cardType === "LEADER" && (
           <div className="bg-zinc-900/40 border border-amber-700/30 rounded-lg p-4 space-y-2">

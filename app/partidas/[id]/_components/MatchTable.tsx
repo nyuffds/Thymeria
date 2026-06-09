@@ -49,6 +49,7 @@ interface HandCard {
   rows: string;
   rarity: string;
   cardType: string;
+  isElite: boolean;
   imageUrl: string | null;
   frameUrl: string | null;
   faction: { name: string; color: string };
@@ -67,6 +68,7 @@ interface BoardCard {
   name: string;
   rarity: string;
   cardType: string;
+  isElite: boolean;
   imageUrl: string | null;
   frameUrl: string | null;
   faction: { name: string; color: string };
@@ -690,8 +692,8 @@ card={{
             width: "130px",
             height: "195px",
             padding: "3px",
-            background: "linear-gradient(135deg, #6b4423 0%, " + (rarity?.color ?? "#8b6019") + " 50%, #3d2817 100%)",
-            boxShadow: "0 4px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(212, 160, 74, 0.4)",
+            background: c.isElite ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #b45309 100%)" : ("linear-gradient(135deg, #6b4423 0%, " + (rarity?.color ?? "#8b6019") + " 50%, #3d2817 100%)"),
+            boxShadow: c.isElite ? "0 0 16px rgba(251, 191, 36, 0.6), 0 4px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(251, 191, 36, 0.8)" : "0 4px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(212, 160, 74, 0.4)",
           }}
         >
           {/* Container interno com imagem */}
@@ -717,7 +719,16 @@ card={{
               {c.power}
             </div>
 
-            {/* Estados no canto superior direito */}
+                                        {c.isElite && (
+                <div
+                  className="absolute -top-2 left-1/2 -translate-x-1/2 text-2xl"
+                  style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.8))", zIndex: 10 }}
+                  title="Elite — imune a todos os efeitos"
+                >
+                  👑
+                </div>
+              )}
+              {/* Estados no canto superior direito */}
             {(c.shielded || c.isToken) && (
               <div className="absolute top-1 left-1 flex flex-col gap-0.5">
                 {c.shielded && (

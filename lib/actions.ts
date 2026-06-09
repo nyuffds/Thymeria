@@ -236,6 +236,7 @@ export async function createCardAction(data: {
   rows: string[];
   rarity: string;
   cardType: string;
+  isElite: boolean;
   leaderMode: string | null;
   abilityId: string | null;
   loreText: string;
@@ -263,7 +264,8 @@ export async function createCardAction(data: {
       rows: data.rows.join(","),
       rarity: data.rarity,
       cardType: data.cardType,
-      leaderMode,
+      isElite: data.isElite,
+        leaderMode,
       abilityId: data.abilityId || null,
       loreText: data.loreText.trim() || null,
       imageUrl: data.imageUrl.trim() || null,
@@ -284,6 +286,7 @@ export async function updateCardAction(id: string, data: {
   rows: string[];
   rarity: string;
   cardType: string;
+  isElite: boolean;
   leaderMode: string | null;
   abilityId: string | null;
   loreText: string;
@@ -312,7 +315,8 @@ export async function updateCardAction(id: string, data: {
       rows: data.rows.join(","),
       rarity: data.rarity,
       cardType: data.cardType,
-      leaderMode,
+      isElite: data.isElite,
+        leaderMode,
       abilityId: data.abilityId || null,
       loreText: data.loreText.trim() || null,
       imageUrl: data.imageUrl.trim() || null,
