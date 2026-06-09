@@ -37,6 +37,7 @@ export const ENGINE_KEYS = [
   { key: "WEATHER_RAIN",  label: "Clima: Chuva",       desc: "Reduz poder de unidades de cerco." },
   { key: "WEATHER_STORM", label: "Clima: Tempestade",  desc: "Reduz poder de varias fileiras simultaneamente." },
   { key: "CLEAR_WEATHER", label: "Limpar clima",       desc: "Remove todos os efeitos climaticos do tabuleiro." },
+  { key: "PULL_BY_NAME",  label: "Convocacao",         desc: "Puxa cartas especificas da mao para o campo ao ser jogada." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 // app/admin/habilidades/[id]/page.tsx
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PrismaClient } from "@prisma/client";
@@ -14,7 +15,15 @@ export default async function EditarHabilidadePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const ability = await prisma.ability.findUnique({ where: { id } });
+
+  const [ability, allCards] = await Promise.all([
+    prisma.ability.findUnique({ where: { id } }),
+    prisma.card.findMany({
+      orderBy: [{ rarity: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, rarity: true },
+    }),
+  ]);
+
   if (!ability) notFound();
 
   return (
@@ -28,12 +37,15 @@ export default async function EditarHabilidadePage({
       <AbilityForm
         mode="edit"
         id={ability.id}
+        allCards={allCards}
         initial={{
           name: ability.name,
           description: ability.description,
           engineKey: ability.engineKey ?? "",
           engineValue: ability.engineValue,
           isActive: ability.isActive,
+          targetCardIdsCsv: ability.targetCardIdsCsv,
+          triggerMode: ability.triggerMode,
         }}
       />
     </main>

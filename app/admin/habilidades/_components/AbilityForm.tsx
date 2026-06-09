@@ -10,17 +10,22 @@ import {
 } from "@/lib/actions";
 import { ENGINE_KEYS } from "@/lib/constants";
 
+interface CardOpt { id: string; name: string; rarity: string; }
+
 type Mode =
-  | { mode: "create" }
+  | { mode: "create"; allCards: CardOpt[] }
   | {
       mode: "edit";
       id: string;
+      allCards: CardOpt[];
       initial: {
         name: string;
         description: string;
         engineKey: string;
         engineValue: number | null;
         isActive: boolean;
+        targetCardIdsCsv: string | null;
+        triggerMode: string;
       };
     };
 
@@ -32,13 +37,15 @@ export function AbilityForm(props: Mode) {
   const isEdit = props.mode === "edit";
   const init = isEdit
     ? props.initial
-    : { name: "", description: "", engineKey: "", engineValue: null as number | null, isActive: true };
+    : { name: "", description: "", engineKey: "", engineValue: null as number | null, isActive: true, targetCardIdsCsv: null as string | null, triggerMode: "MANUAL" };
 
   const [name, setName]                 = useState(init.name);
   const [description, setDescription]   = useState(init.description);
   const [engineKey, setEngineKey]       = useState(init.engineKey);
   const [engineValue, setEngineValue]   = useState<string>(init.engineValue?.toString() ?? "");
   const [isActive, setIsActive]         = useState(init.isActive);
+  const [targetCardIds, setTargetCardIds] = useState<string[]>(init.targetCardIdsCsv ? init.targetCardIdsCsv.split(",").filter(Boolean) : []);
+  const [triggerMode, setTriggerMode]     = useState(init.triggerMode);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,11 +61,11 @@ export function AbilityForm(props: Mode) {
       try {
         if (isEdit) {
           await updateAbilityAction(props.id, {
-            name, description, engineKey, engineValue: valueNum, isActive,
+            name, description, engineKey, engineValue: valueNum, isActive, targetCardIdsCsv: targetCardIds.join(",") || null, triggerMode,
           });
         } else {
           await createAbilityAction({
-            name, description, engineKey, engineValue: valueNum,
+            name, description, engineKey, engineValue: valueNum, targetCardIdsCsv: targetCardIds.join(",") || null, triggerMode,
           });
         }
         router.push("/admin/habilidades");
@@ -157,6 +164,60 @@ export function AbilityForm(props: Mode) {
             />
           </div>
         )}
+        {/* Modo de ativacao */}
+        <div>
+          <label className="block text-sm text-zinc-300 mb-2">Modo de ativacao</label>
+          <select
+            value={triggerMode}
+            onChange={(e) => setTriggerMode(e.target.value)}
+            disabled={isPending}
+            className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-amber-500"
+          >
+            <option value="MANUAL">Manual (jogador ativa quando joga a carta)</option>
+            <option value="ON_PLAY">Ao entrar em campo (automatica)</option>
+          </select>
+        </div>
+
+        {/* Cartas alvo (so para engines que precisam, como PULL_BY_NAME) */}
+        {engineKey === "PULL_BY_NAME" && (
+          <div>
+            <label className="block text-sm text-zinc-300 mb-2">
+              Cartas que esta habilidade puxa da mao
+            </label>
+            <div className="bg-zinc-900/40 border border-zinc-800 rounded-lg p-3 max-h-64 overflow-y-auto space-y-1">
+              {props.allCards.length === 0 ? (
+                <p className="text-xs text-zinc-500 italic">Nenhuma carta cadastrada ainda.</p>
+              ) : (
+                props.allCards.map((c) => {
+                  const isChecked = targetCardIds.includes(c.id);
+                  return (
+                    <label key={c.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-zinc-800 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          setTargetCardIds((prev) =>
+                            prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id]
+                          );
+                        }}
+                        disabled={isPending}
+                        className="w-4 h-4 accent-amber-500"
+                      />
+                      <span className="text-sm text-zinc-200">{c.name}</span>
+                      <span className="text-xs text-zinc-500 ml-auto">{c.rarity}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            {targetCardIds.length > 0 && (
+              <p className="text-xs text-amber-400 mt-2">
+                {targetCardIds.length} carta(s) selecionada(s)
+              </p>
+            )}
+          </div>
+        )}
+
       </div>
 
       {isEdit && (

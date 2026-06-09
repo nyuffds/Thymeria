@@ -484,6 +484,48 @@ export async function playCardAction(data: {
           }
           await logEvent(tx, data.matchId, match.currentRound, data.side, "SPAWN",
             { count: ev, cardId: card.id });
+                } else if (ek === "PULL_BY_NAME") {
+          // Busca as cartas alvo da habilidade
+          const ability = card.ability;
+          if (ability?.targetCardIdsCsv) {
+            const targetIds = ability.targetCardIdsCsv.split(",").filter(Boolean);
+            // Busca todas as cartas na mao do mesmo lado que sao alvos
+            const handTargets = await tx.matchHand.findMany({
+              where: {
+                matchId: data.matchId,
+                side: data.side,
+                zone: "HAND",
+                cardId: { in: targetIds },
+              },
+              include: { card: true },
+            });
+
+            for (const ht of handTargets) {
+              // Decide fileira: usa a primeira fileira permitida da carta
+              const allowedRows = ht.card.rows.split(",").filter(Boolean);
+              const targetRow = (allowedRows[0] ?? "MELEE") as Row;
+
+              await tx.matchBoardCard.create({
+                data: {
+                  matchId: data.matchId,
+                  side: ownerSide,
+                  cardId: ht.card.id,
+                  row: targetRow,
+                  basePower: ht.card.power,
+                  power: ht.card.power,
+                  isToken: false,
+                  shielded: false,
+                },
+              });
+              await tx.matchHand.update({
+                where: { id: ht.id },
+                data: { zone: "DISCARD" },
+              });
+            }
+
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "PULL_BY_NAME",
+              { cardId: card.id, pulledCount: handTargets.length });
+          }
         } else if (ek === "SPY" || ek === "DRAW") {
           // Compra ev cartas do próprio deck (mesmo SPY: o espião beneficia quem o jogou)
           const drawFrom = await tx.matchHand.findMany({
