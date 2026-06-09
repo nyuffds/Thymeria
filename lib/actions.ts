@@ -584,7 +584,7 @@ export async function deleteBoosterAction(id: string) {
 // COMPRA DE BOOSTER (jogador)
 // ---------------------------------------------
 
-  export async function buyBoosterAction(boosterId: string) {
+  export async function buyBoosterAction(boosterId: string, quantity: number = 1) {
   const session = await auth();
   if (!session?.user?.name) throw new Error("Você precisa estar logado.");
 
@@ -596,30 +596,38 @@ export async function deleteBoosterAction(id: string) {
   if (!user) throw new Error("Usuário não encontrado.");
   if (!booster) throw new Error("Booster não encontrado.");
   if (!booster.isActive) throw new Error("Este booster não está disponível.");
-  if (user.coins < booster.price) {
-    throw new Error(`Saldo insuficiente. Você tem ${user.coins} e o booster custa ${booster.price}.`);
+
+  if (quantity < 1 || quantity > 50) {
+    throw new Error("Quantidade inválida (1 a 50 por compra).");
+  }
+
+  const totalCost = booster.price * quantity;
+  if (user.coins < totalCost) {
+    throw new Error(`Saldo insuficiente. Você tem ${user.coins} e o total custa ${totalCost}.`);
   }
 
   await prisma.$transaction([
     prisma.user.update({
       where: { id: user.id },
-      data:  { coins: user.coins - booster.price },
+      data:  { coins: user.coins - totalCost },
     }),
     prisma.transaction.create({
       data: {
         userId: user.id,
-        amount: -booster.price,
+        amount: -totalCost,
         reason: "BOOSTER_PURCHASE",
-        note:   `Comprou: ${booster.name}`,
+        note:   quantity === 1 ? `Comprou: ${booster.name}` : `Comprou ${quantity}x: ${booster.name}`,
       },
     }),
-    prisma.unopenedBooster.create({
-      data: {
-        userId: user.id,
-        boosterId: booster.id,
-        pricePaid: booster.price,
-      },
-    }),
+    ...Array.from({ length: quantity }, () =>
+      prisma.unopenedBooster.create({
+        data: {
+          userId: user.id,
+          boosterId: booster.id,
+          pricePaid: booster.price,
+        },
+      })
+    ),
   ]);
 
   revalidatePath("/loja");
