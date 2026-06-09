@@ -672,6 +672,7 @@ card={{
           rarity: c.rarity,
           cardType: c.cardType,
           imageUrl: c.imageUrl,
+            frameUrl: c.frameUrl,
           faction: c.faction,
           ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
           shielded: c.shielded,
@@ -828,6 +829,7 @@ return (
                   rarity: c.rarity,
                   cardType: c.cardType,
                   imageUrl: c.imageUrl,
+            frameUrl: c.frameUrl,
                   faction: c.faction,
                   ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
                 }}
@@ -961,6 +963,8 @@ return (
                     power: c.power,
                     rarity: c.rarity,
                     cardType: c.cardType,
+                    imageUrl: c.imageUrl,
+                    frameUrl: c.frameUrl,
                     faction: c.faction,
                     ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
                   }}

@@ -32,7 +32,7 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
   const rowList = card.rows.split(",").filter(Boolean);
 
   // Se tem frameUrl mas nao tem imageUrl: renderiza so o frame ocupando tudo
-  const frameOnly = card.frameUrl && !card.imageUrl;
+  const frameOnly = !!card.frameUrl;
 
   return (
     <div

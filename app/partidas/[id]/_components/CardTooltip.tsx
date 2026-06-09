@@ -8,6 +8,7 @@ interface CardData {
   rarity: string;
   cardType: string;
   imageUrl?: string | null;
+  frameUrl?: string | null;
   faction: { name: string; color: string };
   ability: { name: string; description: string } | null;
   basePower?: number;
@@ -50,7 +51,7 @@ export function CardTooltip({ card, children }: Props) {
     if (!show || !wrapperRef.current) return;
     const rect = wrapperRef.current.getBoundingClientRect();
     // Posiciona acima do elemento por padrão; se não couber, joga abaixo
-    const tooltipHeight = card.imageUrl ? 420 : 200; // com imagem fica maior
+    const tooltipHeight = (card.frameUrl || card.imageUrl) ? 420 : 200; // com imagem fica maior
     const top = rect.top - tooltipHeight - 8;
     const left = rect.left + rect.width / 2;
     setPosition({
@@ -84,12 +85,12 @@ export function CardTooltip({ card, children }: Props) {
             style={{ borderColor: rarityColor }}
           >
             {/* Miniatura da carta */}
-            {card.imageUrl && (
+            {(card.frameUrl || card.imageUrl) && (
               <div
                 className="w-full aspect-[3/4] rounded mb-2 overflow-hidden border"
                 style={{
                   borderColor: rarityColor + "66",
-                  backgroundImage: "url(" + card.imageUrl + ")",
+                  backgroundImage: "url(" + (card.frameUrl ?? card.imageUrl) + ")",
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                 }}
