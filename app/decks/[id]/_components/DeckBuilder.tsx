@@ -110,6 +110,8 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
   }, [deck.cards]);
 
   const totalCards = deck.cards.length;
+  const MAX_ELITE = 4;
+  const eliteCount = deck.cards.filter((c) => c.isElite).length;
   const isValid = totalCards >= settings.minCards && totalCards <= settings.maxCards;
 
   // Coleção filtrada
@@ -203,8 +205,11 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
             {totalCards} / {settings.maxCards}
           </p>
           <p className="text-xs text-zinc-500">
-            Mín: {settings.minCards}
-          </p>
+                          Mín: {settings.minCards}
+            </p>
+            <p className={"text-xs " + (eliteCount > MAX_ELITE ? "text-red-400 font-bold" : "text-amber-400")}>
+              👑 Elites: {eliteCount} / {MAX_ELITE}
+            </p>
         </div>
       </div>
 
@@ -389,12 +394,14 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                 const limitReached = e.quantityInDeck >= maxAllowed;
                 const ownReached = e.quantityInDeck >= e.quantityOwned;
                 const deckFull = totalCards >= settings.maxCards;
-                const cannotAdd = limitReached || ownReached || deckFull;
+                  const eliteFull = e.card.isElite && eliteCount >= MAX_ELITE;
+                  const cannotAdd = limitReached || ownReached || deckFull || eliteFull;
 
                 let cannotReason = "";
                 if (deckFull) cannotReason = "Deck cheio";
                 else if (limitReached) cannotReason = `Máx ${maxAllowed} no deck`;
                 else if (ownReached) cannotReason = "Sem cópias na coleção";
+                  else if (eliteFull) cannotReason = `Máx ${MAX_ELITE} Elites no deck`;
 
                 return (
                   <li

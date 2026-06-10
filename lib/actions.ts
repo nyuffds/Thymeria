@@ -1151,6 +1151,21 @@ async function validateDeckCards(params: {
       throw new Error(`"${card.name}" (${card.faction.name}) não pertence à facção do deck.`);
     }
   }
+
+    // Limite de Elites: max 4 cartas Elite (diferentes) no deck
+    const MAX_ELITE_PER_DECK = 4;
+    const eliteCount = Array.from(useCount.keys()).filter((id) => cardById.get(id)?.isElite).length;
+    if (eliteCount > MAX_ELITE_PER_DECK) {
+      throw new Error(`Maximo de ${MAX_ELITE_PER_DECK} cartas Elite por deck (voce tem ${eliteCount}).`);
+    }
+
+    // Elites: max 1 copia por nome
+    for (const [cardId, count] of useCount.entries()) {
+      const card = cardById.get(cardId);
+      if (card?.isElite && count > 1) {
+        throw new Error(`"${card.name}" e Elite: apenas 1 copia por deck.`);
+      }
+    }
 }
 
 export async function createDeckAction(data: {

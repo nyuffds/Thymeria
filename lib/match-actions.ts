@@ -428,10 +428,13 @@ export async function playCardAction(data: {
         const ev = card.ability.engineValue ?? 0;
 
         if (ek === "BOOST") {
-          // Aumenta basePower de um aliado-alvo
+          // Aumenta basePower de um aliado-alvo (Elite imune)
           if (data.targetBoardCardId) {
-            const target = await tx.matchBoardCard.findUnique({ where: { id: data.targetBoardCardId } });
-            if (target && target.matchId === data.matchId && target.side === data.side) {
+            const target = await tx.matchBoardCard.findUnique({
+              where: { id: data.targetBoardCardId },
+              include: { card: true },
+            });
+            if (target && target.matchId === data.matchId && target.side === data.side && !target.card.isElite) {
               await tx.matchBoardCard.update({
                 where: { id: target.id },
                 data:  { basePower: target.basePower + ev },
@@ -442,8 +445,11 @@ export async function playCardAction(data: {
           }
         } else if (ek === "DAMAGE") {
           if (data.targetBoardCardId) {
-            const target = await tx.matchBoardCard.findUnique({ where: { id: data.targetBoardCardId } });
-            if (target && target.matchId === data.matchId && target.side !== ownerSide) {
+            const target = await tx.matchBoardCard.findUnique({
+              where: { id: data.targetBoardCardId },
+              include: { card: true },
+            });
+            if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite) {
               if (target.shielded) {
                 await tx.matchBoardCard.update({
                   where: { id: target.id },
@@ -549,7 +555,7 @@ export async function playCardAction(data: {
               where: { id: data.targetBoardCardId },
               include: { card: true },
             });
-            if (target && target.matchId === data.matchId && target.side === data.side) {
+            if (target && target.matchId === data.matchId && target.side === data.side && !target.card.isElite) {
               await tx.matchBoardCard.update({
                 where: { id: target.id },
                 data:  { basePower: target.card.power },
@@ -671,13 +677,19 @@ export async function activateLeaderAction(data: {
 
     // Aplica efeito do líder (subset do que cartas normais fazem)
     if (ek === "BOOST" && data.targetBoardCardId) {
-      const t = await tx.matchBoardCard.findUnique({ where: { id: data.targetBoardCardId } });
-      if (t && t.side === data.side) {
+      const t = await tx.matchBoardCard.findUnique({
+        where: { id: data.targetBoardCardId },
+        include: { card: true },
+      });
+      if (t && t.side === data.side && !t.card.isElite) {
         await tx.matchBoardCard.update({ where: { id: t.id }, data: { basePower: t.basePower + ev } });
       }
     } else if (ek === "DAMAGE" && data.targetBoardCardId) {
-      const t = await tx.matchBoardCard.findUnique({ where: { id: data.targetBoardCardId } });
-      if (t && t.side !== data.side) {
+        const t = await tx.matchBoardCard.findUnique({
+          where: { id: data.targetBoardCardId },
+          include: { card: true },
+        });
+        if (t && t.side !== data.side && !t.card.isElite) {
         if (t.shielded) {
           await tx.matchBoardCard.update({ where: { id: t.id }, data: { shielded: false } });
         } else {
@@ -698,11 +710,11 @@ export async function activateLeaderAction(data: {
     } else if (ek === "CLEAR_WEATHER") {
       await tx.matchWeather.deleteMany({ where: { matchId: data.matchId } });
     } else if (ek === "HEAL" && data.targetBoardCardId) {
-      const t = await tx.matchBoardCard.findUnique({
-        where: { id: data.targetBoardCardId },
-        include: { card: true },
-      });
-      if (t && t.side === data.side) {
+        const t = await tx.matchBoardCard.findUnique({
+          where: { id: data.targetBoardCardId },
+          include: { card: true },
+        });
+        if (t && t.side === data.side && !t.card.isElite) {
         await tx.matchBoardCard.update({ where: { id: t.id }, data: { basePower: t.card.power } });
       }
     }
