@@ -117,6 +117,7 @@ export function MatchTable(props: Props) {
   const [selectedHandCard, setSelectedHandCard] = useState<HandCard | null>(null);
   const [chosenRow, setChosenRow] = useState<Row | null>(null);
   const [targetMode, setTargetMode] = useState<"NONE" | "ALLY" | "ENEMY">("NONE");
+  const [pendingEliteTarget, setPendingEliteTarget] = useState<BoardCard | null>(null);
   const [activatingLeader, setActivatingLeader] = useState<Side | null>(null);
   const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY">("NONE");
 
@@ -227,7 +228,22 @@ export function MatchTable(props: Props) {
         return;
       }
     }
+    // Se alvo for Elite, pede confirmacao
+    if (target.isElite) {
+      setPendingEliteTarget(target);
+      return;
+    }
     executePlay(chosenRow, target.boardId);
+  }
+
+  function confirmEliteTarget() {
+    if (!pendingEliteTarget || !chosenRow) return;
+    executePlay(chosenRow, pendingEliteTarget.boardId);
+    setPendingEliteTarget(null);
+  }
+
+  function cancelEliteTarget() {
+    setPendingEliteTarget(null);
   }
 
   function executePlay(row: Row, targetBoardCardId?: string) {
@@ -500,14 +516,77 @@ return (
 
       {selectedHandCard && !chosenRow && renderRowPicker()}
 
-      {targetMode !== "NONE" && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-100 text-sm px-4 py-2 rounded-lg shadow-xl z-40 border border-amber-600">
-          Clique numa carta {targetMode === "ALLY" ? "aliada" : "inimiga"} no tabuleiro
-          <button onClick={cancelPlay} className="ml-3 underline text-amber-200">cancelar</button>
+      {targetMode !== "NONE" && (() => {
+        const validTargets = props.board.filter((c) =>
+          targetMode === "ALLY" ? (c.side === turnSide && !c.isElite) : (c.side !== turnSide && !c.isElite)
+        );
+        const allTargets = props.board.filter((c) =>
+          targetMode === "ALLY" ? c.side === turnSide : c.side !== turnSide
+        );
+        const onlyElite = allTargets.length > 0 && validTargets.length === 0;
+        const noTargets = allTargets.length === 0;
+        return (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-100 text-sm px-4 py-2 rounded-lg shadow-xl z-40 border border-amber-600 flex items-center gap-3">
+            {validTargets.length > 0 && (
+              <span>Clique numa carta {targetMode === "ALLY" ? "aliada" : "inimiga"} no tabuleiro</span>
+            )}
+            {onlyElite && (
+              <span>Todas as cartas {targetMode === "ALLY" ? "aliadas" : "inimigas"} sao Elite (imunes).</span>
+            )}
+            {noTargets && (
+              <span>Nenhuma carta {targetMode === "ALLY" ? "aliada" : "inimiga"} no campo.</span>
+            )}
+            {chosenRow && (
+              <button
+                onClick={() => { executePlay(chosenRow, undefined); }}
+                disabled={isPending}
+                className="bg-zinc-700 hover:bg-zinc-600 text-zinc-100 px-3 py-1 rounded text-xs transition"
+                title="A carta entra em campo mas a habilidade nao tera efeito"
+              >
+                Jogar sem efeito
+              </button>
+            )}
+            <button onClick={cancelPlay} className="underline text-amber-200">cancelar</button>
+          </div>
+        );
+      })()}
+
+      {/* Modal de confirmacao quando alvo for Elite */}
+      {pendingEliteTarget && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border-2 border-amber-500 rounded-xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-3xl">👑</span>
+              <h3 className="font-heading font-bold text-xl text-amber-300">Carta Elite</h3>
+            </div>
+            <p className="text-zinc-200 text-sm mb-2">
+              <span className="font-semibold text-amber-200">{pendingEliteTarget.name}</span> é uma carta Elite e é
+              <span className="text-amber-300 font-semibold"> imune a todos os efeitos</span> (boost, dano, climas).
+            </p>
+            <p className="text-zinc-400 text-xs italic mb-5">
+              Sua habilidade vai ser ativada mas não terá efeito sobre esta carta. Deseja continuar mesmo assim?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={cancelEliteTarget}
+                disabled={isPending}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-sm transition"
+              >
+                Escolher outro alvo
+              </button>
+              <button
+                onClick={confirmEliteTarget}
+                disabled={isPending}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold rounded text-sm transition"
+              >
+                Confirmar mesmo assim
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-{activatingLeader && leaderTargetMode !== "NONE" && (
+      {activatingLeader && leaderTargetMode !== "NONE" && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-purple-900/90 text-purple-100 text-sm px-4 py-2 rounded-lg shadow-xl z-40 border border-purple-600">
           Líder: clique numa carta {leaderTargetMode === "ALLY" ? "aliada" : "inimiga"}
           <button onClick={cancelLeaderActivation} className="ml-3 underline text-purple-200">cancelar</button>
