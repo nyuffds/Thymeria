@@ -1,4 +1,4 @@
-﻿// lib/match-actions.ts
+// lib/match-actions.ts
 // Server actions de partida (HOTSEAT).
 
 "use server";
@@ -338,6 +338,21 @@ async function triggerOnDeath(
     include: { card: { include: { ability: true } } },
   });
   if (!dying) return;
+  // Move a entrada de MatchHand correspondente para DISCARD (cemiterio)
+  // Usa handEntryId quando disponivel (precisao), fallback para busca por cardId+side+zone
+  if (dying.handEntryId) {
+    await tx.matchHand.updateMany({
+      where: { id: dying.handEntryId, zone: "BOARD" },
+      data: { zone: "DISCARD" },
+    });
+  } else {
+    const handEntry = await tx.matchHand.findFirst({
+      where: { matchId, side: dying.side, cardId: dying.cardId, zone: "BOARD" },
+    });
+    if (handEntry) {
+      await tx.matchHand.update({ where: { id: handEntry.id }, data: { zone: "DISCARD" } });
+    }
+  }
   const ek = dying.card.ability?.engineKey;
   if (ek !== "ON_DEATH_SPAWN") return;
   const csv = dying.card.ability?.targetCardIdsCsv;
@@ -480,12 +495,13 @@ export async function playCardAction(data: {
           power: card.power,
           isToken: false,
           shielded: card.ability?.engineKey === "SHIELD",
+            handEntryId: handEntry.id,
         },
       });
 
       await tx.matchHand.update({
         where: { id: handEntry.id },
-        data:  { zone: "DISCARD" },
+        data:  { zone: "BOARD" },
       });
 
       await logEvent(tx, data.matchId, match.currentRound, data.side, "PLAY_CARD",
@@ -1105,6 +1121,8 @@ async function finalizeRound(
     .map((b) => b.id);
 
   await tx.matchBoardCard.deleteMany({ where: { id: { in: idsToDelete } } });
+  // Cartas que estavam no campo viram cemiterio
+  await tx.matchHand.updateMany({ where: { matchId, zone: "BOARD" }, data: { zone: "DISCARD" } });
   await tx.matchWeather.deleteMany({ where: { matchId } });
   await tx.matchRowImmunity.deleteMany({ where: { matchId } });
 
