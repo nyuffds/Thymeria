@@ -166,6 +166,7 @@ export default async function PartidaPage({
                   description: h.card.ability.description,
                   engineKey: h.card.ability.engineKey,
                   engineValue: h.card.ability.engineValue,
+                  targetCount: h.card.ability.targetCount,
                 } : null,
               }))
             : [],
@@ -187,6 +188,7 @@ export default async function PartidaPage({
                   description: h.card.ability.description,
                   engineKey: h.card.ability.engineKey,
                   engineValue: h.card.ability.engineValue,
+                  targetCount: h.card.ability.targetCount,
                 } : null,
               }))
             : [],

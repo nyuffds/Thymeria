@@ -385,6 +385,7 @@ export async function playCardAction(data: {
   targetRow: Row;
   targetBoardCardId?: string;  // alvo (BOOST, DAMAGE, HEAL, etc)
   effectRow?: Row;  // fileira-alvo para habilidades ROW_*
+  multiTargetIds?: string[];  // varios alvos (BOOST_MANY / Nutrir)
 }) {
   await prisma.$transaction(async (tx) => {
     const match = await tx.match.findUnique({ where: { id: data.matchId } });
@@ -512,7 +513,24 @@ export async function playCardAction(data: {
                 { targetId: target.id, amount: ev });
             }
           }
-        } else if (ek === "DAMAGE") {
+        } else if (ek === "BOOST_MANY" && data.multiTargetIds && data.multiTargetIds.length > 0) {
+        // Nutrir: ev de boost em ate N criaturas aliadas escolhidas pelo jogador
+        const maxN = card.ability?.targetCount ?? data.multiTargetIds.length;
+        const chosen = data.multiTargetIds.slice(0, maxN);
+        const targets = await tx.matchBoardCard.findMany({
+          where: { id: { in: chosen }, matchId: data.matchId, side: ownerSide },
+          include: { card: true },
+        });
+        for (const t of targets) {
+          if (t.card.isElite) continue;
+          await tx.matchBoardCard.update({
+            where: { id: t.id },
+            data:  { basePower: t.basePower + ev },
+          });
+        }
+        await logEvent(tx, data.matchId, match.currentRound, data.side, "BOOST_MANY",
+          { count: targets.length, amount: ev });
+      } else if (ek === "DAMAGE") {
           if (data.targetBoardCardId) {
             const target = await tx.matchBoardCard.findUnique({
               where: { id: data.targetBoardCardId },

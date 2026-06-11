@@ -36,7 +36,7 @@ interface PlayerInfo {
       imageUrl: string | null;
   frameUrl: string | null;
       leaderMode: string | null;
-      ability: { name: string; description: string; engineKey: string | null } | null;
+      ability: { name: string; description: string; engineKey: string | null; targetCount?: number | null } | null;
     } | null;
   };
 }
@@ -53,7 +53,7 @@ interface HandCard {
   imageUrl: string | null;
   frameUrl: string | null;
   faction: { name: string; color: string };
-  ability: { name: string; description: string; engineKey: string | null; engineValue: number | null } | null;
+  ability: { name: string; description: string; engineKey: string | null; engineValue: number | null; targetCount?: number | null } | null;
 }
 
 interface BoardCard {
@@ -119,6 +119,8 @@ export function MatchTable(props: Props) {
   const [chosenRow, setChosenRow] = useState<Row | null>(null);
   const [targetMode, setTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
   const [pendingEliteTarget, setPendingEliteTarget] = useState<BoardCard | null>(null);
+  const [multiSelectMode, setMultiSelectMode] = useState<{ max: number } | null>(null);
+  const [multiSelectIds, setMultiSelectIds] = useState<string[]>([]);
   const [activatingLeader, setActivatingLeader] = useState<Side | null>(null);
   const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
 
@@ -208,7 +210,11 @@ export function MatchTable(props: Props) {
     if (!selectedHandCard) return;
     setChosenRow(row);
     const ek = selectedHandCard.ability?.engineKey;
-    if (ek && NEEDS_TARGET.has(ek)) {
+    if (ek === "BOOST_MANY") {
+      const max = selectedHandCard.ability?.targetCount ?? 3;
+      setMultiSelectMode({ max });
+      setMultiSelectIds([]);
+    } else if (ek && NEEDS_TARGET.has(ek)) {
       setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
     } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
       setTargetMode(ek === "DESTROY_ROW" ? "ROW_ENEMY" : "ROW_ALLY");
@@ -262,17 +268,37 @@ export function MatchTable(props: Props) {
     setPendingEliteTarget(null);
   }
 
+  function confirmMultiSelect() {
+    if (!chosenRow || multiSelectIds.length === 0) return;
+    executePlay(chosenRow, undefined, undefined, multiSelectIds);
+    setMultiSelectMode(null);
+    setMultiSelectIds([]);
+  }
+  function cancelMultiSelect() {
+    setMultiSelectMode(null);
+    setMultiSelectIds([]);
+    setSelectedHandCard(null);
+    setChosenRow(null);
+  }
+  function toggleMultiSelectId(id: string) {
+    setMultiSelectIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (multiSelectMode && prev.length >= multiSelectMode.max) return prev;
+      return [...prev, id];
+    });
+  }
+
   function cancelEliteTarget() {
     setPendingEliteTarget(null);
   }
 
-  function executePlay(row: Row, targetBoardCardId?: string, effectRow?: Row) {
+  function executePlay(row: Row, targetBoardCardId?: string, effectRow?: Row, multiTargetIds?: string[]) {
     if (!selectedHandCard) return;
     const handCardId = selectedHandCard.handId;
     guard(async () => {
       await playCardAction({
         matchId: props.matchId, side: turnSide!, handCardId,
-        targetRow: row, targetBoardCardId, effectRow,
+        targetRow: row, targetBoardCardId, effectRow, multiTargetIds,
         });
         setSelectedHandCard(null);
       setChosenRow(null);
@@ -581,6 +607,41 @@ return (
       })()}
 
       {/* Modal de confirmacao quando alvo for Elite */}
+      {/* Modal de multi-select para BOOST_MANY (Nutrir) */}
+      {multiSelectMode && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border-2 border-amber-500 rounded-xl p-6 max-w-2xl w-full shadow-2xl">
+            <h3 className="text-xl font-bold text-amber-200 mb-2">Escolha as cartas aliadas</h3>
+            <p className="text-sm text-zinc-400 mb-4">
+              Selecione ate {multiSelectMode.max} cartas aliadas para receber o efeito.
+              ({multiSelectIds.length}/{multiSelectMode.max} selecionadas)
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-96 overflow-y-auto mb-4">
+              {props.board.filter((c) => c.side === turnSide && !c.isElite).map((c) => {
+                const isSelected = multiSelectIds.includes(c.boardId);
+                return (
+                  <button
+                    key={c.boardId}
+                    onClick={() => toggleMultiSelectId(c.boardId)}
+                    className={"text-left px-3 py-2 rounded-lg border-2 transition " + (isSelected ? "border-amber-500 bg-amber-900/30" : "border-zinc-700 bg-zinc-800 hover:border-zinc-600")}
+                  >
+                    <div className="font-semibold text-zinc-100 text-sm">{c.name}</div>
+                    <div className="text-xs text-zinc-400">{c.row} - Poder {c.power}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {props.board.filter((c) => c.side === turnSide && !c.isElite).length === 0 && (
+              <p className="text-sm text-amber-400 mb-4 italic">Nenhuma carta aliada disponivel.</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={cancelMultiSelect} className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-100 rounded-lg text-sm">Cancelar</button>
+              <button onClick={confirmMultiSelect} disabled={multiSelectIds.length === 0} className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-zinc-950 font-semibold rounded-lg text-sm">Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {pendingEliteTarget && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-zinc-900 border-2 border-amber-500 rounded-xl p-6 max-w-md w-full shadow-2xl">

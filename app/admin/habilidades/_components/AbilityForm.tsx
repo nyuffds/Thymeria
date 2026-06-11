@@ -26,6 +26,7 @@ type Mode =
         isActive: boolean;
         targetCardIdsCsv: string | null;
         targetCardType: string | null;
+        targetCount: number | null;
         triggerMode: string;
       };
     };
@@ -38,7 +39,7 @@ export function AbilityForm(props: Mode) {
   const isEdit = props.mode === "edit";
   const init = isEdit
     ? props.initial
-    : { name: "", description: "", engineKey: "", engineValue: null as number | null, isActive: true, targetCardIdsCsv: null as string | null, targetCardType: null as string | null, triggerMode: "MANUAL" };
+    : { name: "", description: "", engineKey: "", engineValue: null as number | null, isActive: true, targetCardIdsCsv: null as string | null, targetCardType: null as string | null, targetCount: null as number | null, triggerMode: "MANUAL" };
 
   const [name, setName]                 = useState(init.name);
   const [description, setDescription]   = useState(init.description);
@@ -47,6 +48,7 @@ export function AbilityForm(props: Mode) {
   const [isActive, setIsActive]         = useState(init.isActive);
   const [targetCardIds, setTargetCardIds] = useState<string[]>(init.targetCardIdsCsv ? init.targetCardIdsCsv.split(",").filter(Boolean) : []);
   const [targetCardType, setTargetCardType] = useState<string | null>(init.targetCardType);
+  const [targetCount, setTargetCount] = useState<string>(init.targetCount?.toString() ?? "");
   const [triggerMode, setTriggerMode]     = useState(init.triggerMode);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -66,6 +68,7 @@ export function AbilityForm(props: Mode) {
             name, description, engineKey, engineValue: valueNum, isActive,
             targetCardIdsCsv: targetCardIds.join(",") || null,
             targetCardType,
+            targetCount: targetCount.trim() === "" ? null : parseInt(targetCount, 10),
             triggerMode,
           });
         } else {
@@ -73,6 +76,7 @@ export function AbilityForm(props: Mode) {
             name, description, engineKey, engineValue: valueNum,
             targetCardIdsCsv: targetCardIds.join(",") || null,
             targetCardType,
+            targetCount: targetCount.trim() === "" ? null : parseInt(targetCount, 10),
             triggerMode,
           });
         }
@@ -223,6 +227,14 @@ export function AbilityForm(props: Mode) {
                 {targetCardIds.length} carta(s) selecionada(s)
               </p>
             )}
+          </div>
+        )}
+
+        {/* Quantidade de alvos (BOOST_MANY / Nutrir) */}
+        {engineKey === "BOOST_MANY" && (
+          <div>
+            <label className="block text-sm text-zinc-300 mb-2">Quantidade de criaturas que recebem boost</label>
+            <input type="number" min="1" value={targetCount} onChange={(e) => setTargetCount(e.target.value)} disabled={isPending} className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-amber-500" placeholder="Ex: 3 (cartas que o jogador pode escolher)" />
           </div>
         )}
 
