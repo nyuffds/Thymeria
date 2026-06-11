@@ -677,9 +677,9 @@ export async function playCardAction(data: {
       ? otherSide(data.side)
       : data.side;
 
+    await decrementImmunities(tx, data.matchId);
     await tx.match.update({
       where: { id: data.matchId },
-      await decrementImmunities(tx, data.matchId);
       data:  { currentTurnSide: nextTurnSide },
     });
   });
@@ -786,9 +786,12 @@ export async function activateLeaderAction(data: {
           await tx.matchBoardCard.update({ where: { id: t.id }, data: { shielded: false } });
         } else {
           const newBase = t.basePower - ev;
-          if (newBase <= 0) await triggerOnDeath(tx, data?.matchId ?? matchId, t.id);
+          if (newBase <= 0) {
+            await triggerOnDeath(tx, data?.matchId ?? matchId, t.id);
             await tx.matchBoardCard.delete({ where: { id: t.id } });
-          else await tx.matchBoardCard.update({ where: { id: t.id }, data: { basePower: newBase } });
+          } else {
+            await tx.matchBoardCard.update({ where: { id: t.id }, data: { basePower: newBase } });
+          }
         }
       }
     } else if (ek === "DRAW") {
@@ -1074,9 +1077,9 @@ export async function activateLeaderAction(data: {
       where: { matchId_side: { matchId: data.matchId, side: otherSide(data.side) } },
     });
     const nextTurnSide: Side = opponent && !opponent.hasPassed ? otherSide(data.side) : data.side;
+    await decrementImmunities(tx, data.matchId);
     await tx.match.update({
       where: { id: data.matchId },
-      await decrementImmunities(tx, data.matchId);
       data:  { currentTurnSide: nextTurnSide },
     });
   });
