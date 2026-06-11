@@ -231,10 +231,10 @@ export function AbilityForm(props: Mode) {
         )}
 
         {/* Quantidade de alvos (BOOST_MANY / Nutrir) */}
-        {engineKey === "BOOST_MANY" && (
+        {(engineKey === "BOOST_MANY" || engineKey === "SHUFFLE_AND_DRAW") && (
           <div>
-            <label className="block text-sm text-zinc-300 mb-2">Quantidade de criaturas que recebem boost</label>
-            <input type="number" min="1" value={targetCount} onChange={(e) => setTargetCount(e.target.value)} disabled={isPending} className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-amber-500" placeholder="Ex: 3 (cartas que o jogador pode escolher)" />
+            <label className="block text-sm text-zinc-300 mb-2">Quantidade de alvos / cartas (depende da habilidade)</label>
+            <input type="number" min="1" value={targetCount} onChange={(e) => setTargetCount(e.target.value)} disabled={isPending} className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-amber-500" placeholder="Ex: 2 (cartas a comprar / criaturas a afetar)" />
           </div>
         )}
 

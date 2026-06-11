@@ -545,6 +545,44 @@ export async function playCardAction(data: {
         }
         await logEvent(tx, data.matchId, match.currentRound, data.side, "BOOST_MANY",
           { count: targets.length, amount: ev });
+      } else if (ek === "SHUFFLE_AND_DRAW" && data.multiTargetIds) {
+        // Ganancia: jogador escolhe ate engineValue cartas da mao,
+        // devolve ao deck (zone HAND -> DECK, shuffle), depois compra targetCount do deck
+        const maxToReturn = ev > 0 ? ev : data.multiTargetIds.length;
+        const drawCount = card.ability?.targetCount ?? 1;
+        const chosen = data.multiTargetIds.slice(0, maxToReturn);
+        // 1. Move as escolhidas para DECK
+        const returning = await tx.matchHand.findMany({
+          where: { id: { in: chosen }, matchId: data.matchId, side: data.side, zone: "HAND" },
+        });
+        if (returning.length > 0) {
+          await tx.matchHand.updateMany({
+            where: { id: { in: returning.map((r) => r.id) } },
+            data: { zone: "DECK" },
+          });
+        }
+        // 2. Re-embaralha o DECK do jogador (re-randomiza deckOrder)
+        const deckCards = await tx.matchHand.findMany({
+          where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+        });
+        const newOrders = [...deckCards.map((d) => d.id)].sort(() => Math.random() - 0.5);
+        for (let i = 0; i < newOrders.length; i++) {
+          await tx.matchHand.update({
+            where: { id: newOrders[i] },
+            data: { deckOrder: i + 1 },
+          });
+        }
+        // 3. Compra drawCount do topo do DECK pra HAND
+        const drawFrom = await tx.matchHand.findMany({
+          where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+          orderBy: { deckOrder: "asc" },
+          take: drawCount,
+        });
+        for (const d of drawFrom) {
+          await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
+        }
+        await logEvent(tx, data.matchId, match.currentRound, data.side, "SHUFFLE_AND_DRAW",
+          { returned: returning.length, drew: drawFrom.length });
       } else if (ek === "DAMAGE") {
           if (data.targetBoardCardId) {
             const target = await tx.matchBoardCard.findUnique({

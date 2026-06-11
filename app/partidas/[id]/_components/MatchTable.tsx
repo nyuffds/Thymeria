@@ -119,7 +119,7 @@ export function MatchTable(props: Props) {
   const [chosenRow, setChosenRow] = useState<Row | null>(null);
   const [targetMode, setTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
   const [pendingEliteTarget, setPendingEliteTarget] = useState<BoardCard | null>(null);
-  const [multiSelectMode, setMultiSelectMode] = useState<{ max: number } | null>(null);
+  const [multiSelectMode, setMultiSelectMode] = useState<{ max: number; source: "BOARD" | "HAND" } | null>(null);
   const [multiSelectIds, setMultiSelectIds] = useState<string[]>([]);
   const [activatingLeader, setActivatingLeader] = useState<Side | null>(null);
   const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
@@ -212,7 +212,11 @@ export function MatchTable(props: Props) {
     const ek = selectedHandCard.ability?.engineKey;
     if (ek === "BOOST_MANY") {
       const max = selectedHandCard.ability?.targetCount ?? 3;
-      setMultiSelectMode({ max });
+      setMultiSelectMode({ max, source: "BOARD" });
+      setMultiSelectIds([]);
+    } else if (ek === "SHUFFLE_AND_DRAW") {
+      const max = selectedHandCard.ability?.engineValue ?? 3;
+      setMultiSelectMode({ max, source: "HAND" });
       setMultiSelectIds([]);
     } else if (ek && NEEDS_TARGET.has(ek)) {
       setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
@@ -611,28 +615,45 @@ return (
       {multiSelectMode && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-zinc-900 border-2 border-amber-500 rounded-xl p-6 max-w-2xl w-full shadow-2xl">
-            <h3 className="text-xl font-bold text-amber-200 mb-2">Escolha as cartas aliadas</h3>
+            <h3 className="text-xl font-bold text-amber-200 mb-2">{multiSelectMode.source === "HAND" ? "Escolha cartas da mao" : "Escolha as cartas aliadas"}</h3>
             <p className="text-sm text-zinc-400 mb-4">
-              Selecione ate {multiSelectMode.max} cartas aliadas para receber o efeito.
-              ({multiSelectIds.length}/{multiSelectMode.max} selecionadas)
+              {multiSelectMode.source === "HAND"
+                ? `Selecione ate ${multiSelectMode.max} cartas da mao para devolver ao deck.`
+                : `Selecione ate ${multiSelectMode.max} cartas aliadas para receber o efeito.`}
+              {" "}({multiSelectIds.length}/{multiSelectMode.max} selecionadas)
             </p>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-96 overflow-y-auto mb-4">
-              {props.board.filter((c) => c.side === turnSide && !c.isElite).map((c) => {
-                const isSelected = multiSelectIds.includes(c.boardId);
-                return (
-                  <button
-                    key={c.boardId}
-                    onClick={() => toggleMultiSelectId(c.boardId)}
-                    className={"text-left px-3 py-2 rounded-lg border-2 transition " + (isSelected ? "border-amber-500 bg-amber-900/30" : "border-zinc-700 bg-zinc-800 hover:border-zinc-600")}
-                  >
-                    <div className="font-semibold text-zinc-100 text-sm">{c.name}</div>
-                    <div className="text-xs text-zinc-400">{c.row} - Poder {c.power}</div>
-                  </button>
-                );
-              })}
+              {multiSelectMode.source === "HAND"
+                ? props.hands[turnSide!].filter((c) => c.handId !== selectedHandCard?.handId).map((c) => {
+                    const isSelected = multiSelectIds.includes(c.handId);
+                    return (
+                      <button
+                        key={c.handId}
+                        onClick={() => toggleMultiSelectId(c.handId)}
+                        className={"text-left px-3 py-2 rounded-lg border-2 transition " + (isSelected ? "border-amber-500 bg-amber-900/30" : "border-zinc-700 bg-zinc-800 hover:border-zinc-600")}
+                      >
+                        <div className="font-semibold text-zinc-100 text-sm">{c.name}</div>
+                        <div className="text-xs text-zinc-400">Poder {c.power}</div>
+                      </button>
+                    );
+                  })
+                : props.board.filter((c) => c.side === turnSide && !c.isElite).map((c) => {
+                    const isSelected = multiSelectIds.includes(c.boardId);
+                    return (
+                      <button
+                        key={c.boardId}
+                        onClick={() => toggleMultiSelectId(c.boardId)}
+                        className={"text-left px-3 py-2 rounded-lg border-2 transition " + (isSelected ? "border-amber-500 bg-amber-900/30" : "border-zinc-700 bg-zinc-800 hover:border-zinc-600")}
+                      >
+                        <div className="font-semibold text-zinc-100 text-sm">{c.name}</div>
+                        <div className="text-xs text-zinc-400">{c.row} - Poder {c.power}</div>
+                      </button>
+                    );
+                  })}
             </div>
-            {props.board.filter((c) => c.side === turnSide && !c.isElite).length === 0 && (
-              <p className="text-sm text-amber-400 mb-4 italic">Nenhuma carta aliada disponivel.</p>
+            {((multiSelectMode.source === "HAND" && props.hands[turnSide!].filter((c) => c.handId !== selectedHandCard?.handId).length === 0)
+              || (multiSelectMode.source === "BOARD" && props.board.filter((c) => c.side === turnSide && !c.isElite).length === 0)) && (
+              <p className="text-sm text-amber-400 mb-4 italic">Nenhuma carta disponivel.</p>
             )}
             <div className="flex justify-end gap-2">
               <button onClick={cancelMultiSelect} className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-100 rounded-lg text-sm">Cancelar</button>
