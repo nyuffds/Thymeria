@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -106,7 +106,7 @@ const ROW_ICON: Record<Row, string> = {
 };
 
 const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION"]);
-const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW"]);
+const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW", "WEATHER_RAIN"]);
 const WEATHER_NEEDS_ROW = new Set(["WEATHER_RAIN"]);
 
 export function MatchTable(props: Props) {
@@ -245,7 +245,7 @@ export function MatchTable(props: Props) {
     } else if (ek && NEEDS_TARGET.has(ek)) {
       setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
     } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
-      setTargetMode(ek === "DESTROY_ROW" ? "ROW_ENEMY" : "ROW_ALLY");
+      setTargetMode((ek === "DESTROY_ROW" || ek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
     } else {
       executePlay(row, undefined);
     }
@@ -258,7 +258,7 @@ export function MatchTable(props: Props) {
     // Habilidades de fileira: pega o row do alvo clicado e envia como effectRow
     if (ek && NEEDS_ROW_TARGET.has(ek)) {
       // Valida lado da fileira
-      const isEnemyTarget = ek === "DESTROY_ROW";
+      const isEnemyTarget = ek === "DESTROY_ROW" || ek === "WEATHER_RAIN";
       if (isEnemyTarget && target.side === turnSide) {
         setError("Esta habilidade requer fileira inimiga.");
         return;
@@ -353,7 +353,7 @@ export function MatchTable(props: Props) {
       if (sek && NEEDS_T.includes(sek)) {
         setTargetMode((sek === "BOOST" || sek === "HEAL" || sek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
       } else if (sek && NEEDS_R.includes(sek)) {
-        setTargetMode(sek === "DESTROY_ROW" ? "ROW_ENEMY" : "ROW_ALLY");
+        setTargetMode((sek === "DESTROY_ROW" || sek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
       } else if (sek === "BOOST_MANY") {
         const max = selectedHandCard.ability?.secondaryTargetCount ?? 3;
         setMultiSelectMode({ max, source: "BOARD" });
@@ -413,6 +413,11 @@ export function MatchTable(props: Props) {
     setPrimaryTargets(null);
   }
 
+  function selectRowForEffect(row: Row) {
+    if (!selectedHandCard || !chosenRow) return;
+    executePlay(chosenRow, undefined, row);
+  }
+
 function handlePass() {
     if (!turnSide) return;
     if (isPending) return; // bloqueia clique duplo
@@ -429,19 +434,36 @@ function handlePass() {
       setLeaderTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
     } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
-      setLeaderTargetMode(ek === "DESTROY_ROW" ? "ROW_ENEMY" : "ROW_ALLY");
+      setLeaderTargetMode((ek === "DESTROY_ROW" || ek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
     } else {
       guard(async () => {
         await activateLeaderAction({ matchId: props.matchId, side: turnSide! });
       });
     }
   }
+  function handleLeaderRowSelect(row: Row) {
+    if (!activatingLeader) return;
+    const side = activatingLeader;
+    guard(async () => {
+      await activateLeaderAction({
+        matchId: props.matchId,
+        side,
+        targetRow: row,
+      });
+      setActivatingLeader(null);
+      setLeaderTargetMode("NONE");
+    });
+  }
+
   function handleLeaderTargetClick(target: BoardCard) {
     if (!activatingLeader) return;
     const side = activatingLeader;
     guard(async () => {
       await activateLeaderAction({
-        matchId: props.matchId, side, targetBoardCardId: target.boardId,
+        matchId: props.matchId,
+        side,
+        targetBoardCardId: (leaderTargetMode === "ROW_ENEMY" || leaderTargetMode === "ROW_ALLY") ? undefined : target.boardId,
+        targetRow: (leaderTargetMode === "ROW_ENEMY" || leaderTargetMode === "ROW_ALLY") ? target.row : undefined,
       });
       setActivatingLeader(null);
       setLeaderTargetMode("NONE");
@@ -683,8 +705,8 @@ return (
         const noTargets = allTargets.length === 0;
         return (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-100 text-sm px-4 py-2 rounded-lg shadow-xl z-40 border border-amber-600 flex items-center gap-3">
-            {validTargets.length > 0 && (
-              <span>{isRowMode ? `Clique em qualquer carta da fileira ${isAllySide ? "aliada" : "inimiga"} que quer afetar` : `Clique numa carta ${isAllySide ? "aliada" : "inimiga"} no tabuleiro`}</span>
+            {(validTargets.length > 0 || isRowMode) && (
+              (isRowMode ? (<><span>Escolha a fileira {isAllySide ? "aliada" : "inimiga"} alvo:</span><button onClick={() => selectRowForEffect("MELEE")} className="ml-2 px-2 py-1 bg-amber-700 hover:bg-amber-600 rounded text-xs">Vanguarda</button><button onClick={() => selectRowForEffect("RANGED")} className="mx-1 px-2 py-1 bg-amber-700 hover:bg-amber-600 rounded text-xs">Distancia</button><button onClick={() => selectRowForEffect("SIEGE")} className="px-2 py-1 bg-amber-700 hover:bg-amber-600 rounded text-xs">Cerco</button></>) : (<span>Clique numa carta {isAllySide ? "aliada" : "inimiga"} no tabuleiro</span>))
             )}
             {onlyElite && (
               <span>Todas as cartas {isAllySide ? "aliadas" : "inimigas"} sao Elite (imunes).</span>
@@ -838,7 +860,7 @@ return (
 
       {activatingLeader && leaderTargetMode !== "NONE" && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-purple-900/90 text-purple-100 text-sm px-4 py-2 rounded-lg shadow-xl z-40 border border-purple-600">
-          Líder: clique numa carta {leaderTargetMode === "ALLY" ? "aliada" : "inimiga"}
+          {(leaderTargetMode === "ROW_ENEMY" || leaderTargetMode === "ROW_ALLY") ? (<><span className="mr-2">Lider: escolha a fileira {leaderTargetMode === "ROW_ALLY" ? "aliada" : "inimiga"} alvo:</span><button onClick={() => handleLeaderRowSelect("MELEE")} className="mx-1 px-2 py-1 bg-purple-700 hover:bg-purple-600 rounded text-xs">Vanguarda</button><button onClick={() => handleLeaderRowSelect("RANGED")} className="mx-1 px-2 py-1 bg-purple-700 hover:bg-purple-600 rounded text-xs">Distancia</button><button onClick={() => handleLeaderRowSelect("SIEGE")} className="mx-1 px-2 py-1 bg-purple-700 hover:bg-purple-600 rounded text-xs">Cerco</button></>) : (<>Lider: clique numa carta {leaderTargetMode === "ALLY" ? "aliada" : "inimiga"}</>)}
           <button onClick={cancelLeaderActivation} className="ml-3 underline text-purple-200">cancelar</button>
         </div>
       )}
