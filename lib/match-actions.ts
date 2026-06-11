@@ -392,6 +392,24 @@ async function decrementImmunities(
   }
 }
 
+// Peek nas N primeiras cartas do DECK do jogador (para Profecia revelar)
+export async function peekDeckTopAction(matchId: string, side: Side, n: number) {
+  const cards = await prisma.matchHand.findMany({
+    where: { matchId, side, zone: "DECK" },
+    orderBy: { deckOrder: "asc" },
+    take: n,
+    include: { card: true },
+  });
+  return cards.map((c) => ({
+    handId: c.id,
+    cardId: c.cardId,
+    name: c.card.name,
+    power: c.card.power,
+    cardType: c.card.cardType,
+    imageUrl: c.card.imageUrl,
+  }));
+}
+
 export async function playCardAction(data: {
   matchId: string;
   side: Side;
@@ -400,6 +418,7 @@ export async function playCardAction(data: {
   targetBoardCardId?: string;  // alvo (BOOST, DAMAGE, HEAL, etc)
   effectRow?: Row;  // fileira-alvo para habilidades ROW_*
   multiTargetIds?: string[];  // varios alvos (BOOST_MANY / Nutrir)
+  prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>;  // roteamento da Profecia
 }) {
   await prisma.$transaction(async (tx) => {
     const match = await tx.match.findUnique({ where: { id: data.matchId } });
@@ -545,6 +564,42 @@ export async function playCardAction(data: {
         }
         await logEvent(tx, data.matchId, match.currentRound, data.side, "BOOST_MANY",
           { count: targets.length, amount: ev });
+      } else if (ek === "PROPHECY" && data.prophecyRouting) {
+        // Profecia: olha as proximas X cartas do deck e roteia cada uma:
+        // - HAND: vai pra mao (zone HAND)
+        // - TOP: volta pro topo do deck (deckOrder baixo)
+        // - BOTTOM: vai pro fundo do deck (deckOrder alto)
+        // O frontend ja selecionou as cartas pra rotear (handIds das X primeiras do deck)
+        for (const route of data.prophecyRouting) {
+          if (route.destination === "HAND") {
+            await tx.matchHand.update({ where: { id: route.handId }, data: { zone: "HAND" } });
+          }
+        }
+        // Re-ordena o deck: cartas TOP primeiro, depois cartas BOTTOM (no fundo)
+        const remainingDeck = await tx.matchHand.findMany({
+          where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+          orderBy: { deckOrder: "asc" },
+        });
+        // Para TOPs e BOTTOMs, reordenar
+        const topIds = data.prophecyRouting.filter((r) => r.destination === "TOP").map((r) => r.handId);
+        const bottomIds = data.prophecyRouting.filter((r) => r.destination === "BOTTOM").map((r) => r.handId);
+        // Pega os outros (nao roteados, ja estavam no DECK)
+        const routedIds = new Set([...topIds, ...bottomIds]);
+        const others = remainingDeck.filter((d) => !routedIds.has(d.id));
+        // Nova ordem: TOPs (em ordem) -> others (em ordem original) -> BOTTOMs (em ordem)
+        const newOrder = [...topIds, ...others.map((o) => o.id), ...bottomIds];
+        for (let i = 0; i < newOrder.length; i++) {
+          await tx.matchHand.update({
+            where: { id: newOrder[i] },
+            data: { deckOrder: i + 1 },
+          });
+        }
+        await logEvent(tx, data.matchId, match.currentRound, data.side, "PROPHECY",
+          {
+            toHand: data.prophecyRouting.filter((r) => r.destination === "HAND").length,
+            toTop: topIds.length,
+            toBottom: bottomIds.length,
+          });
       } else if (ek === "SHUFFLE_AND_DRAW" && data.multiTargetIds) {
         // Ganancia: jogador escolhe ate engineValue cartas da mao,
         // devolve ao deck (zone HAND -> DECK, shuffle), depois compra targetCount do deck

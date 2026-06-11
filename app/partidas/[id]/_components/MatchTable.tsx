@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   redrawAction, skipRedrawAction, playCardAction,
-  passRoundAction, activateLeaderAction, abandonMatchAction,
+  passRoundAction, activateLeaderAction, abandonMatchAction, peekDeckTopAction,
   offerDrawAction, respondDrawOfferAction,
   pauseMatchAction, resumeMatchAction,
 } from "@/lib/match-actions";
@@ -121,6 +121,11 @@ export function MatchTable(props: Props) {
   const [pendingEliteTarget, setPendingEliteTarget] = useState<BoardCard | null>(null);
   const [multiSelectMode, setMultiSelectMode] = useState<{ max: number; source: "BOARD" | "HAND" } | null>(null);
   const [multiSelectIds, setMultiSelectIds] = useState<string[]>([]);
+
+  // Profecia: cartas reveladas do topo do deck + roteamento escolhido pelo jogador
+  type ProphecyCard = { handId: string; name: string; power: number; cardType: string; imageUrl: string | null };
+  const [prophecyCards, setProphecyCards] = useState<ProphecyCard[] | null>(null);
+  const [prophecyRouting, setProphecyRouting] = useState<Record<string, "HAND" | "TOP" | "BOTTOM">>({});
   const [activatingLeader, setActivatingLeader] = useState<Side | null>(null);
   const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
 
@@ -218,6 +223,15 @@ export function MatchTable(props: Props) {
       const max = selectedHandCard.ability?.engineValue ?? 3;
       setMultiSelectMode({ max, source: "HAND" });
       setMultiSelectIds([]);
+    } else if (ek === "PROPHECY") {
+      // Abre modal especial: revela X cartas do topo do deck
+      const peekCount = selectedHandCard.ability?.engineValue ?? 3;
+      peekDeckTopAction(props.matchId, turnSide!, peekCount).then((cards) => {
+        setProphecyCards(cards);
+        const initialRouting: Record<string, "HAND" | "TOP" | "BOTTOM"> = {};
+        for (const c of cards) initialRouting[c.handId] = "TOP";
+        setProphecyRouting(initialRouting);
+      });
     } else if (ek && NEEDS_TARGET.has(ek)) {
       setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
     } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
@@ -292,17 +306,34 @@ export function MatchTable(props: Props) {
     });
   }
 
+  function setProphecyDest(handId: string, dest: "HAND" | "TOP" | "BOTTOM") {
+    setProphecyRouting((prev) => ({ ...prev, [handId]: dest }));
+  }
+  function confirmProphecy() {
+    if (!chosenRow || !prophecyCards) return;
+    const routing = prophecyCards.map((c) => ({ handId: c.handId, destination: prophecyRouting[c.handId] ?? "TOP" }));
+    executePlay(chosenRow, undefined, undefined, undefined, routing);
+    setProphecyCards(null);
+    setProphecyRouting({});
+  }
+  function cancelProphecy() {
+    setProphecyCards(null);
+    setProphecyRouting({});
+    setSelectedHandCard(null);
+    setChosenRow(null);
+  }
+
   function cancelEliteTarget() {
     setPendingEliteTarget(null);
   }
 
-  function executePlay(row: Row, targetBoardCardId?: string, effectRow?: Row, multiTargetIds?: string[]) {
+  function executePlay(row: Row, targetBoardCardId?: string, effectRow?: Row, multiTargetIds?: string[], prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>) {
     if (!selectedHandCard) return;
     const handCardId = selectedHandCard.handId;
     guard(async () => {
       await playCardAction({
         matchId: props.matchId, side: turnSide!, handCardId,
-        targetRow: row, targetBoardCardId, effectRow, multiTargetIds,
+        targetRow: row, targetBoardCardId, effectRow, multiTargetIds, prophecyRouting,
         });
         setSelectedHandCard(null);
       setChosenRow(null);
@@ -611,6 +642,48 @@ return (
       })()}
 
       {/* Modal de confirmacao quando alvo for Elite */}
+      {/* Modal da Profecia: routear cada carta revelada */}
+      {prophecyCards && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border-2 border-purple-500 rounded-xl p-6 max-w-3xl w-full shadow-2xl">
+            <h3 className="text-xl font-bold text-purple-200 mb-2">Profecia: Veja seu futuro</h3>
+            <p className="text-sm text-zinc-400 mb-4">
+              Voce ve as proximas {prophecyCards.length} cartas do seu deck. Decida o destino de cada uma.
+            </p>
+            <div className="space-y-3 max-h-96 overflow-y-auto mb-4">
+              {prophecyCards.map((c, idx) => (
+                <div key={c.handId} className="bg-zinc-800 border border-zinc-700 rounded-lg p-3 flex items-center gap-3">
+                  <div className="text-xs text-zinc-500 font-mono w-6">{idx + 1}</div>
+                  {c.imageUrl && <img src={c.imageUrl} alt={c.name} className="w-12 h-16 object-cover rounded" />}
+                  <div className="flex-1">
+                    <div className="font-semibold text-zinc-100">{c.name}</div>
+                    <div className="text-xs text-zinc-400">{c.cardType} - Poder {c.power}</div>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setProphecyDest(c.handId, "HAND")}
+                      className={"px-2 py-1 text-xs rounded font-semibold transition " + (prophecyRouting[c.handId] === "HAND" ? "bg-green-600 text-zinc-950" : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600")}
+                    >Mao</button>
+                    <button
+                      onClick={() => setProphecyDest(c.handId, "TOP")}
+                      className={"px-2 py-1 text-xs rounded font-semibold transition " + (prophecyRouting[c.handId] === "TOP" ? "bg-amber-600 text-zinc-950" : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600")}
+                    >Topo</button>
+                    <button
+                      onClick={() => setProphecyDest(c.handId, "BOTTOM")}
+                      className={"px-2 py-1 text-xs rounded font-semibold transition " + (prophecyRouting[c.handId] === "BOTTOM" ? "bg-red-600 text-zinc-100" : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600")}
+                    >Fundo</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={cancelProphecy} className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-100 rounded-lg text-sm">Cancelar</button>
+              <button onClick={confirmProphecy} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-zinc-100 font-semibold rounded-lg text-sm">Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de multi-select para BOOST_MANY (Nutrir) */}
       {multiSelectMode && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
