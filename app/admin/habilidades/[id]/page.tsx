@@ -45,6 +45,7 @@ export default async function EditarHabilidadePage({
           engineValue: ability.engineValue,
           isActive: ability.isActive,
           targetCardIdsCsv: ability.targetCardIdsCsv,
+          targetCardType: ability.targetCardType,
           triggerMode: ability.triggerMode,
         }}
       />

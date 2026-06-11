@@ -105,7 +105,7 @@ const ROW_ICON: Record<Row, string> = {
   MELEE: "⚔", RANGED: "🏹", SIEGE: "🏰",
 };
 
-const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW"]);
+const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION"]);
 const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW"]);
 const WEATHER_NEEDS_ROW = new Set(["WEATHER_RAIN"]);
 
@@ -209,7 +209,7 @@ export function MatchTable(props: Props) {
     setChosenRow(row);
     const ek = selectedHandCard.ability?.engineKey;
     if (ek && NEEDS_TARGET.has(ek)) {
-      setTargetMode(ek === "BOOST" || ek === "HEAL" ? "ALLY" : "ENEMY");
+      setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
     } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
       setTargetMode(ek === "DESTROY_ROW" ? "ROW_ENEMY" : "ROW_ALLY");
     } else {
@@ -237,7 +237,7 @@ export function MatchTable(props: Props) {
       return;
     }
 
-    if (ek === "BOOST" || ek === "HEAL") {
+    if (ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") {
       if (target.side !== turnSide) {
         setError("Esta habilidade requer carta aliada.");
         return;
@@ -299,7 +299,7 @@ function handlePass() {
     const ek = leader.ability?.engineKey ?? null;
     if (ek && NEEDS_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
-      setLeaderTargetMode(ek === "BOOST" || ek === "HEAL" ? "ALLY" : "ENEMY");
+      setLeaderTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
     } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
       setLeaderTargetMode(ek === "DESTROY_ROW" ? "ROW_ENEMY" : "ROW_ALLY");

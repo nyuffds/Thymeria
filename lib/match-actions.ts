@@ -810,6 +810,121 @@ export async function activateLeaderAction(data: {
               { targetId: target.id, by: "DAMAGE_IF", threshold: ev });
           }
         }
+      } else if (ek === "REVIVE_RANDOM") {
+        // Ritual Profano: puxa ev cartas aleatorias de qualquer cemiterio (zone=DISCARD)
+        // pro proprio campo. Vao na primeira fileira permitida da carta.
+        const reviveCount = ev > 0 ? ev : 2;
+        const discardPool = await tx.matchHand.findMany({
+          where: { matchId: data.matchId, zone: "DISCARD" },
+          include: { card: true },
+        });
+        // So ressuscita cartas tipo UNIT (criaturas de combate)
+        const eligible = discardPool.filter((d) => d.card.cardType === "UNIT");
+        // Embaralha e pega N
+        const shuffled = [...eligible].sort(() => Math.random() - 0.5);
+        const picked = shuffled.slice(0, reviveCount);
+        for (const p of picked) {
+          const allowedRows = p.card.rows.split(",").filter(Boolean);
+          const targetRow = (allowedRows[0] ?? "MELEE") as Row;
+          await tx.matchBoardCard.create({
+            data: {
+              matchId: data.matchId,
+              side: ownerSide,
+              cardId: p.cardId,
+              row: targetRow,
+              basePower: p.card.power,
+              power: p.card.power,
+              isToken: false,
+              shielded: false,
+            },
+          });
+          // Remove do cemiterio (a carta foi pro tabuleiro)
+          await tx.matchHand.delete({ where: { id: p.id } });
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "REVIVE",
+            { cardId: p.cardId, by: "REVIVE_RANDOM", row: targetRow });
+        }
+      } else if (ek === "REVIVE_TO_HAND") {
+        // Reforja: recupera 1 carta nao-UNIT do PROPRIO cemiterio para a mao
+        const myDiscard = await tx.matchHand.findMany({
+          where: { matchId: data.matchId, side: data.side, zone: "DISCARD" },
+          include: { card: true },
+        });
+        // So nao-UNIT e nao-LEADER (sao "magias", clima, etc)
+        const eligible = myDiscard.filter((d) => d.card.cardType !== "UNIT" && d.card.cardType !== "LEADER");
+        if (eligible.length > 0) {
+          // Aleatorio (pode mudar pra escolha do jogador no futuro)
+          const pick = eligible[Math.floor(Math.random() * eligible.length)];
+          await tx.matchHand.update({
+            where: { id: pick.id },
+            data:  { zone: "HAND" },
+          });
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "REVIVE_TO_HAND",
+            { cardId: pick.cardId });
+        }
+      } else if (ek === "TUTOR_BY_TYPE") {
+        // Caos: pega ev cartas do PROPRIO deck filtradas por cardType (definido em ability.targetCardType)
+        const tutorType = card.ability?.targetCardType;
+        if (tutorType) {
+          const drawCount = ev > 0 ? ev : 3;
+          const deckCards = await tx.matchHand.findMany({
+            where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+            include: { card: true },
+            orderBy: { deckOrder: "asc" },
+          });
+          const eligible = deckCards.filter((d) => d.card.cardType === tutorType);
+          // Aleatorio
+          const shuffled = [...eligible].sort(() => Math.random() - 0.5);
+          const picked = shuffled.slice(0, drawCount);
+          for (const p of picked) {
+            await tx.matchHand.update({
+              where: { id: p.id },
+              data:  { zone: "HAND" },
+            });
+          }
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "TUTOR_BY_TYPE",
+            { cardType: tutorType, count: picked.length });
+        }
+      } else if (ek === "EVOLVE_FACTION" && data.targetBoardCardId) {
+        // Evolucao: destroi um aliado seu, puxa outra carta da mesma faccao do deck pro campo
+        const target = await tx.matchBoardCard.findUnique({
+          where: { id: data.targetBoardCardId },
+          include: { card: true },
+        });
+        if (target && target.matchId === data.matchId && target.side === ownerSide) {
+          const targetFactionId = target.card.factionId;
+          // Destroi o alvo
+          await tx.matchBoardCard.delete({ where: { id: target.id } });
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+            { targetId: target.id, by: "EVOLVE_FACTION" });
+          // Puxa carta da mesma faccao do proprio deck
+          const deckCards = await tx.matchHand.findMany({
+            where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+            include: { card: true },
+            orderBy: { deckOrder: "asc" },
+          });
+          const sameFaction = deckCards.filter((d) => d.card.factionId === targetFactionId && d.card.cardType === "UNIT");
+          if (sameFaction.length > 0) {
+            const pick = sameFaction[Math.floor(Math.random() * sameFaction.length)];
+            const allowedRows = pick.card.rows.split(",").filter(Boolean);
+            const targetRow = (allowedRows[0] ?? "MELEE") as Row;
+            await tx.matchBoardCard.create({
+              data: {
+                matchId: data.matchId,
+                side: ownerSide,
+                cardId: pick.cardId,
+                row: targetRow,
+                basePower: pick.card.power,
+                power: pick.card.power,
+                isToken: false,
+                shielded: false,
+              },
+            });
+            // Tira da pilha de deck (foi pra mesa)
+            await tx.matchHand.delete({ where: { id: pick.id } });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "EVOLVE_FACTION",
+              { destroyedCardId: target.card.id, summonedCardId: pick.cardId });
+          }
+        }
     } else if (ek === "HEAL" && data.targetBoardCardId) {
         const t = await tx.matchBoardCard.findUnique({
           where: { id: data.targetBoardCardId },

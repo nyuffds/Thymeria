@@ -25,6 +25,7 @@ type Mode =
         engineValue: number | null;
         isActive: boolean;
         targetCardIdsCsv: string | null;
+        targetCardType: string | null;
         triggerMode: string;
       };
     };
@@ -37,7 +38,7 @@ export function AbilityForm(props: Mode) {
   const isEdit = props.mode === "edit";
   const init = isEdit
     ? props.initial
-    : { name: "", description: "", engineKey: "", engineValue: null as number | null, isActive: true, targetCardIdsCsv: null as string | null, triggerMode: "MANUAL" };
+    : { name: "", description: "", engineKey: "", engineValue: null as number | null, isActive: true, targetCardIdsCsv: null as string | null, targetCardType: null as string | null, triggerMode: "MANUAL" };
 
   const [name, setName]                 = useState(init.name);
   const [description, setDescription]   = useState(init.description);
@@ -45,6 +46,7 @@ export function AbilityForm(props: Mode) {
   const [engineValue, setEngineValue]   = useState<string>(init.engineValue?.toString() ?? "");
   const [isActive, setIsActive]         = useState(init.isActive);
   const [targetCardIds, setTargetCardIds] = useState<string[]>(init.targetCardIdsCsv ? init.targetCardIdsCsv.split(",").filter(Boolean) : []);
+  const [targetCardType, setTargetCardType] = useState<string | null>(init.targetCardType);
   const [triggerMode, setTriggerMode]     = useState(init.triggerMode);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -61,11 +63,17 @@ export function AbilityForm(props: Mode) {
       try {
         if (isEdit) {
           await updateAbilityAction(props.id, {
-            name, description, engineKey, engineValue: valueNum, isActive, targetCardIdsCsv: targetCardIds.join(",") || null, triggerMode,
+            name, description, engineKey, engineValue: valueNum, isActive,
+            targetCardIdsCsv: targetCardIds.join(",") || null,
+            targetCardType,
+            triggerMode,
           });
         } else {
           await createAbilityAction({
-            name, description, engineKey, engineValue: valueNum, targetCardIdsCsv: targetCardIds.join(",") || null, triggerMode,
+            name, description, engineKey, engineValue: valueNum,
+            targetCardIdsCsv: targetCardIds.join(",") || null,
+            targetCardType,
+            triggerMode,
           });
         }
         router.push("/admin/habilidades");
@@ -215,6 +223,19 @@ export function AbilityForm(props: Mode) {
                 {targetCardIds.length} carta(s) selecionada(s)
               </p>
             )}
+          </div>
+        )}
+
+        {/* Tipo de carta-alvo (so para engines de tutor como TUTOR_BY_TYPE / Caos) */}
+        {engineKey === "TUTOR_BY_TYPE" && (
+          <div>
+            <label className="block text-sm text-zinc-300 mb-2">Tipo de carta que esta habilidade puxa do deck</label>
+            <select value={targetCardType ?? ""} onChange={(e) => setTargetCardType(e.target.value || null)} disabled={isPending} className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-amber-500">
+              <option value="">- Escolha um tipo -</option>
+              <option value="UNIT">Unidade</option>
+              <option value="SPECIAL">Especial</option>
+              <option value="WEATHER">Clima</option>
+            </select>
           </div>
         )}
 

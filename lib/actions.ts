@@ -149,6 +149,7 @@ export async function createAbilityAction(data: {
   engineKey: string;       // string vazia = nenhum
   engineValue: number | null;
   targetCardIdsCsv: string | null;
+  targetCardType: string | null;
   triggerMode: string;
 }) {
   const name = data.name.trim();
@@ -166,6 +167,7 @@ export async function createAbilityAction(data: {
       engineKey: data.engineKey || null,
       engineValue: data.engineKey ? data.engineValue : null,
       targetCardIdsCsv: data.targetCardIdsCsv,
+      targetCardType: data.targetCardType,
       triggerMode: data.triggerMode,
     },
   });
@@ -180,6 +182,7 @@ export async function updateAbilityAction(id: string, data: {
   engineKey: string;
   engineValue: number | null;
   targetCardIdsCsv: string | null;
+  targetCardType: string | null;
   triggerMode: string;
   isActive: boolean;
 }) {
@@ -202,6 +205,7 @@ export async function updateAbilityAction(id: string, data: {
       engineValue: data.engineKey ? data.engineValue : null,
       isActive: data.isActive,
       targetCardIdsCsv: data.targetCardIdsCsv,
+      targetCardType: data.targetCardType,
       triggerMode: data.triggerMode,
     },
   });

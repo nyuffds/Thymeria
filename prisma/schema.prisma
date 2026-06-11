@@ -60,6 +60,7 @@ model Ability {
   engineKey   String?
   engineValue Int?
   targetCardIdsCsv String?  // CSV de cardIds-alvo (para engines tipo PULL_BY_NAME)
+  targetCardType   String?  // tipo de carta-alvo (para engines tipo TUTOR_BY_TYPE / Caos): UNIT, SPECIAL, WEATHER
   triggerMode      String   @default("MANUAL") // MANUAL ou ON_PLAY
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
