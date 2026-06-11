@@ -37,7 +37,23 @@ export const ENGINE_KEYS = [
   { key: "WEATHER_RAIN",  label: "Clima: Chuva",       desc: "Reduz poder de unidades de cerco." },
   { key: "WEATHER_STORM", label: "Clima: Tempestade",  desc: "Reduz poder de varias fileiras simultaneamente." },
   { key: "CLEAR_WEATHER", label: "Limpar clima",       desc: "Remove todos os efeitos climaticos do tabuleiro." },
-  { key: "PULL_BY_NAME",  label: "Convocacao",         desc: "Puxa cartas especificas da mao para o campo ao ser jogada." },
+  { key: "PULL_BY_NAME",     label: "Convocacao",            desc: "Puxa cartas especificas da mao para o campo ao ser jogada." },
+
+  // Novas habilidades
+  { key: "BOOST_ROW",        label: "Inspiracao",            desc: "Aumenta o poder de todas as cartas aliadas da fileira." },
+  { key: "BOOST_MANY",       label: "Nutrir",                desc: "Aumenta o poder de varias cartas aliadas escolhidas." },
+  { key: "DAMAGE_IF",        label: "Expurgo",               desc: "Destroi carta inimiga se o poder dela for menor ou igual a X." },
+  { key: "MULTIPLY_ROW",     label: "Dadiva",                desc: "Dobra o poder de todas as unidades aliadas da fileira." },
+  { key: "DESTROY_ROW",      label: "Peste",                 desc: "Destroi todas as cartas de uma fileira inimiga." },
+  { key: "DESTROY_AND_DRAW", label: "Ciclo da Vida",         desc: "Destroi criatura inimiga e voce compra 1 carta." },
+  { key: "TUTOR_BY_TYPE",    label: "Caos",                  desc: "Pega cartas do seu deck filtradas por tipo (ex: clima)." },
+  { key: "REVIVE_RANDOM",    label: "Ritual Profano",        desc: "Puxa cartas aleatorias do cemiterio para o campo." },
+  { key: "REVIVE_TO_HAND",   label: "Reforja",               desc: "Recupera uma carta nao-criatura do cemiterio para a mao." },
+  { key: "SHUFFLE_AND_DRAW", label: "Ganancia",              desc: "Embaralha X cartas da mao no deck, compre X+1." },
+  { key: "PROPHECY",         label: "Profecia",              desc: "Veja 5 cartas do topo do deck e reorganiza." },
+  { key: "EVOLVE_FACTION",   label: "Evolucao",              desc: "Destroi um aliado e invoca outro da mesma faccao do deck." },
+  { key: "IMMUNE_ROW",       label: "Bloqueio Temporal",     desc: "Cartas na fileira nao podem ser destruidas ou reduzidas." },
+  { key: "ON_DEATH_SPAWN",   label: "Imperdoavel",           desc: "Ao morrer, gera uma carta especifica na sua mao." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },

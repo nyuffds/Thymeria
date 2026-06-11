@@ -731,6 +731,84 @@ export async function activateLeaderAction(data: {
       } else if (ek === "CLEAR_WEATHER") {
         await tx.matchWeather.deleteMany({ where: { matchId: data.matchId } });
         await persistRecomputedPower(tx, data.matchId);
+      } else if (ek === "BOOST_ROW") {
+        // Inspiracao: +ev de basePower em todos aliados da fileira onde a carta foi jogada
+        const allies = await tx.matchBoardCard.findMany({
+          where: { matchId: data.matchId, side: ownerSide, row: data.targetRow, id: { not: newBoardCard.id } },
+          include: { card: true },
+        });
+        for (const a of allies) {
+          if (a.card.isElite) continue;
+          await tx.matchBoardCard.update({
+            where: { id: a.id },
+            data:  { basePower: a.basePower + ev },
+          });
+        }
+        await logEvent(tx, data.matchId, match.currentRound, data.side, "BOOST_ROW",
+          { row: data.targetRow, amount: ev, count: allies.length });
+      } else if (ek === "MULTIPLY_ROW") {
+        // Dadiva: dobra basePower de todos aliados da fileira
+        const allies = await tx.matchBoardCard.findMany({
+          where: { matchId: data.matchId, side: ownerSide, row: data.targetRow, id: { not: newBoardCard.id } },
+          include: { card: true },
+        });
+        for (const a of allies) {
+          if (a.card.isElite) continue;
+          await tx.matchBoardCard.update({
+            where: { id: a.id },
+            data:  { basePower: a.basePower * 2 },
+          });
+        }
+        await logEvent(tx, data.matchId, match.currentRound, data.side, "MULTIPLY_ROW",
+          { row: data.targetRow, count: allies.length });
+      } else if (ek === "DESTROY_ROW") {
+        // Peste: destroi todas as cartas inimigas da fileira indicada por targetRow
+        // (a fileira clicada/escolhida na UI)
+        const enemyRow = data.targetRow ?? "MELEE";
+        const enemies = await tx.matchBoardCard.findMany({
+          where: { matchId: data.matchId, side: otherSide(ownerSide), row: enemyRow },
+          include: { card: true },
+        });
+        for (const e of enemies) {
+          if (e.card.isElite) continue;
+          await tx.matchBoardCard.delete({ where: { id: e.id } });
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+            { targetId: e.id, by: "DESTROY_ROW" });
+        }
+      } else if (ek === "DESTROY_AND_DRAW" && data.targetBoardCardId) {
+        // Ciclo da Vida: destroi criatura inimiga E voce compra 1 carta
+        const target = await tx.matchBoardCard.findUnique({
+          where: { id: data.targetBoardCardId },
+          include: { card: true },
+        });
+        if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite) {
+          await tx.matchBoardCard.delete({ where: { id: target.id } });
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+            { targetId: target.id, by: "DESTROY_AND_DRAW" });
+          // Compra ev cartas (default 1)
+          const drawCount = ev > 0 ? ev : 1;
+          const drawFrom = await tx.matchHand.findMany({
+            where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+            orderBy: { drawOrder: "asc" },
+            take: drawCount,
+          });
+          for (const d of drawFrom) {
+            await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
+          }
+        }
+      } else if (ek === "DAMAGE_IF" && data.targetBoardCardId) {
+        // Expurgo: destroi inimigo se poder <= ev
+        const target = await tx.matchBoardCard.findUnique({
+          where: { id: data.targetBoardCardId },
+          include: { card: true },
+        });
+        if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite) {
+          if (target.power <= ev) {
+            await tx.matchBoardCard.delete({ where: { id: target.id } });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+              { targetId: target.id, by: "DAMAGE_IF", threshold: ev });
+          }
+        }
     } else if (ek === "HEAL" && data.targetBoardCardId) {
         const t = await tx.matchBoardCard.findUnique({
           where: { id: data.targetBoardCardId },
