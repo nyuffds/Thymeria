@@ -326,6 +326,7 @@ export async function playCardAction(data: {
   handCardId: string;     // MatchHand.id
   targetRow: Row;
   targetBoardCardId?: string;  // alvo (BOOST, DAMAGE, HEAL, etc)
+  effectRow?: Row;  // fileira-alvo para habilidades ROW_*
 }) {
   await prisma.$transaction(async (tx) => {
     const match = await tx.match.findUnique({ where: { id: data.matchId } });
@@ -734,7 +735,7 @@ export async function activateLeaderAction(data: {
       } else if (ek === "BOOST_ROW") {
         // Inspiracao: +ev de basePower em todos aliados da fileira onde a carta foi jogada
         const allies = await tx.matchBoardCard.findMany({
-          where: { matchId: data.matchId, side: ownerSide, row: data.targetRow, id: { not: newBoardCard.id } },
+          where: { matchId: data.matchId, side: ownerSide, row: (data.effectRow ?? data.targetRow), id: { not: newBoardCard.id } },
           include: { card: true },
         });
         for (const a of allies) {
@@ -749,7 +750,7 @@ export async function activateLeaderAction(data: {
       } else if (ek === "MULTIPLY_ROW") {
         // Dadiva: dobra basePower de todos aliados da fileira
         const allies = await tx.matchBoardCard.findMany({
-          where: { matchId: data.matchId, side: ownerSide, row: data.targetRow, id: { not: newBoardCard.id } },
+          where: { matchId: data.matchId, side: ownerSide, row: (data.effectRow ?? data.targetRow), id: { not: newBoardCard.id } },
           include: { card: true },
         });
         for (const a of allies) {
@@ -764,7 +765,7 @@ export async function activateLeaderAction(data: {
       } else if (ek === "DESTROY_ROW") {
         // Peste: destroi todas as cartas inimigas da fileira indicada por targetRow
         // (a fileira clicada/escolhida na UI)
-        const enemyRow = data.targetRow ?? "MELEE";
+        const enemyRow = data.effectRow ?? data.targetRow ?? "MELEE";
         const enemies = await tx.matchBoardCard.findMany({
           where: { matchId: data.matchId, side: otherSide(ownerSide), row: enemyRow },
           include: { card: true },

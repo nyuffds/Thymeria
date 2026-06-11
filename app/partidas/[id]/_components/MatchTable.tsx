@@ -105,7 +105,8 @@ const ROW_ICON: Record<Row, string> = {
   MELEE: "⚔", RANGED: "🏹", SIEGE: "🏰",
 };
 
-const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL"]);
+const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW"]);
+const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW"]);
 const WEATHER_NEEDS_ROW = new Set(["WEATHER_RAIN"]);
 
 export function MatchTable(props: Props) {
@@ -116,10 +117,10 @@ export function MatchTable(props: Props) {
   const [redrawSelection, setRedrawSelection] = useState<Set<string>>(new Set());
   const [selectedHandCard, setSelectedHandCard] = useState<HandCard | null>(null);
   const [chosenRow, setChosenRow] = useState<Row | null>(null);
-  const [targetMode, setTargetMode] = useState<"NONE" | "ALLY" | "ENEMY">("NONE");
+  const [targetMode, setTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
   const [pendingEliteTarget, setPendingEliteTarget] = useState<BoardCard | null>(null);
   const [activatingLeader, setActivatingLeader] = useState<Side | null>(null);
-  const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY">("NONE");
+  const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
 
   const turnSide = props.currentTurnSide;
 
@@ -209,6 +210,8 @@ export function MatchTable(props: Props) {
     const ek = selectedHandCard.ability?.engineKey;
     if (ek && NEEDS_TARGET.has(ek)) {
       setTargetMode(ek === "BOOST" || ek === "HEAL" ? "ALLY" : "ENEMY");
+    } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
+      setTargetMode(ek === "DESTROY_ROW" ? "ROW_ENEMY" : "ROW_ALLY");
     } else {
       executePlay(row, undefined);
     }
@@ -217,12 +220,29 @@ export function MatchTable(props: Props) {
   function handleTargetClick(target: BoardCard) {
     if (!selectedHandCard || !chosenRow) return;
     const ek = selectedHandCard.ability?.engineKey;
+
+    // Habilidades de fileira: pega o row do alvo clicado e envia como effectRow
+    if (ek && NEEDS_ROW_TARGET.has(ek)) {
+      // Valida lado da fileira
+      const isEnemyTarget = ek === "DESTROY_ROW";
+      if (isEnemyTarget && target.side === turnSide) {
+        setError("Esta habilidade requer fileira inimiga.");
+        return;
+      }
+      if (!isEnemyTarget && target.side !== turnSide) {
+        setError("Esta habilidade requer fileira aliada.");
+        return;
+      }
+      executePlay(chosenRow, undefined, target.row);
+      return;
+    }
+
     if (ek === "BOOST" || ek === "HEAL") {
       if (target.side !== turnSide) {
         setError("Esta habilidade requer carta aliada.");
         return;
       }
-    } else if (ek === "DAMAGE") {
+    } else if (ek === "DAMAGE" || ek === "DAMAGE_IF" || ek === "DESTROY_AND_DRAW") {
       if (target.side === turnSide) {
         setError("Esta habilidade requer carta inimiga.");
         return;
@@ -246,15 +266,15 @@ export function MatchTable(props: Props) {
     setPendingEliteTarget(null);
   }
 
-  function executePlay(row: Row, targetBoardCardId?: string) {
+  function executePlay(row: Row, targetBoardCardId?: string, effectRow?: Row) {
     if (!selectedHandCard) return;
     const handCardId = selectedHandCard.handId;
     guard(async () => {
       await playCardAction({
         matchId: props.matchId, side: turnSide!, handCardId,
-        targetRow: row, targetBoardCardId,
-      });
-      setSelectedHandCard(null);
+        targetRow: row, targetBoardCardId, effectRow,
+        });
+        setSelectedHandCard(null);
       setChosenRow(null);
       setTargetMode("NONE");
     });
@@ -280,6 +300,9 @@ function handlePass() {
     if (ek && NEEDS_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
       setLeaderTargetMode(ek === "BOOST" || ek === "HEAL" ? "ALLY" : "ENEMY");
+    } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
+      setActivatingLeader(turnSide);
+      setLeaderTargetMode(ek === "DESTROY_ROW" ? "ROW_ENEMY" : "ROW_ALLY");
     } else {
       guard(async () => {
         await activateLeaderAction({ matchId: props.matchId, side: turnSide! });
@@ -517,24 +540,30 @@ return (
       {selectedHandCard && !chosenRow && renderRowPicker()}
 
       {targetMode !== "NONE" && (() => {
+        const isAllySide = targetMode === "ALLY" || targetMode === "ROW_ALLY";
+        const isRowMode = targetMode === "ROW_ALLY" || targetMode === "ROW_ENEMY";
         const validTargets = props.board.filter((c) =>
-          targetMode === "ALLY" ? (c.side === turnSide && !c.isElite) : (c.side !== turnSide && !c.isElite)
+          isRowMode
+            ? (isAllySide ? c.side === turnSide : c.side !== turnSide)  // ROW: nao filtra Elite (afetam fileira inteira)
+            : isAllySide
+              ? (c.side === turnSide && !c.isElite)
+              : (c.side !== turnSide && !c.isElite)
         );
         const allTargets = props.board.filter((c) =>
-          targetMode === "ALLY" ? c.side === turnSide : c.side !== turnSide
+          isAllySide ? c.side === turnSide : c.side !== turnSide
         );
         const onlyElite = allTargets.length > 0 && validTargets.length === 0;
         const noTargets = allTargets.length === 0;
         return (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-100 text-sm px-4 py-2 rounded-lg shadow-xl z-40 border border-amber-600 flex items-center gap-3">
             {validTargets.length > 0 && (
-              <span>Clique numa carta {targetMode === "ALLY" ? "aliada" : "inimiga"} no tabuleiro</span>
+              <span>{isRowMode ? `Clique em qualquer carta da fileira ${isAllySide ? "aliada" : "inimiga"} que quer afetar` : `Clique numa carta ${isAllySide ? "aliada" : "inimiga"} no tabuleiro`}</span>
             )}
             {onlyElite && (
-              <span>Todas as cartas {targetMode === "ALLY" ? "aliadas" : "inimigas"} sao Elite (imunes).</span>
+              <span>Todas as cartas {isAllySide ? "aliadas" : "inimigas"} sao Elite (imunes).</span>
             )}
             {noTargets && (
-              <span>Nenhuma carta {targetMode === "ALLY" ? "aliada" : "inimiga"} no campo.</span>
+              <span>Nenhuma carta {isAllySide ? "aliada" : "inimiga"} no campo.</span>
             )}
             {chosenRow && (
               <button
@@ -737,10 +766,10 @@ style={{
   function renderBoardCard(c: BoardCard) {
     const rarity = RARITIES.find((r) => r.key === c.rarity);
 const isTargetable = canAct && (
-      (targetMode === "ALLY" && c.side === turnSide) ||
-      (targetMode === "ENEMY" && c.side !== turnSide) ||
-      (leaderTargetMode === "ALLY" && c.side === activatingLeader) ||
-      (leaderTargetMode === "ENEMY" && c.side !== activatingLeader)
+      ((targetMode === "ALLY" || targetMode === "ROW_ALLY") && c.side === turnSide) ||
+      ((targetMode === "ENEMY" || targetMode === "ROW_ENEMY") && c.side !== turnSide) ||
+      ((leaderTargetMode === "ALLY" || leaderTargetMode === "ROW_ALLY") && c.side === activatingLeader) ||
+      ((leaderTargetMode === "ENEMY" || leaderTargetMode === "ROW_ENEMY") && c.side !== activatingLeader)
     );
 
 return (
