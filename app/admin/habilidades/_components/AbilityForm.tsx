@@ -187,10 +187,10 @@ export function AbilityForm(props: Mode) {
         </div>
 
         {/* Cartas alvo (so para engines que precisam, como PULL_BY_NAME) */}
-        {engineKey === "PULL_BY_NAME" && (
+        {(engineKey === "PULL_BY_NAME" || engineKey === "ON_DEATH_SPAWN") && (
           <div>
             <label className="block text-sm text-zinc-300 mb-2">
-              Cartas que esta habilidade puxa da mao
+              {engineKey === "ON_DEATH_SPAWN" ? "Carta que sera gerada quando esta carta morrer" : "Cartas que esta habilidade puxa da mao"}
             </label>
             <div className="bg-zinc-900/40 border border-zinc-800 rounded-lg p-3 max-h-64 overflow-y-auto space-y-1">
               {props.allCards.length === 0 ? (

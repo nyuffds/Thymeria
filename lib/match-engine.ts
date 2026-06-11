@@ -29,6 +29,12 @@ export interface WeatherState {
   cardId: string;
 }
 
+export interface ImmunityState {
+  side: Side;
+  row: Row;
+  turnsLeft: number;
+}
+
 export interface CardDef {
   id: string;
   name: string;
@@ -92,8 +98,14 @@ export function weatherToRow(weatherKey: string): Row | null {
 export function recomputePower(
   board: BoardCardState[],
   weather: WeatherState[],
-  cardDefs: Map<string, CardDef>
+  cardDefs: Map<string, CardDef>,
+  immunities: ImmunityState[] = [],
 ): BoardCardState[] {
+  // Set de fileiras imunes: chave "side|row"
+  const immuneRows = new Set<string>();
+  for (const i of immunities) {
+    if (i.turnsLeft > 0) immuneRows.add(`${i.side}|${i.row}`);
+  }
   // Fileiras afetadas por clima
   const weatheredRows = new Set<Row>();
   for (const w of weather) {
@@ -121,6 +133,9 @@ export function recomputePower(
     // Mantemos power = basePower fixo.
     const elDef = cardDefs.get(c.cardId);
     if (elDef?.isElite) {
+      return { ...c, power: c.basePower };
+    }
+    if (immuneRows.has(`${c.side}|${c.row}`)) {
       return { ...c, power: c.basePower };
     }
     if (weatheredRows.has(c.row)) {
@@ -156,9 +171,10 @@ export function totalPower(board: BoardCardState[], side: Side): number {
 export function decideRoundWinner(
   board: BoardCardState[],
   weather: WeatherState[],
-  cardDefs: Map<string, CardDef>
+  cardDefs: Map<string, CardDef>,
+  immunities: ImmunityState[] = [],
 ): { winner: Side | "DRAW"; powerA: number; powerB: number } {
-  const recomputed = recomputePower(board, weather, cardDefs);
+  const recomputed = recomputePower(board, weather, cardDefs, immunities);
   const powerA = totalPower(recomputed, "A");
   const powerB = totalPower(recomputed, "B");
   if (powerA > powerB) return { winner: "A", powerA, powerB };

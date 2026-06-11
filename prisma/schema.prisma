@@ -354,6 +354,7 @@ model Match {
   board    MatchBoardCard[]
   weather  MatchWeather[]
   events   MatchEvent[]
+  immunities MatchRowImmunity[]
 
   @@index([status])
 }
@@ -459,4 +460,19 @@ model MatchEvent {
 
   @@index([matchId])
   @@index([matchId, round])
+}
+
+model MatchRowImmunity {
+  id           String   @id @default(cuid())
+  matchId      String
+  side         String   // A | B (qual lado tem a fileira protegida)
+  row          String   // MELEE | RANGED | SIEGE
+  turnsLeft    Int      // decrementa a cada turno
+  appliedRound Int
+  appliedBy    String   // cardId que aplicou
+  createdAt    DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  @@index([matchId])
+  @@unique([matchId, side, row])
 }

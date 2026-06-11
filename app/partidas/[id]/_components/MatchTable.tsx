@@ -106,7 +106,7 @@ const ROW_ICON: Record<Row, string> = {
 };
 
 const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION"]);
-const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW"]);
+const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW"]);
 const WEATHER_NEEDS_ROW = new Set(["WEATHER_RAIN"]);
 
 export function MatchTable(props: Props) {

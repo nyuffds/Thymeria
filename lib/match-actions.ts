@@ -97,9 +97,14 @@ async function persistRecomputedPower(
 ) {
   const board = await tx.matchBoardCard.findMany({ where: { matchId } });
   const weather = await tx.matchWeather.findMany({ where: { matchId } });
+  const immunities = await tx.matchRowImmunity.findMany({ where: { matchId, turnsLeft: { gt: 0 } } });
   const cardDefs = await buildCardDefs(board.map((b) => b.cardId));
-
-  const recomputed = recomputePower(mapBoardToState(board), mapWeatherToState(weather), cardDefs);
+  const recomputed = recomputePower(
+    mapBoardToState(board),
+    mapWeatherToState(weather),
+    cardDefs,
+    immunities.map((i) => ({ side: i.side as Side, row: i.row as Row, turnsLeft: i.turnsLeft })),
+  );
   for (const c of recomputed) {
     await tx.matchBoardCard.update({
       where: { id: c.id },
@@ -320,6 +325,59 @@ revalidatePath(`/partidas/${matchId}`);
 // 3. JOGAR CARTA
 // ─────────────────────────────────────────────
 
+// Decrementa todas as imunidades ativas. Chamada apos cada turno completo.
+// Verifica se carta destruida tem habilidade ON_DEATH_SPAWN e ja invoca a carta-alvo na mao do dono
+async function triggerOnDeath(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  matchId: string,
+  destroyedBoardCardId: string,
+) {
+  // Carrega a board card destruida JUNTO com sua carta e ability (antes do delete)
+  const dying = await tx.matchBoardCard.findUnique({
+    where: { id: destroyedBoardCardId },
+    include: { card: { include: { ability: true } } },
+  });
+  if (!dying) return;
+  const ek = dying.card.ability?.engineKey;
+  if (ek !== "ON_DEATH_SPAWN") return;
+  const csv = dying.card.ability?.targetCardIdsCsv;
+  if (!csv) return;
+  const targetCardIds = csv.split(",").filter(Boolean);
+  if (targetCardIds.length === 0) return;
+  // Pega a primeira carta-alvo (modelo "1 carta especifica")
+  const spawnId = targetCardIds[0];
+  // Coloca na mao do dono. drawOrder grande (vai pro fim da mao)
+  const maxDrawOrder = await tx.matchHand.aggregate({
+    where: { matchId, side: dying.side },
+    _max: { drawOrder: true },
+  });
+  const newOrder = (maxDrawOrder._max.drawOrder ?? 0) + 1;
+  await tx.matchHand.create({
+    data: {
+      matchId,
+      side: dying.side as Side,
+      cardId: spawnId,
+      zone: "HAND",
+      drawOrder: newOrder,
+      deckOrder: newOrder,
+    },
+  });
+}
+
+async function decrementImmunities(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  matchId: string,
+) {
+  const active = await tx.matchRowImmunity.findMany({ where: { matchId, turnsLeft: { gt: 0 } } });
+  for (const i of active) {
+    if (i.turnsLeft <= 1) {
+      await tx.matchRowImmunity.delete({ where: { id: i.id } });
+    } else {
+      await tx.matchRowImmunity.update({ where: { id: i.id }, data: { turnsLeft: { decrement: 1 } } });
+    }
+  }
+}
+
 export async function playCardAction(data: {
   matchId: string;
   side: Side;
@@ -398,7 +456,17 @@ export async function playCardAction(data: {
 
       // SPY → vai pro lado inimigo
       const isSpy = card.ability?.engineKey === "SPY";
-      const ownerSide: Side = isSpy ? otherSide(data.side) : data.side;
+        const ownerSide: Side = isSpy ? otherSide(data.side) : data.side;
+
+        // Carrega imunidades de fileira ATIVAS pra checagens posteriores
+        const _immuneSet = new Set<string>();
+        {
+          const _imm = await tx.matchRowImmunity.findMany({ where: { matchId: data.matchId, turnsLeft: { gt: 0 } } });
+          for (const i of _imm) _immuneSet.add(`${i.side}|${i.row}`);
+        }
+        function _isImmune(side: string, row: string) {
+          return _immuneSet.has(`${side}|${row}`);
+        }
 
       // Coloca na mesa (UNIT/SPECIAL persistem; alguns SPECIAL puros poderiam só efeito,
       // mas por simplicidade tudo vai pra mesa exceto WEATHER)
@@ -451,7 +519,10 @@ export async function playCardAction(data: {
               include: { card: true },
             });
             if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite) {
-              if (target.shielded) {
+              if (_isImmune(target.side, target.row)) {
+                await logEvent(tx, data.matchId, match.currentRound, data.side, "DAMAGE_BLOCKED",
+                  { targetId: target.id, by: "IMMUNE_ROW" });
+              } else if (target.shielded) {
                 await tx.matchBoardCard.update({
                   where: { id: target.id },
                   data:  { shielded: false },
@@ -461,7 +532,8 @@ export async function playCardAction(data: {
               } else {
                 const newBase = target.basePower - ev;
                 if (newBase <= 0) {
-                  await tx.matchBoardCard.delete({ where: { id: target.id } });
+                  await triggerOnDeath(tx, data?.matchId ?? matchId, target.id);
+            await tx.matchBoardCard.delete({ where: { id: target.id } });
                   await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
                     { targetId: target.id, by: "DAMAGE" });
                 } else {
@@ -589,6 +661,7 @@ export async function playCardAction(data: {
 
     await tx.match.update({
       where: { id: data.matchId },
+      await decrementImmunities(tx, data.matchId);
       data:  { currentTurnSide: nextTurnSide },
     });
   });
@@ -695,7 +768,8 @@ export async function activateLeaderAction(data: {
           await tx.matchBoardCard.update({ where: { id: t.id }, data: { shielded: false } });
         } else {
           const newBase = t.basePower - ev;
-          if (newBase <= 0) await tx.matchBoardCard.delete({ where: { id: t.id } });
+          if (newBase <= 0) await triggerOnDeath(tx, data?.matchId ?? matchId, t.id);
+            await tx.matchBoardCard.delete({ where: { id: t.id } });
           else await tx.matchBoardCard.update({ where: { id: t.id }, data: { basePower: newBase } });
         }
       }
@@ -766,24 +840,32 @@ export async function activateLeaderAction(data: {
         // Peste: destroi todas as cartas inimigas da fileira indicada por targetRow
         // (a fileira clicada/escolhida na UI)
         const enemyRow = data.effectRow ?? data.targetRow ?? "MELEE";
+        // Se fileira inimiga esta imune, nao destroi
+        if (_isImmune(otherSide(ownerSide), enemyRow)) {
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "DAMAGE_BLOCKED",
+            { row: enemyRow, by: "IMMUNE_ROW" });
+        } else {
         const enemies = await tx.matchBoardCard.findMany({
           where: { matchId: data.matchId, side: otherSide(ownerSide), row: enemyRow },
           include: { card: true },
         });
         for (const e of enemies) {
           if (e.card.isElite) continue;
-          await tx.matchBoardCard.delete({ where: { id: e.id } });
+          await triggerOnDeath(tx, data?.matchId ?? matchId, e.id);
+            await tx.matchBoardCard.delete({ where: { id: e.id } });
           await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
             { targetId: e.id, by: "DESTROY_ROW" });
         }
+          }
       } else if (ek === "DESTROY_AND_DRAW" && data.targetBoardCardId) {
         // Ciclo da Vida: destroi criatura inimiga E voce compra 1 carta
         const target = await tx.matchBoardCard.findUnique({
           where: { id: data.targetBoardCardId },
           include: { card: true },
         });
-        if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite) {
-          await tx.matchBoardCard.delete({ where: { id: target.id } });
+        if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !_isImmune(target.side, target.row)) {
+          await triggerOnDeath(tx, data?.matchId ?? matchId, target.id);
+            await tx.matchBoardCard.delete({ where: { id: target.id } });
           await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
             { targetId: target.id, by: "DESTROY_AND_DRAW" });
           // Compra ev cartas (default 1)
@@ -803,8 +885,9 @@ export async function activateLeaderAction(data: {
           where: { id: data.targetBoardCardId },
           include: { card: true },
         });
-        if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite) {
+        if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !_isImmune(target.side, target.row)) {
           if (target.power <= ev) {
+            await triggerOnDeath(tx, data?.matchId ?? matchId, target.id);
             await tx.matchBoardCard.delete({ where: { id: target.id } });
             await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
               { targetId: target.id, by: "DAMAGE_IF", threshold: ev });
@@ -884,6 +967,28 @@ export async function activateLeaderAction(data: {
           await logEvent(tx, data.matchId, match.currentRound, data.side, "TUTOR_BY_TYPE",
             { cardType: tutorType, count: picked.length });
         }
+      } else if (ek === "IMMUNE_ROW") {
+        // Bloqueio Temporal: cria imunidade temporaria na fileira escolhida (effectRow)
+        // Dura ev turnos. Aplica no proprio lado (defensiva).
+        const immuneRow = data.effectRow ?? data.targetRow;
+        const turns = ev > 0 ? ev : 1;
+        if (immuneRow) {
+          await tx.matchRowImmunity.upsert({
+            where: { matchId_side_row: { matchId: data.matchId, side: ownerSide, row: immuneRow } },
+            update: { turnsLeft: turns, appliedRound: match.currentRound, appliedBy: card.id },
+            create: {
+              matchId: data.matchId,
+              side: ownerSide,
+              row: immuneRow,
+              turnsLeft: turns,
+              appliedRound: match.currentRound,
+              appliedBy: card.id,
+            },
+          });
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "IMMUNE_ROW",
+            { row: immuneRow, turns });
+          await persistRecomputedPower(tx, data.matchId);
+        }
       } else if (ek === "EVOLVE_FACTION" && data.targetBoardCardId) {
         // Evolucao: destroi um aliado seu, puxa outra carta da mesma faccao do deck pro campo
         const target = await tx.matchBoardCard.findUnique({
@@ -893,7 +998,8 @@ export async function activateLeaderAction(data: {
         if (target && target.matchId === data.matchId && target.side === ownerSide) {
           const targetFactionId = target.card.factionId;
           // Destroi o alvo
-          await tx.matchBoardCard.delete({ where: { id: target.id } });
+          await triggerOnDeath(tx, data?.matchId ?? matchId, target.id);
+            await tx.matchBoardCard.delete({ where: { id: target.id } });
           await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
             { targetId: target.id, by: "EVOLVE_FACTION" });
           // Puxa carta da mesma faccao do proprio deck
@@ -952,6 +1058,7 @@ export async function activateLeaderAction(data: {
     const nextTurnSide: Side = opponent && !opponent.hasPassed ? otherSide(data.side) : data.side;
     await tx.match.update({
       where: { id: data.matchId },
+      await decrementImmunities(tx, data.matchId);
       data:  { currentTurnSide: nextTurnSide },
     });
   });
@@ -975,8 +1082,12 @@ async function finalizeRound(
   const weather = await tx.matchWeather.findMany({ where: { matchId } });
   const cardDefs = await buildCardDefs(board.map((b) => b.cardId));
 
+  const immunitiesNow = await tx.matchRowImmunity.findMany({ where: { matchId, turnsLeft: { gt: 0 } } });
   const { winner, powerA, powerB } = decideRoundWinner(
-    mapBoardToState(board), mapWeatherToState(weather), cardDefs,
+    mapBoardToState(board),
+    mapWeatherToState(weather),
+    cardDefs,
+    immunitiesNow.map((i) => ({ side: i.side as Side, row: i.row as Row, turnsLeft: i.turnsLeft })),
   );
 
   await logEvent(tx, matchId, match.currentRound, null, "ROUND_END",
@@ -1023,6 +1134,7 @@ async function finalizeRound(
 
   await tx.matchBoardCard.deleteMany({ where: { id: { in: idsToDelete } } });
   await tx.matchWeather.deleteMany({ where: { matchId } });
+  await tx.matchRowImmunity.deleteMany({ where: { matchId } });
 
   const nextRound = match.currentRound + 1;
   const newStarter = nextStartingSide(
