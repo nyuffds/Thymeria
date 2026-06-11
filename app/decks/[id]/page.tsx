@@ -57,7 +57,7 @@ export default async function EditarDeckPage({
       quantity: { gt: 0 },
       card: {
         factionId: { in: eligibleFactionIds },
-        cardType:  { in: ["UNIT", "SPECIAL"] },
+        cardType:  { in: ["UNIT", "SPECIAL", "WEATHER"] },
         isReleased: true,
       },
     },

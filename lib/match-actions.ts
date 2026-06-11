@@ -707,8 +707,30 @@ export async function activateLeaderAction(data: {
       for (const d of drawFrom) {
         await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
       }
-    } else if (ek === "CLEAR_WEATHER") {
-      await tx.matchWeather.deleteMany({ where: { matchId: data.matchId } });
+    } else if (ek === "WEATHER_FROST" || ek === "WEATHER_FOG" || ek === "WEATHER_RAIN" || ek === "WEATHER_STORM") {
+        // Carta SPECIAL/UNIT com habilidade de clima: aplica o clima em uma fileira.
+        // WEATHER_FROST/FOG/STORM tem fileira fixa; WEATHER_RAIN usa targetRow.
+        const fixedRow = weatherToRow(ek);
+        const affectedRow = fixedRow ?? data.targetRow;
+        if (affectedRow) {
+          await tx.matchWeather.deleteMany({
+            where: { matchId: data.matchId, affectedRow },
+          });
+          await tx.matchWeather.create({
+            data: {
+              matchId: data.matchId,
+              weatherKey: ek,
+              affectedRow,
+              cardId: card.id,
+            },
+          });
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "WEATHER",
+            { engineKey: ek, affectedRow });
+          await persistRecomputedPower(tx, data.matchId);
+        }
+      } else if (ek === "CLEAR_WEATHER") {
+        await tx.matchWeather.deleteMany({ where: { matchId: data.matchId } });
+        await persistRecomputedPower(tx, data.matchId);
     } else if (ek === "HEAL" && data.targetBoardCardId) {
         const t = await tx.matchBoardCard.findUnique({
           where: { id: data.targetBoardCardId },
