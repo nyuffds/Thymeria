@@ -1,4 +1,4 @@
-// lib/match-actions.ts
+﻿// lib/match-actions.ts
 // Server actions de partida (HOTSEAT).
 
 "use server";
@@ -346,19 +346,18 @@ async function triggerOnDeath(
   if (targetCardIds.length === 0) return;
   // Pega a primeira carta-alvo (modelo "1 carta especifica")
   const spawnId = targetCardIds[0];
-  // Coloca na mao do dono. drawOrder grande (vai pro fim da mao)
-  const maxDrawOrder = await tx.matchHand.aggregate({
+  // Coloca na mao do dono. deckOrder grande (vai pro fim da mao)
+  const maxDeckOrder = await tx.matchHand.aggregate({
     where: { matchId, side: dying.side },
-    _max: { drawOrder: true },
+    _max: { deckOrder: true },
   });
-  const newOrder = (maxDrawOrder._max.drawOrder ?? 0) + 1;
+  const newOrder = (maxDeckOrder._max.deckOrder ?? 0) + 1;
   await tx.matchHand.create({
     data: {
       matchId,
       side: dying.side as Side,
       cardId: spawnId,
       zone: "HAND",
-      drawOrder: newOrder,
       deckOrder: newOrder,
     },
   });
@@ -550,7 +549,7 @@ export async function playCardAction(data: {
               } else {
                 const newBase = target.basePower - ev;
                 if (newBase <= 0) {
-                  await triggerOnDeath(tx, data?.matchId ?? matchId, target.id);
+                  await triggerOnDeath(tx, data.matchId, target.id);
             await tx.matchBoardCard.delete({ where: { id: target.id } });
                   await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
                     { targetId: target.id, by: "DAMAGE" });
@@ -653,6 +652,207 @@ export async function playCardAction(data: {
               });
               await logEvent(tx, data.matchId, match.currentRound, data.side, "HEAL",
                 { targetId: target.id, restoredTo: target.card.power });
+            }
+          }
+} else if (ek === "BOOST_ROW") {
+          // Inspiracao: +ev de basePower em todos aliados da fileira (effectRow OU targetRow)
+          const targetRowEffect = data.effectRow ?? data.targetRow;
+          const allies = await tx.matchBoardCard.findMany({
+            where: { matchId: data.matchId, side: ownerSide, row: targetRowEffect, id: { not: newBoardCard.id } },
+            include: { card: true },
+          });
+          for (const a of allies) {
+            if (a.card.isElite) continue;
+            await tx.matchBoardCard.update({ where: { id: a.id }, data: { basePower: a.basePower + ev } });
+          }
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "BOOST_ROW",
+            { row: targetRowEffect, amount: ev, count: allies.length });
+        } else if (ek === "MULTIPLY_ROW") {
+          // Dadiva: dobra basePower de todos aliados da fileira
+          const targetRowEffect = data.effectRow ?? data.targetRow;
+          const allies = await tx.matchBoardCard.findMany({
+            where: { matchId: data.matchId, side: ownerSide, row: targetRowEffect, id: { not: newBoardCard.id } },
+            include: { card: true },
+          });
+          for (const a of allies) {
+            if (a.card.isElite) continue;
+            await tx.matchBoardCard.update({ where: { id: a.id }, data: { basePower: a.basePower * 2 } });
+          }
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "MULTIPLY_ROW",
+            { row: targetRowEffect, count: allies.length });
+        } else if (ek === "DESTROY_ROW") {
+          // Peste: destroi todas as cartas inimigas da fileira escolhida
+          const enemyRow = data.effectRow ?? data.targetRow ?? "MELEE";
+          if (_isImmune(otherSide(ownerSide), enemyRow)) {
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "DAMAGE_BLOCKED",
+              { row: enemyRow, by: "IMMUNE_ROW" });
+          } else {
+            const enemies = await tx.matchBoardCard.findMany({
+              where: { matchId: data.matchId, side: otherSide(ownerSide), row: enemyRow },
+              include: { card: true },
+            });
+            for (const e of enemies) {
+              if (e.card.isElite) continue;
+              await triggerOnDeath(tx, data.matchId, e.id);
+              await tx.matchBoardCard.delete({ where: { id: e.id } });
+              await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+                { targetId: e.id, by: "DESTROY_ROW" });
+            }
+          }
+        } else if (ek === "DESTROY_AND_DRAW" && data.targetBoardCardId) {
+          // Ciclo da Vida: destroi criatura inimiga E voce compra 1 carta
+          const target = await tx.matchBoardCard.findUnique({
+            where: { id: data.targetBoardCardId },
+            include: { card: true },
+          });
+          if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !_isImmune(target.side, target.row)) {
+            await triggerOnDeath(tx, data.matchId, target.id);
+            await tx.matchBoardCard.delete({ where: { id: target.id } });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+              { targetId: target.id, by: "DESTROY_AND_DRAW" });
+            const drawCount = ev > 0 ? ev : 1;
+            const drawFrom = await tx.matchHand.findMany({
+              where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+              orderBy: { deckOrder: "asc" },
+              take: drawCount,
+            });
+            for (const d of drawFrom) {
+              await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
+            }
+          }
+        } else if (ek === "DAMAGE_IF" && data.targetBoardCardId) {
+          // Expurgo: destroi inimigo se poder <= ev
+          const target = await tx.matchBoardCard.findUnique({
+            where: { id: data.targetBoardCardId },
+            include: { card: true },
+          });
+          if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !_isImmune(target.side, target.row)) {
+            if (target.power <= ev) {
+              await triggerOnDeath(tx, data.matchId, target.id);
+              await tx.matchBoardCard.delete({ where: { id: target.id } });
+              await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+                { targetId: target.id, by: "DAMAGE_IF", threshold: ev });
+            }
+          }
+        } else if (ek === "REVIVE_RANDOM") {
+          // Ritual Profano: puxa ev cartas aleatorias do cemiterio (zone=DISCARD) pro proprio campo
+          const reviveCount = ev > 0 ? ev : 2;
+          const discardPool = await tx.matchHand.findMany({
+            where: { matchId: data.matchId, zone: "DISCARD" },
+            include: { card: true },
+          });
+          const eligible = discardPool.filter((d) => d.card.cardType === "UNIT");
+          const shuffled = [...eligible].sort(() => Math.random() - 0.5);
+          const picked = shuffled.slice(0, reviveCount);
+          for (const p of picked) {
+            const allowedRows = p.card.rows.split(",").filter(Boolean);
+            const targetRow = (allowedRows[0] ?? "MELEE") as Row;
+            await tx.matchBoardCard.create({
+              data: {
+                matchId: data.matchId,
+                side: ownerSide,
+                cardId: p.cardId,
+                row: targetRow,
+                basePower: p.card.power,
+                power: p.card.power,
+                isToken: false,
+                shielded: false,
+              },
+            });
+            await tx.matchHand.delete({ where: { id: p.id } });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "REVIVE",
+              { cardId: p.cardId, by: "REVIVE_RANDOM", row: targetRow });
+          }
+        } else if (ek === "REVIVE_TO_HAND") {
+          // Reforja: recupera 1 carta nao-UNIT do PROPRIO cemiterio para a mao
+          const myDiscard = await tx.matchHand.findMany({
+            where: { matchId: data.matchId, side: data.side, zone: "DISCARD" },
+            include: { card: true },
+          });
+          const eligible = myDiscard.filter((d) => d.card.cardType !== "UNIT" && d.card.cardType !== "LEADER");
+          if (eligible.length > 0) {
+            const pick = eligible[Math.floor(Math.random() * eligible.length)];
+            await tx.matchHand.update({ where: { id: pick.id }, data: { zone: "HAND" } });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "REVIVE_TO_HAND",
+              { cardId: pick.cardId });
+          }
+        } else if (ek === "TUTOR_BY_TYPE") {
+          // Caos: pega ev cartas do PROPRIO deck filtradas por cardType
+          const tutorType = card.ability?.targetCardType;
+          if (tutorType) {
+            const drawCount = ev > 0 ? ev : 3;
+            const deckCards = await tx.matchHand.findMany({
+              where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+              include: { card: true },
+              orderBy: { deckOrder: "asc" },
+            });
+            const eligibleCards = deckCards.filter((d) => d.card.cardType === tutorType);
+            const shuffled = [...eligibleCards].sort(() => Math.random() - 0.5);
+            const picked = shuffled.slice(0, drawCount);
+            for (const p of picked) {
+              await tx.matchHand.update({ where: { id: p.id }, data: { zone: "HAND" } });
+            }
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "TUTOR_BY_TYPE",
+              { cardType: tutorType, count: picked.length });
+          }
+        } else if (ek === "IMMUNE_ROW") {
+          // Bloqueio Temporal: cria imunidade temporaria na fileira escolhida
+          const immuneRow = data.effectRow ?? data.targetRow;
+          const turns = ev > 0 ? ev : 1;
+          if (immuneRow) {
+            await tx.matchRowImmunity.upsert({
+              where: { matchId_side_row: { matchId: data.matchId, side: ownerSide, row: immuneRow } },
+              update: { turnsLeft: turns, appliedRound: match.currentRound, appliedBy: card.id },
+              create: {
+                matchId: data.matchId,
+                side: ownerSide,
+                row: immuneRow,
+                turnsLeft: turns,
+                appliedRound: match.currentRound,
+                appliedBy: card.id,
+              },
+            });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "IMMUNE_ROW",
+              { row: immuneRow, turns });
+            await persistRecomputedPower(tx, data.matchId);
+          }
+        } else if (ek === "EVOLVE_FACTION" && data.targetBoardCardId) {
+          // Evolucao: destroi um aliado seu, puxa outra carta da mesma faccao do deck pro campo
+          const target = await tx.matchBoardCard.findUnique({
+            where: { id: data.targetBoardCardId },
+            include: { card: true },
+          });
+          if (target && target.matchId === data.matchId && target.side === ownerSide) {
+            const targetFactionId = target.card.factionId;
+            await triggerOnDeath(tx, data.matchId, target.id);
+            await tx.matchBoardCard.delete({ where: { id: target.id } });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+              { targetId: target.id, by: "EVOLVE_FACTION" });
+            const deckCards = await tx.matchHand.findMany({
+              where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+              include: { card: true },
+              orderBy: { deckOrder: "asc" },
+            });
+            const sameFaction = deckCards.filter((d) => d.card.factionId === targetFactionId && d.card.cardType === "UNIT");
+            if (sameFaction.length > 0) {
+              const pick = sameFaction[Math.floor(Math.random() * sameFaction.length)];
+              const allowedRows = pick.card.rows.split(",").filter(Boolean);
+              const targetRow = (allowedRows[0] ?? "MELEE") as Row;
+              await tx.matchBoardCard.create({
+                data: {
+                  matchId: data.matchId,
+                  side: ownerSide,
+                  cardId: pick.cardId,
+                  row: targetRow,
+                  basePower: pick.card.power,
+                  power: pick.card.power,
+                  isToken: false,
+                  shielded: false,
+                },
+              });
+              await tx.matchHand.delete({ where: { id: pick.id } });
+              await logEvent(tx, data.matchId, match.currentRound, data.side, "EVOLVE_FACTION",
+                { destroyedCardId: target.card.id, summonedCardId: pick.cardId });
             }
           }
         }
@@ -787,7 +987,7 @@ export async function activateLeaderAction(data: {
         } else {
           const newBase = t.basePower - ev;
           if (newBase <= 0) {
-            await triggerOnDeath(tx, data?.matchId ?? matchId, t.id);
+            await triggerOnDeath(tx, data.matchId, t.id);
             await tx.matchBoardCard.delete({ where: { id: t.id } });
           } else {
             await tx.matchBoardCard.update({ where: { id: t.id }, data: { basePower: newBase } });
@@ -803,255 +1003,6 @@ export async function activateLeaderAction(data: {
       for (const d of drawFrom) {
         await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
       }
-    } else if (ek === "WEATHER_FROST" || ek === "WEATHER_FOG" || ek === "WEATHER_RAIN" || ek === "WEATHER_STORM") {
-        // Carta SPECIAL/UNIT com habilidade de clima: aplica o clima em uma fileira.
-        // WEATHER_FROST/FOG/STORM tem fileira fixa; WEATHER_RAIN usa targetRow.
-        const fixedRow = weatherToRow(ek);
-        const affectedRow = fixedRow ?? data.targetRow;
-        if (affectedRow) {
-          await tx.matchWeather.deleteMany({
-            where: { matchId: data.matchId, affectedRow },
-          });
-          await tx.matchWeather.create({
-            data: {
-              matchId: data.matchId,
-              weatherKey: ek,
-              affectedRow,
-              cardId: card.id,
-            },
-          });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "WEATHER",
-            { engineKey: ek, affectedRow });
-          await persistRecomputedPower(tx, data.matchId);
-        }
-      } else if (ek === "CLEAR_WEATHER") {
-        await tx.matchWeather.deleteMany({ where: { matchId: data.matchId } });
-        await persistRecomputedPower(tx, data.matchId);
-      } else if (ek === "BOOST_ROW") {
-        // Inspiracao: +ev de basePower em todos aliados da fileira onde a carta foi jogada
-        const allies = await tx.matchBoardCard.findMany({
-          where: { matchId: data.matchId, side: ownerSide, row: (data.effectRow ?? data.targetRow), id: { not: newBoardCard.id } },
-          include: { card: true },
-        });
-        for (const a of allies) {
-          if (a.card.isElite) continue;
-          await tx.matchBoardCard.update({
-            where: { id: a.id },
-            data:  { basePower: a.basePower + ev },
-          });
-        }
-        await logEvent(tx, data.matchId, match.currentRound, data.side, "BOOST_ROW",
-          { row: data.targetRow, amount: ev, count: allies.length });
-      } else if (ek === "MULTIPLY_ROW") {
-        // Dadiva: dobra basePower de todos aliados da fileira
-        const allies = await tx.matchBoardCard.findMany({
-          where: { matchId: data.matchId, side: ownerSide, row: (data.effectRow ?? data.targetRow), id: { not: newBoardCard.id } },
-          include: { card: true },
-        });
-        for (const a of allies) {
-          if (a.card.isElite) continue;
-          await tx.matchBoardCard.update({
-            where: { id: a.id },
-            data:  { basePower: a.basePower * 2 },
-          });
-        }
-        await logEvent(tx, data.matchId, match.currentRound, data.side, "MULTIPLY_ROW",
-          { row: data.targetRow, count: allies.length });
-      } else if (ek === "DESTROY_ROW") {
-        // Peste: destroi todas as cartas inimigas da fileira indicada por targetRow
-        // (a fileira clicada/escolhida na UI)
-        const enemyRow = data.effectRow ?? data.targetRow ?? "MELEE";
-        // Se fileira inimiga esta imune, nao destroi
-        if (_isImmune(otherSide(ownerSide), enemyRow)) {
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "DAMAGE_BLOCKED",
-            { row: enemyRow, by: "IMMUNE_ROW" });
-        } else {
-        const enemies = await tx.matchBoardCard.findMany({
-          where: { matchId: data.matchId, side: otherSide(ownerSide), row: enemyRow },
-          include: { card: true },
-        });
-        for (const e of enemies) {
-          if (e.card.isElite) continue;
-          await triggerOnDeath(tx, data?.matchId ?? matchId, e.id);
-            await tx.matchBoardCard.delete({ where: { id: e.id } });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
-            { targetId: e.id, by: "DESTROY_ROW" });
-        }
-          }
-      } else if (ek === "DESTROY_AND_DRAW" && data.targetBoardCardId) {
-        // Ciclo da Vida: destroi criatura inimiga E voce compra 1 carta
-        const target = await tx.matchBoardCard.findUnique({
-          where: { id: data.targetBoardCardId },
-          include: { card: true },
-        });
-        if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !_isImmune(target.side, target.row)) {
-          await triggerOnDeath(tx, data?.matchId ?? matchId, target.id);
-            await tx.matchBoardCard.delete({ where: { id: target.id } });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
-            { targetId: target.id, by: "DESTROY_AND_DRAW" });
-          // Compra ev cartas (default 1)
-          const drawCount = ev > 0 ? ev : 1;
-          const drawFrom = await tx.matchHand.findMany({
-            where: { matchId: data.matchId, side: data.side, zone: "DECK" },
-            orderBy: { drawOrder: "asc" },
-            take: drawCount,
-          });
-          for (const d of drawFrom) {
-            await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
-          }
-        }
-      } else if (ek === "DAMAGE_IF" && data.targetBoardCardId) {
-        // Expurgo: destroi inimigo se poder <= ev
-        const target = await tx.matchBoardCard.findUnique({
-          where: { id: data.targetBoardCardId },
-          include: { card: true },
-        });
-        if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !_isImmune(target.side, target.row)) {
-          if (target.power <= ev) {
-            await triggerOnDeath(tx, data?.matchId ?? matchId, target.id);
-            await tx.matchBoardCard.delete({ where: { id: target.id } });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
-              { targetId: target.id, by: "DAMAGE_IF", threshold: ev });
-          }
-        }
-      } else if (ek === "REVIVE_RANDOM") {
-        // Ritual Profano: puxa ev cartas aleatorias de qualquer cemiterio (zone=DISCARD)
-        // pro proprio campo. Vao na primeira fileira permitida da carta.
-        const reviveCount = ev > 0 ? ev : 2;
-        const discardPool = await tx.matchHand.findMany({
-          where: { matchId: data.matchId, zone: "DISCARD" },
-          include: { card: true },
-        });
-        // So ressuscita cartas tipo UNIT (criaturas de combate)
-        const eligible = discardPool.filter((d) => d.card.cardType === "UNIT");
-        // Embaralha e pega N
-        const shuffled = [...eligible].sort(() => Math.random() - 0.5);
-        const picked = shuffled.slice(0, reviveCount);
-        for (const p of picked) {
-          const allowedRows = p.card.rows.split(",").filter(Boolean);
-          const targetRow = (allowedRows[0] ?? "MELEE") as Row;
-          await tx.matchBoardCard.create({
-            data: {
-              matchId: data.matchId,
-              side: ownerSide,
-              cardId: p.cardId,
-              row: targetRow,
-              basePower: p.card.power,
-              power: p.card.power,
-              isToken: false,
-              shielded: false,
-            },
-          });
-          // Remove do cemiterio (a carta foi pro tabuleiro)
-          await tx.matchHand.delete({ where: { id: p.id } });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "REVIVE",
-            { cardId: p.cardId, by: "REVIVE_RANDOM", row: targetRow });
-        }
-      } else if (ek === "REVIVE_TO_HAND") {
-        // Reforja: recupera 1 carta nao-UNIT do PROPRIO cemiterio para a mao
-        const myDiscard = await tx.matchHand.findMany({
-          where: { matchId: data.matchId, side: data.side, zone: "DISCARD" },
-          include: { card: true },
-        });
-        // So nao-UNIT e nao-LEADER (sao "magias", clima, etc)
-        const eligible = myDiscard.filter((d) => d.card.cardType !== "UNIT" && d.card.cardType !== "LEADER");
-        if (eligible.length > 0) {
-          // Aleatorio (pode mudar pra escolha do jogador no futuro)
-          const pick = eligible[Math.floor(Math.random() * eligible.length)];
-          await tx.matchHand.update({
-            where: { id: pick.id },
-            data:  { zone: "HAND" },
-          });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "REVIVE_TO_HAND",
-            { cardId: pick.cardId });
-        }
-      } else if (ek === "TUTOR_BY_TYPE") {
-        // Caos: pega ev cartas do PROPRIO deck filtradas por cardType (definido em ability.targetCardType)
-        const tutorType = card.ability?.targetCardType;
-        if (tutorType) {
-          const drawCount = ev > 0 ? ev : 3;
-          const deckCards = await tx.matchHand.findMany({
-            where: { matchId: data.matchId, side: data.side, zone: "DECK" },
-            include: { card: true },
-            orderBy: { deckOrder: "asc" },
-          });
-          const eligible = deckCards.filter((d) => d.card.cardType === tutorType);
-          // Aleatorio
-          const shuffled = [...eligible].sort(() => Math.random() - 0.5);
-          const picked = shuffled.slice(0, drawCount);
-          for (const p of picked) {
-            await tx.matchHand.update({
-              where: { id: p.id },
-              data:  { zone: "HAND" },
-            });
-          }
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "TUTOR_BY_TYPE",
-            { cardType: tutorType, count: picked.length });
-        }
-      } else if (ek === "IMMUNE_ROW") {
-        // Bloqueio Temporal: cria imunidade temporaria na fileira escolhida (effectRow)
-        // Dura ev turnos. Aplica no proprio lado (defensiva).
-        const immuneRow = data.effectRow ?? data.targetRow;
-        const turns = ev > 0 ? ev : 1;
-        if (immuneRow) {
-          await tx.matchRowImmunity.upsert({
-            where: { matchId_side_row: { matchId: data.matchId, side: ownerSide, row: immuneRow } },
-            update: { turnsLeft: turns, appliedRound: match.currentRound, appliedBy: card.id },
-            create: {
-              matchId: data.matchId,
-              side: ownerSide,
-              row: immuneRow,
-              turnsLeft: turns,
-              appliedRound: match.currentRound,
-              appliedBy: card.id,
-            },
-          });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "IMMUNE_ROW",
-            { row: immuneRow, turns });
-          await persistRecomputedPower(tx, data.matchId);
-        }
-      } else if (ek === "EVOLVE_FACTION" && data.targetBoardCardId) {
-        // Evolucao: destroi um aliado seu, puxa outra carta da mesma faccao do deck pro campo
-        const target = await tx.matchBoardCard.findUnique({
-          where: { id: data.targetBoardCardId },
-          include: { card: true },
-        });
-        if (target && target.matchId === data.matchId && target.side === ownerSide) {
-          const targetFactionId = target.card.factionId;
-          // Destroi o alvo
-          await triggerOnDeath(tx, data?.matchId ?? matchId, target.id);
-            await tx.matchBoardCard.delete({ where: { id: target.id } });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
-            { targetId: target.id, by: "EVOLVE_FACTION" });
-          // Puxa carta da mesma faccao do proprio deck
-          const deckCards = await tx.matchHand.findMany({
-            where: { matchId: data.matchId, side: data.side, zone: "DECK" },
-            include: { card: true },
-            orderBy: { deckOrder: "asc" },
-          });
-          const sameFaction = deckCards.filter((d) => d.card.factionId === targetFactionId && d.card.cardType === "UNIT");
-          if (sameFaction.length > 0) {
-            const pick = sameFaction[Math.floor(Math.random() * sameFaction.length)];
-            const allowedRows = pick.card.rows.split(",").filter(Boolean);
-            const targetRow = (allowedRows[0] ?? "MELEE") as Row;
-            await tx.matchBoardCard.create({
-              data: {
-                matchId: data.matchId,
-                side: ownerSide,
-                cardId: pick.cardId,
-                row: targetRow,
-                basePower: pick.card.power,
-                power: pick.card.power,
-                isToken: false,
-                shielded: false,
-              },
-            });
-            // Tira da pilha de deck (foi pra mesa)
-            await tx.matchHand.delete({ where: { id: pick.id } });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "EVOLVE_FACTION",
-              { destroyedCardId: target.card.id, summonedCardId: pick.cardId });
-          }
-        }
     } else if (ek === "HEAL" && data.targetBoardCardId) {
         const t = await tx.matchBoardCard.findUnique({
           where: { id: data.targetBoardCardId },
