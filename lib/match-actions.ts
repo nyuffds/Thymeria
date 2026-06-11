@@ -820,7 +820,31 @@ export async function playCardAction(data: {
                 { targetId: target.id, restoredTo: target.card.power });
             }
           }
-} else if (ek === "BOOST_ROW") {
+} else if (ek === "WEATHER_FROST" || ek === "WEATHER_FOG" || ek === "WEATHER_RAIN" || ek === "WEATHER_STORM") {
+          // Carta SPECIAL/UNIT com habilidade de clima: aplica o clima em uma fileira
+          const fixedRow = weatherToRow(ek);
+          const affectedRow = fixedRow ?? effTargetRow;
+          if (affectedRow) {
+            await tx.matchWeather.deleteMany({
+              where: { matchId: data.matchId, affectedRow },
+            });
+            await tx.matchWeather.create({
+              data: {
+                matchId: data.matchId,
+                weatherKey: ek,
+                affectedRow,
+                cardId: card.id,
+              },
+            });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "WEATHER",
+              { engineKey: ek, affectedRow });
+            await persistRecomputedPower(tx, data.matchId);
+          }
+        } else if (ek === "CLEAR_WEATHER") {
+          await tx.matchWeather.deleteMany({ where: { matchId: data.matchId } });
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "CLEAR_WEATHER", {});
+          await persistRecomputedPower(tx, data.matchId);
+        } else if (ek === "BOOST_ROW") {
           // Inspiracao: +ev de basePower em todos aliados da fileira (effectRow OU targetRow)
           const targetRowEffect = effEffectRow ?? effTargetRow;
           const allies = await tx.matchBoardCard.findMany({
@@ -1170,7 +1194,31 @@ export async function activateLeaderAction(data: {
       for (const d of drawFrom) {
         await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
       }
-    } else if (ek === "HEAL" && data.targetBoardCardId) {
+    } else if (ek === "WEATHER_FROST" || ek === "WEATHER_FOG" || ek === "WEATHER_RAIN" || ek === "WEATHER_STORM") {
+        // Lider com habilidade de clima: aplica em uma fileira
+        const fixedRow = weatherToRow(ek);
+        const affectedRow = fixedRow ?? data.targetRow;
+        if (affectedRow) {
+          await tx.matchWeather.deleteMany({
+            where: { matchId: data.matchId, affectedRow },
+          });
+          await tx.matchWeather.create({
+            data: {
+              matchId: data.matchId,
+              weatherKey: ek,
+              affectedRow,
+              cardId: leaderCard.id,
+            },
+          });
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "WEATHER",
+            { engineKey: ek, affectedRow });
+          await persistRecomputedPower(tx, data.matchId);
+        }
+      } else if (ek === "CLEAR_WEATHER") {
+        await tx.matchWeather.deleteMany({ where: { matchId: data.matchId } });
+        await logEvent(tx, data.matchId, match.currentRound, data.side, "CLEAR_WEATHER", {});
+        await persistRecomputedPower(tx, data.matchId);
+      } else if (ek === "HEAL" && data.targetBoardCardId) {
         const t = await tx.matchBoardCard.findUnique({
           where: { id: data.targetBoardCardId },
           include: { card: true },
