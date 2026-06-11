@@ -849,12 +849,29 @@ function buildBoosterCardFilter(
         }
         if (!chosenRarity) chosenRarity = Object.keys(weights)[0];
 
-        // Pega o pool da raridade sorteada
-        const pool = await prisma.card.findMany({
-          where: buildBoosterCardFilter(unopened.booster, { rarity: chosenRarity }),
-          select: { id: true },
-        });
-        if (pool.length === 0) continue;
+        // Pega o pool da raridade sorteada. Se vazio, faz fallback procurando QUALQUER raridade
+          // disponivel pelos filtros do booster (para nao oscilar a quantidade total de cartas).
+          let pool = await prisma.card.findMany({
+            where: buildBoosterCardFilter(unopened.booster, { rarity: chosenRarity }),
+            select: { id: true },
+          });
+          if (pool.length === 0) {
+            // Fallback: tenta cada raridade em ordem ate achar uma com cartas
+            const fallbackOrder = ["COMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC"];
+            for (const fbRarity of fallbackOrder) {
+              if (fbRarity === chosenRarity) continue;
+              pool = await prisma.card.findMany({
+                where: buildBoosterCardFilter(unopened.booster, { rarity: fbRarity }),
+                select: { id: true },
+              });
+              if (pool.length > 0) {
+                chosenRarity = fbRarity;
+                break;
+              }
+            }
+            // Se NENHUMA raridade tem cartas, continua (situacao impossivel de configurar mas seguranca)
+            if (pool.length === 0) continue;
+          }
 
         const newPool = pool.filter((c) => !ownedCardIds.has(c.id));
         const threshold = pityThreshold[chosenRarity] ?? 999;
@@ -876,8 +893,7 @@ function buildBoosterCardFilter(
       }    }
 
   }
-
-  if (cardIds.length === 0) throw new Error("Booster sem regras válidas. Avise o GM.");
+    if (cardIds.length === 0) throw new Error("Booster sem regras válidas. Avise o GM.");
 
   // Aplica tudo numa transação
   const result = await prisma.$transaction(async (tx) => {
@@ -910,36 +926,6 @@ function buildBoosterCardFilter(
         update: { counter: pityCounters[rarity] },
         create: { userId: user.id, rarity, counter: pityCounters[rarity] },
       });
-    }
-
-    
-    // Garantia "estilo Hearthstone": se o booster tiver flag e nenhum card sorteado for >= RARE,
-    // troca o ultimo por uma carta rara aleatoria (preferindo nova nao possuida).
-    if (unopened.booster.guaranteeRareOrBetter && cardIds.length > 0) {
-      const drawnCards = await tx.card.findMany({
-        where: { id: { in: cardIds } },
-        select: { id: true, rarity: true },
-      });
-      const rarityRank: Record<string, number> = {
-        COMMON: 0, RARE: 1, EPIC: 2, LEGENDARY: 3, MYTHIC: 4,
-      };
-      const highestRank = Math.max(...drawnCards.map((c) => rarityRank[c.rarity] ?? 0));
-      if (highestRank < 1) {
-        // Sortea uma carta de raridade RARE+
-        const rarePool = await tx.card.findMany({
-          where: { isReleased: true, rarity: { in: ["RARE", "EPIC", "LEGENDARY", "MYTHIC"] } },
-          select: { id: true, rarity: true },
-        });
-        if (rarePool.length > 0) {
-          // Prefere cartas novas
-          const newRarePool = rarePool.filter((c) => !ownedCardIds.has(c.id));
-          const sourcePool = newRarePool.length > 0 ? newRarePool : rarePool;
-          const pickIdx = Math.floor(Math.random() * sourcePool.length);
-          const pickId = sourcePool[pickIdx].id;
-          // Substitui o ultimo card sorteado
-          cardIds[cardIds.length - 1] = pickId;
-        }
-      }
     }
 // Cria opening + results
     const opening = await tx.boosterOpening.create({
@@ -989,11 +975,9 @@ function buildBoosterCardFilter(
     return { openingId: opening.id, opened };
   });
 
-  revalidatePath("/estante");
   revalidatePath("/colecao");
   revalidatePath("/conta");
-
-  return result.opened;
+    return result.opened;
 }
 
 // ---------------------------------------------
@@ -1201,7 +1185,7 @@ export async function createDeckAction(data: {
   }
 
   // Limite de decks
-  const deckCount = await prisma.deck.count({ where: { userId: user.id } });
+  const deckCount = await prisma.deck.count({ where: { userId: user.id, archivedAt: null } });
   if (deckCount >= settings.maxDecksPerPlayer) {
     throw new Error(`Limite de ${settings.maxDecksPerPlayer} decks atingido. Exclua um deck antes de criar outro.`);
   }
@@ -1255,8 +1239,17 @@ export async function deleteDeckAction(deckId: string) {
   if (!deck) throw new Error("Deck não encontrado.");
   if (deck.userId !== user.id) throw new Error("Este deck não é seu.");
 
-  await prisma.deck.delete({ where: { id: deckId } });
+  // Se ja foi usado em partidas: arquiva (soft delete) pra preservar histórico
+  const usedInMatches = await prisma.matchPlayer.count({ where: { deckId } });
 
+  if (usedInMatches > 0) {
+    await prisma.deck.update({
+      where: { id: deckId },
+      data:  { archivedAt: new Date() },
+    });
+  } else {
+    await prisma.deck.delete({ where: { id: deckId } });
+  }
   revalidatePath("/decks");
 }
 

@@ -20,7 +20,7 @@ export default async function DecksPage() {
 
   const [decks, settings] = await Promise.all([
     prisma.deck.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, archivedAt: null },
       orderBy: { updatedAt: "desc" },
       include: {
         faction: true,

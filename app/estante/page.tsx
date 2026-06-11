@@ -70,16 +70,7 @@ export default async function EstantePage() {
         </Link>
       </div>
 
-      {groupList.length === 0 ? (
-        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-12 text-center text-zinc-500">
-          <p className="mb-4">Sua estante está vazia.</p>
-          <Link href="/loja" className="text-amber-300 hover:text-amber-200 underline">
-            Comprar boosters →
-          </Link>
-        </div>
-      ) : (
-        <EstanteList groups={groupList} />
-      )}
+      <EstanteList groups={groupList} />
     </main>
   );
 }

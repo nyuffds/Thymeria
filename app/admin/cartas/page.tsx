@@ -1,19 +1,43 @@
 export const dynamic = "force-dynamic";
 
 // app/admin/cartas/page.tsx
-// Grade visual de todas as cartas com botão de "Nova".
+// Grade visual de todas as cartas com filtros e botões de Editar/Deletar.
 
 import Link from "next/link";
 import { PrismaClient } from "@prisma/client";
-import { CardPreview } from "@/app/components/CardPreview";
+import { AdminCardsCatalog } from "./_components/AdminCardsCatalog";
 
 const prisma = new PrismaClient();
 
 export default async function CartasListPage() {
-  const cards = await prisma.card.findMany({
-    orderBy: { name: "asc" },
-    include: { faction: true, ability: true },
-  });
+  const [cards, factions] = await Promise.all([
+    prisma.card.findMany({
+      orderBy: [{ faction: { name: "asc" } }, { name: "asc" }],
+      include: { faction: true, ability: true },
+    }),
+    prisma.faction.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  const mappedCards = cards.map((c) => ({
+    id: c.id,
+    name: c.name,
+    power: c.power,
+    rows: c.rows,
+    rarity: c.rarity,
+    cardType: c.cardType,
+    isElite: c.isElite,
+    isReleased: c.isReleased,
+    loreText: c.loreText,
+    imageUrl: c.imageUrl,
+    frameUrl: c.frameUrl,
+    faction: { name: c.faction.name, color: c.faction.color },
+    ability: c.ability
+      ? { name: c.ability.name, description: c.ability.description }
+      : null,
+  }));
 
   return (
     <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
@@ -22,7 +46,7 @@ export default async function CartasListPage() {
           <Link href="/admin" className="text-sm text-zinc-500 hover:text-amber-200">
             ← Painel
           </Link>
-          <h1 className="text-3xl font-bold text-amber-200 mt-1">Cartas</h1>
+          <h1 className="text-3xl font-bold text-amber-200 mt-1 font-heading">Cartas</h1>
         </div>
         <Link
           href="/admin/cartas/nova"
@@ -43,25 +67,7 @@ export default async function CartasListPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 justify-items-center">
-          {cards.map((c) => (
-            <Link
-              key={c.id}
-              href={`/admin/cartas/${c.id}`}
-              className="group relative transition hover:scale-[1.03]"
-            >
-              <CardPreview card={c} />
-              {!c.isReleased && (
-                <div className="absolute top-2 right-2 bg-zinc-950/80 text-amber-300 text-xs px-2 py-1 rounded border border-amber-700">
-                  rascunho
-                </div>
-              )}
-              <p className="text-center text-xs text-zinc-500 mt-2 opacity-0 group-hover:opacity-100 transition">
-                Clique para editar
-              </p>
-            </Link>
-          ))}
-        </div>
+        <AdminCardsCatalog cards={mappedCards} factions={factions} />
       )}
     </main>
   );

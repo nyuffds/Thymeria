@@ -282,6 +282,7 @@ model Deck {
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  archivedAt DateTime?  // se preenchido, deck esta arquivado (oculto mas mantem partidas)
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   faction Faction @relation(fields: [factionId], references: [id])

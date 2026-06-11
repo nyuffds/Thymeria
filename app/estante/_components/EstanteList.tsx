@@ -22,19 +22,22 @@ export function EstanteList({ groups }: { groups: Group[] }) {
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<{ name: string; cards: OpenedCard[] } | null>(null);
   const [revealedIdx, setRevealedIdx] = useState(0);
+  const [isOpening, setIsOpening] = useState(false);
 
-  function openOne(group: Group) {
+  async function openOne(group: Group) {
+    if (isOpening) return;
+    setIsOpening(true);
     setError(null);
     const unopenedId = group.ids[0];
-    startTransition(async () => {
-      try {
-        const cards = await openUnopenedBoosterAction(unopenedId);
-        setOpened({ name: group.booster.name, cards });
-        setRevealedIdx(0);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro ao abrir.");
-      }
-    });
+    try {
+      const cards = await openUnopenedBoosterAction(unopenedId);
+      setOpened({ name: group.booster.name, cards });
+      setRevealedIdx(0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao abrir.");
+    } finally {
+      setIsOpening(false);
+    }
   }
 
   function nextCard() {
@@ -54,7 +57,6 @@ export function EstanteList({ groups }: { groups: Group[] }) {
 
   const currentCard = opened ? opened.cards[revealedIdx] : null;
   const currentRarity = currentCard ? RARITIES.find((r) => r.key === currentCard.rarity) : null;
-
   return (
     <>
       {error && (
@@ -63,6 +65,14 @@ export function EstanteList({ groups }: { groups: Group[] }) {
         </p>
       )}
 
+      {groups.length === 0 && !opened && (
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-12 text-center text-zinc-500">
+          <p className="mb-4">Sua estante está vazia.</p>
+          <a href="/loja" className="text-amber-300 hover:text-amber-200 underline">
+            Comprar boosters →
+          </a>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {groups.map((g) => (
           <div
@@ -94,10 +104,10 @@ export function EstanteList({ groups }: { groups: Group[] }) {
               )}
               <button
                 onClick={() => openOne(g)}
-                disabled={isPending}
+                disabled={isOpening}
                 className="mt-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-zinc-950 font-semibold py-2 rounded-lg transition"
               >
-                {isPending ? "Abrindo..." : "Abrir 1 booster"}
+                {isOpening ? "Abrindo..." : "Abrir 1 booster"}
               </button>
             </div>
           </div>

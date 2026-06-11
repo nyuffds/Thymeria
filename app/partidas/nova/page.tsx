@@ -19,6 +19,7 @@ export default async function NovaPartidaPage() {
   });
 
   const allDecks = await prisma.deck.findMany({
+    where: { archivedAt: null },
     orderBy: [{ user: { username: "asc" } }, { name: "asc" }],
     include: {
       user:    { select: { id: true, username: true } },
