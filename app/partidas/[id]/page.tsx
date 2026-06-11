@@ -167,6 +167,9 @@ export default async function PartidaPage({
                   engineKey: h.card.ability.engineKey,
                   engineValue: h.card.ability.engineValue,
                   targetCount: h.card.ability.targetCount,
+                  secondaryEngineKey: h.card.ability.secondaryEngineKey,
+                  secondaryEngineValue: h.card.ability.secondaryEngineValue,
+                  secondaryTargetCount: h.card.ability.secondaryTargetCount,
                 } : null,
               }))
             : [],
@@ -189,6 +192,9 @@ export default async function PartidaPage({
                   engineKey: h.card.ability.engineKey,
                   engineValue: h.card.ability.engineValue,
                   targetCount: h.card.ability.targetCount,
+                  secondaryEngineKey: h.card.ability.secondaryEngineKey,
+                  secondaryEngineValue: h.card.ability.secondaryEngineValue,
+                  secondaryTargetCount: h.card.ability.secondaryTargetCount,
                 } : null,
               }))
             : [],

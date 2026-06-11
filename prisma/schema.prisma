@@ -62,6 +62,13 @@ model Ability {
   targetCardIdsCsv String?  // CSV de cardIds-alvo (para engines tipo PULL_BY_NAME)
   targetCardType   String?  // tipo de carta-alvo (para engines tipo TUTOR_BY_TYPE / Caos): UNIT, SPECIAL, WEATHER
   targetCount      Int?     // quantidade de alvos (para BOOST_MANY / Nutrir, etc)
+  // Efeito secundario (opcional): permite habilidades com 2 efeitos em sequencia
+  // Ex: Vampiro = DAMAGE no inimigo + HEAL no aliado
+  secondaryEngineKey        String?
+  secondaryEngineValue      Int?
+  secondaryTargetCardIdsCsv String?
+  secondaryTargetCardType   String?
+  secondaryTargetCount      Int?
   triggerMode      String   @default("MANUAL") // MANUAL ou ON_PLAY
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())

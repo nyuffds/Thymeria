@@ -419,6 +419,12 @@ export async function playCardAction(data: {
   effectRow?: Row;  // fileira-alvo para habilidades ROW_*
   multiTargetIds?: string[];  // varios alvos (BOOST_MANY / Nutrir)
   prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>;  // roteamento da Profecia
+  // Campos do EFEITO SECUNDARIO (opcional)
+  secondaryTargetBoardCardId?: string;
+  secondaryTargetRow?: Row;
+  secondaryEffectRow?: Row;
+  secondaryMultiTargetIds?: string[];
+  secondaryProphecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>;
 }) {
   await prisma.$transaction(async (tx) => {
     const match = await tx.match.findUnique({ where: { id: data.matchId } });
@@ -526,16 +532,67 @@ export async function playCardAction(data: {
       await logEvent(tx, data.matchId, match.currentRound, data.side, "PLAY_CARD",
         { cardId: card.id, row: data.targetRow, asSpy: isSpy });
 
-      // ── Aplica habilidade da carta jogada ──
-      if (card.ability?.engineKey && card.ability?.engineValue !== null) {
-        const ek = card.ability.engineKey;
-        const ev = card.ability.engineValue ?? 0;
+      // ── Aplica habilidade(s) da carta jogada ──
+        if (card.ability?.engineKey && card.ability?.engineValue !== null) {
+          // Constroi lista de efeitos: principal + secundario (se existir)
+          const effects: Array<{
+            ek: string;
+            ev: number;
+            targetCardIdsCsv: string | null;
+            targetCardType: string | null;
+            targetCount: number | null;
+            targetBoardCardId?: string;
+            targetRow?: Row;
+            effectRow?: Row;
+            multiTargetIds?: string[];
+            prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>;
+          }> = [
+            {
+              ek: card.ability.engineKey,
+              ev: card.ability.engineValue ?? 0,
+              targetCardIdsCsv: card.ability.targetCardIdsCsv,
+              targetCardType: card.ability.targetCardType,
+              targetCount: card.ability.targetCount,
+              targetBoardCardId: data.targetBoardCardId,
+              targetRow: data.targetRow,
+              effectRow: data.effectRow,
+              multiTargetIds: data.multiTargetIds,
+              prophecyRouting: data.prophecyRouting,
+            },
+          ];
+          if (card.ability.secondaryEngineKey) {
+            effects.push({
+              ek: card.ability.secondaryEngineKey,
+              ev: card.ability.secondaryEngineValue ?? 0,
+              targetCardIdsCsv: card.ability.secondaryTargetCardIdsCsv,
+              targetCardType: card.ability.secondaryTargetCardType,
+              targetCount: card.ability.secondaryTargetCount,
+              targetBoardCardId: data.secondaryTargetBoardCardId,
+              targetRow: data.secondaryTargetRow,
+              effectRow: data.secondaryEffectRow,
+              multiTargetIds: data.secondaryMultiTargetIds,
+              prophecyRouting: data.secondaryProphecyRouting,
+            });
+          }
+
+          for (const effect of effects) {
+            const ek = effect.ek;
+            const ev = effect.ev;
+            // Shadow vars: usa o alvo deste efeito especifico (nao o data.* global)
+            const effTargetBoardCardId = effect.targetBoardCardId;
+            const effTargetRow: Row = effect.targetRow ?? data.targetRow;
+            const effEffectRow = effect.effectRow;
+            const effMultiTargetIds = effect.multiTargetIds;
+            const effProphecyRouting = effect.prophecyRouting;
+            const effTargetCardIdsCsv = effect.targetCardIdsCsv;
+            const effTargetCardType = effect.targetCardType;
+            const effTargetCount = effect.targetCount;
 
         if (ek === "BOOST") {
           // Aumenta basePower de um aliado-alvo (Elite imune)
-          if (data.targetBoardCardId) {
+          if (effTargetBoardCardId) {
             const target = await tx.matchBoardCard.findUnique({
-              where: { id: data.targetBoardCardId },
+              where: { id: effTargetBoardCardId },
               include: { card: true },
             });
             if (target && target.matchId === data.matchId && target.side === data.side && !target.card.isElite) {
@@ -547,10 +604,10 @@ export async function playCardAction(data: {
                 { targetId: target.id, amount: ev });
             }
           }
-        } else if (ek === "BOOST_MANY" && data.multiTargetIds && data.multiTargetIds.length > 0) {
+        } else if (ek === "BOOST_MANY" && effMultiTargetIds && effMultiTargetIds.length > 0) {
         // Nutrir: ev de boost em ate N criaturas aliadas escolhidas pelo jogador
-        const maxN = card.ability?.targetCount ?? data.multiTargetIds.length;
-        const chosen = data.multiTargetIds.slice(0, maxN);
+        const maxN = effTargetCount ?? effMultiTargetIds.length;
+        const chosen = effMultiTargetIds.slice(0, maxN);
         const targets = await tx.matchBoardCard.findMany({
           where: { id: { in: chosen }, matchId: data.matchId, side: ownerSide },
           include: { card: true },
@@ -564,13 +621,13 @@ export async function playCardAction(data: {
         }
         await logEvent(tx, data.matchId, match.currentRound, data.side, "BOOST_MANY",
           { count: targets.length, amount: ev });
-      } else if (ek === "PROPHECY" && data.prophecyRouting) {
+      } else if (ek === "PROPHECY" && effProphecyRouting) {
         // Profecia: olha as proximas X cartas do deck e roteia cada uma:
         // - HAND: vai pra mao (zone HAND)
         // - TOP: volta pro topo do deck (deckOrder baixo)
         // - BOTTOM: vai pro fundo do deck (deckOrder alto)
         // O frontend ja selecionou as cartas pra rotear (handIds das X primeiras do deck)
-        for (const route of data.prophecyRouting) {
+        for (const route of effProphecyRouting) {
           if (route.destination === "HAND") {
             await tx.matchHand.update({ where: { id: route.handId }, data: { zone: "HAND" } });
           }
@@ -581,8 +638,8 @@ export async function playCardAction(data: {
           orderBy: { deckOrder: "asc" },
         });
         // Para TOPs e BOTTOMs, reordenar
-        const topIds = data.prophecyRouting.filter((r) => r.destination === "TOP").map((r) => r.handId);
-        const bottomIds = data.prophecyRouting.filter((r) => r.destination === "BOTTOM").map((r) => r.handId);
+        const topIds = effProphecyRouting.filter((r) => r.destination === "TOP").map((r) => r.handId);
+        const bottomIds = effProphecyRouting.filter((r) => r.destination === "BOTTOM").map((r) => r.handId);
         // Pega os outros (nao roteados, ja estavam no DECK)
         const routedIds = new Set([...topIds, ...bottomIds]);
         const others = remainingDeck.filter((d) => !routedIds.has(d.id));
@@ -596,16 +653,16 @@ export async function playCardAction(data: {
         }
         await logEvent(tx, data.matchId, match.currentRound, data.side, "PROPHECY",
           {
-            toHand: data.prophecyRouting.filter((r) => r.destination === "HAND").length,
+            toHand: effProphecyRouting.filter((r) => r.destination === "HAND").length,
             toTop: topIds.length,
             toBottom: bottomIds.length,
           });
-      } else if (ek === "SHUFFLE_AND_DRAW" && data.multiTargetIds) {
+      } else if (ek === "SHUFFLE_AND_DRAW" && effMultiTargetIds) {
         // Ganancia: jogador escolhe ate engineValue cartas da mao,
         // devolve ao deck (zone HAND -> DECK, shuffle), depois compra targetCount do deck
-        const maxToReturn = ev > 0 ? ev : data.multiTargetIds.length;
-        const drawCount = card.ability?.targetCount ?? 1;
-        const chosen = data.multiTargetIds.slice(0, maxToReturn);
+        const maxToReturn = ev > 0 ? ev : effMultiTargetIds.length;
+        const drawCount = effTargetCount ?? 1;
+        const chosen = effMultiTargetIds.slice(0, maxToReturn);
         // 1. Move as escolhidas para DECK
         const returning = await tx.matchHand.findMany({
           where: { id: { in: chosen }, matchId: data.matchId, side: data.side, zone: "HAND" },
@@ -639,9 +696,9 @@ export async function playCardAction(data: {
         await logEvent(tx, data.matchId, match.currentRound, data.side, "SHUFFLE_AND_DRAW",
           { returned: returning.length, drew: drawFrom.length });
       } else if (ek === "DAMAGE") {
-          if (data.targetBoardCardId) {
+          if (effTargetBoardCardId) {
             const target = await tx.matchBoardCard.findUnique({
-              where: { id: data.targetBoardCardId },
+              where: { id: effTargetBoardCardId },
               include: { card: true },
             });
             if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite) {
@@ -681,7 +738,7 @@ export async function playCardAction(data: {
                 matchId: data.matchId,
                 side: ownerSide,
                 cardId: card.id,
-                row: data.targetRow,
+                row: effTargetRow,
                 basePower: 1,
                 power: 1,
                 isToken: true,
@@ -693,8 +750,8 @@ export async function playCardAction(data: {
                 } else if (ek === "PULL_BY_NAME") {
           // Busca as cartas alvo da habilidade
           const ability = card.ability;
-          if (ability?.targetCardIdsCsv) {
-            const targetIds = ability.targetCardIdsCsv.split(",").filter(Boolean);
+          if (effTargetCardIdsCsv) {
+            const targetIds = effTargetCardIdsCsv.split(",").filter(Boolean);
             // Busca todas as cartas na mao do mesmo lado que sao alvos
             const handTargets = await tx.matchHand.findMany({
               where: {
@@ -749,9 +806,9 @@ export async function playCardAction(data: {
             ek === "SPY" ? "SPY_DRAW" : "DRAW", { count: drawFrom.length });
         } else if (ek === "HEAL") {
           // Restaura uma carta aliada com basePower < poder original da definição
-          if (data.targetBoardCardId) {
+          if (effTargetBoardCardId) {
             const target = await tx.matchBoardCard.findUnique({
-              where: { id: data.targetBoardCardId },
+              where: { id: effTargetBoardCardId },
               include: { card: true },
             });
             if (target && target.matchId === data.matchId && target.side === data.side && !target.card.isElite) {
@@ -765,7 +822,7 @@ export async function playCardAction(data: {
           }
 } else if (ek === "BOOST_ROW") {
           // Inspiracao: +ev de basePower em todos aliados da fileira (effectRow OU targetRow)
-          const targetRowEffect = data.effectRow ?? data.targetRow;
+          const targetRowEffect = effEffectRow ?? effTargetRow;
           const allies = await tx.matchBoardCard.findMany({
             where: { matchId: data.matchId, side: ownerSide, row: targetRowEffect, id: { not: newBoardCard.id } },
             include: { card: true },
@@ -778,7 +835,7 @@ export async function playCardAction(data: {
             { row: targetRowEffect, amount: ev, count: allies.length });
         } else if (ek === "MULTIPLY_ROW") {
           // Dadiva: dobra basePower de todos aliados da fileira
-          const targetRowEffect = data.effectRow ?? data.targetRow;
+          const targetRowEffect = effEffectRow ?? effTargetRow;
           const allies = await tx.matchBoardCard.findMany({
             where: { matchId: data.matchId, side: ownerSide, row: targetRowEffect, id: { not: newBoardCard.id } },
             include: { card: true },
@@ -791,7 +848,7 @@ export async function playCardAction(data: {
             { row: targetRowEffect, count: allies.length });
         } else if (ek === "DESTROY_ROW") {
           // Peste: destroi todas as cartas inimigas da fileira escolhida
-          const enemyRow = data.effectRow ?? data.targetRow ?? "MELEE";
+          const enemyRow = effEffectRow ?? effTargetRow ?? "MELEE";
           if (_isImmune(otherSide(ownerSide), enemyRow)) {
             await logEvent(tx, data.matchId, match.currentRound, data.side, "DAMAGE_BLOCKED",
               { row: enemyRow, by: "IMMUNE_ROW" });
@@ -808,10 +865,10 @@ export async function playCardAction(data: {
                 { targetId: e.id, by: "DESTROY_ROW" });
             }
           }
-        } else if (ek === "DESTROY_AND_DRAW" && data.targetBoardCardId) {
+        } else if (ek === "DESTROY_AND_DRAW" && effTargetBoardCardId) {
           // Ciclo da Vida: destroi criatura inimiga E voce compra 1 carta
           const target = await tx.matchBoardCard.findUnique({
-            where: { id: data.targetBoardCardId },
+            where: { id: effTargetBoardCardId },
             include: { card: true },
           });
           if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !_isImmune(target.side, target.row)) {
@@ -829,10 +886,10 @@ export async function playCardAction(data: {
               await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
             }
           }
-        } else if (ek === "DAMAGE_IF" && data.targetBoardCardId) {
+        } else if (ek === "DAMAGE_IF" && effTargetBoardCardId) {
           // Expurgo: destroi inimigo se poder <= ev
           const target = await tx.matchBoardCard.findUnique({
-            where: { id: data.targetBoardCardId },
+            where: { id: effTargetBoardCardId },
             include: { card: true },
           });
           if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !_isImmune(target.side, target.row)) {
@@ -887,7 +944,7 @@ export async function playCardAction(data: {
           }
         } else if (ek === "TUTOR_BY_TYPE") {
           // Caos: pega ev cartas do PROPRIO deck filtradas por cardType
-          const tutorType = card.ability?.targetCardType;
+          const tutorType = effTargetCardType;
           if (tutorType) {
             const drawCount = ev > 0 ? ev : 3;
             const deckCards = await tx.matchHand.findMany({
@@ -906,7 +963,7 @@ export async function playCardAction(data: {
           }
         } else if (ek === "IMMUNE_ROW") {
           // Bloqueio Temporal: cria imunidade temporaria na fileira escolhida
-          const immuneRow = data.effectRow ?? data.targetRow;
+          const immuneRow = effEffectRow ?? effTargetRow;
           const turns = ev > 0 ? ev : 1;
           if (immuneRow) {
             await tx.matchRowImmunity.upsert({
@@ -925,10 +982,10 @@ export async function playCardAction(data: {
               { row: immuneRow, turns });
             await persistRecomputedPower(tx, data.matchId);
           }
-        } else if (ek === "EVOLVE_FACTION" && data.targetBoardCardId) {
+        } else if (ek === "EVOLVE_FACTION" && effTargetBoardCardId) {
           // Evolucao: destroi um aliado seu, puxa outra carta da mesma faccao do deck pro campo
           const target = await tx.matchBoardCard.findUnique({
-            where: { id: data.targetBoardCardId },
+            where: { id: effTargetBoardCardId },
             include: { card: true },
           });
           if (target && target.matchId === data.matchId && target.side === ownerSide) {
@@ -964,6 +1021,7 @@ export async function playCardAction(data: {
                 { destroyedCardId: target.card.id, summonedCardId: pick.cardId });
             }
           }
+        }
         }
         // SHIELD já foi tratado na criação (shielded: true)
         // BOND não tem efeito ativo, só passivo no recomputePower

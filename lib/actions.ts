@@ -151,6 +151,11 @@ export async function createAbilityAction(data: {
   targetCardIdsCsv: string | null;
   targetCardType: string | null;
   targetCount: number | null;
+  secondaryEngineKey: string | null;
+  secondaryEngineValue: number | null;
+  secondaryTargetCardIdsCsv: string | null;
+  secondaryTargetCardType: string | null;
+  secondaryTargetCount: number | null;
   triggerMode: string;
 }) {
   const name = data.name.trim();
@@ -170,6 +175,11 @@ export async function createAbilityAction(data: {
       targetCardIdsCsv: data.targetCardIdsCsv,
       targetCardType: data.targetCardType,
       targetCount: data.targetCount,
+      secondaryEngineKey: data.secondaryEngineKey,
+      secondaryEngineValue: data.secondaryEngineValue,
+      secondaryTargetCardIdsCsv: data.secondaryTargetCardIdsCsv,
+      secondaryTargetCardType: data.secondaryTargetCardType,
+      secondaryTargetCount: data.secondaryTargetCount,
       triggerMode: data.triggerMode,
     },
   });
@@ -186,6 +196,11 @@ export async function updateAbilityAction(id: string, data: {
   targetCardIdsCsv: string | null;
   targetCardType: string | null;
   targetCount: number | null;
+  secondaryEngineKey: string | null;
+  secondaryEngineValue: number | null;
+  secondaryTargetCardIdsCsv: string | null;
+  secondaryTargetCardType: string | null;
+  secondaryTargetCount: number | null;
   triggerMode: string;
   isActive: boolean;
 }) {
@@ -210,6 +225,11 @@ export async function updateAbilityAction(id: string, data: {
       targetCardIdsCsv: data.targetCardIdsCsv,
       targetCardType: data.targetCardType,
       targetCount: data.targetCount,
+      secondaryEngineKey: data.secondaryEngineKey,
+      secondaryEngineValue: data.secondaryEngineValue,
+      secondaryTargetCardIdsCsv: data.secondaryTargetCardIdsCsv,
+      secondaryTargetCardType: data.secondaryTargetCardType,
+      secondaryTargetCount: data.secondaryTargetCount,
       triggerMode: data.triggerMode,
     },
   });

@@ -27,6 +27,11 @@ type Mode =
         targetCardIdsCsv: string | null;
         targetCardType: string | null;
         targetCount: number | null;
+        secondaryEngineKey: string | null;
+        secondaryEngineValue: number | null;
+        secondaryTargetCardIdsCsv: string | null;
+        secondaryTargetCardType: string | null;
+        secondaryTargetCount: number | null;
         triggerMode: string;
       };
     };
@@ -39,7 +44,7 @@ export function AbilityForm(props: Mode) {
   const isEdit = props.mode === "edit";
   const init = isEdit
     ? props.initial
-    : { name: "", description: "", engineKey: "", engineValue: null as number | null, isActive: true, targetCardIdsCsv: null as string | null, targetCardType: null as string | null, targetCount: null as number | null, triggerMode: "MANUAL" };
+    : { name: "", description: "", engineKey: "", engineValue: null as number | null, isActive: true, targetCardIdsCsv: null as string | null, targetCardType: null as string | null, targetCount: null as number | null, secondaryEngineKey: null as string | null, secondaryEngineValue: null as number | null, secondaryTargetCardIdsCsv: null as string | null, secondaryTargetCardType: null as string | null, secondaryTargetCount: null as number | null, triggerMode: "MANUAL" };
 
   const [name, setName]                 = useState(init.name);
   const [description, setDescription]   = useState(init.description);
@@ -49,6 +54,12 @@ export function AbilityForm(props: Mode) {
   const [targetCardIds, setTargetCardIds] = useState<string[]>(init.targetCardIdsCsv ? init.targetCardIdsCsv.split(",").filter(Boolean) : []);
   const [targetCardType, setTargetCardType] = useState<string | null>(init.targetCardType);
   const [targetCount, setTargetCount] = useState<string>(init.targetCount?.toString() ?? "");
+  // Efeito secundario
+  const [secondaryEngineKey, setSecondaryEngineKey] = useState<string>(init.secondaryEngineKey ?? "");
+  const [secondaryEngineValue, setSecondaryEngineValue] = useState<string>(init.secondaryEngineValue?.toString() ?? "");
+  const [secondaryTargetCardIdsCsv, setSecondaryTargetCardIdsCsv] = useState<string | null>(init.secondaryTargetCardIdsCsv);
+  const [secondaryTargetCardType, setSecondaryTargetCardType] = useState<string | null>(init.secondaryTargetCardType);
+  const [secondaryTargetCount, setSecondaryTargetCount] = useState<string>(init.secondaryTargetCount?.toString() ?? "");
   const [triggerMode, setTriggerMode]     = useState(init.triggerMode);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -69,6 +80,11 @@ export function AbilityForm(props: Mode) {
             targetCardIdsCsv: targetCardIds.join(",") || null,
             targetCardType,
             targetCount: targetCount.trim() === "" ? null : parseInt(targetCount, 10),
+            secondaryEngineKey: secondaryEngineKey || null,
+            secondaryEngineValue: secondaryEngineValue.trim() === "" ? null : parseInt(secondaryEngineValue, 10),
+            secondaryTargetCardIdsCsv,
+            secondaryTargetCardType,
+            secondaryTargetCount: secondaryTargetCount.trim() === "" ? null : parseInt(secondaryTargetCount, 10),
             triggerMode,
           });
         } else {
@@ -77,6 +93,11 @@ export function AbilityForm(props: Mode) {
             targetCardIdsCsv: targetCardIds.join(",") || null,
             targetCardType,
             targetCount: targetCount.trim() === "" ? null : parseInt(targetCount, 10),
+            secondaryEngineKey: secondaryEngineKey || null,
+            secondaryEngineValue: secondaryEngineValue.trim() === "" ? null : parseInt(secondaryEngineValue, 10),
+            secondaryTargetCardIdsCsv,
+            secondaryTargetCardType,
+            secondaryTargetCount: secondaryTargetCount.trim() === "" ? null : parseInt(secondaryTargetCount, 10),
             triggerMode,
           });
         }
@@ -176,6 +197,69 @@ export function AbilityForm(props: Mode) {
             />
           </div>
         )}
+        {/* Efeito Secundario (opcional) */}
+        <div className="border-t border-zinc-700 pt-4 mt-4">
+          <h4 className="text-sm font-semibold text-amber-300 mb-3">Efeito Secundario (opcional)</h4>
+          <p className="text-xs text-zinc-500 mb-3 italic">Permite criar habilidades duplas (ex: Vampiro = DAMAGE + HEAL). Deixe em branco se nao quiser usar.</p>
+
+          <label className="block text-sm text-zinc-300 mb-2">Tipo de efeito secundario</label>
+          <select
+            value={secondaryEngineKey}
+            onChange={(e) => setSecondaryEngineKey(e.target.value)}
+            disabled={isPending}
+            className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-amber-500 mb-3"
+          >
+            <option value="">-- Nenhum --</option>
+            {ENGINE_KEYS.map((e) => (
+              <option key={e.key} value={e.key}>{e.label}</option>
+            ))}
+          </select>
+
+          {secondaryEngineKey && (
+            <>
+              <label className="block text-sm text-zinc-300 mb-2">Valor numerico do secundario</label>
+              <input
+                type="number"
+                value={secondaryEngineValue}
+                onChange={(e) => setSecondaryEngineValue(e.target.value)}
+                disabled={isPending}
+                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-amber-500 mb-3"
+                placeholder="Ex: 2"
+              />
+
+              {(secondaryEngineKey === "BOOST_MANY" || secondaryEngineKey === "SHUFFLE_AND_DRAW") && (
+                <div className="mb-3">
+                  <label className="block text-sm text-zinc-300 mb-2">Quantidade de alvos (secundario)</label>
+                  <input
+                    type="number"
+                    value={secondaryTargetCount}
+                    onChange={(e) => setSecondaryTargetCount(e.target.value)}
+                    disabled={isPending}
+                    className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              )}
+
+              {secondaryEngineKey === "TUTOR_BY_TYPE" && (
+                <div className="mb-3">
+                  <label className="block text-sm text-zinc-300 mb-2">Tipo de carta-alvo (secundario)</label>
+                  <select
+                    value={secondaryTargetCardType ?? ""}
+                    onChange={(e) => setSecondaryTargetCardType(e.target.value || null)}
+                    disabled={isPending}
+                    className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">-- Escolha --</option>
+                    <option value="UNIT">Unidade</option>
+                    <option value="SPECIAL">Especial</option>
+                    <option value="WEATHER">Clima</option>
+                  </select>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
         {/* Modo de ativacao */}
         <div>
           <label className="block text-sm text-zinc-300 mb-2">Modo de ativacao</label>

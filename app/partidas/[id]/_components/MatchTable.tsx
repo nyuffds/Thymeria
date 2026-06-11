@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -53,7 +53,7 @@ interface HandCard {
   imageUrl: string | null;
   frameUrl: string | null;
   faction: { name: string; color: string };
-  ability: { name: string; description: string; engineKey: string | null; engineValue: number | null; targetCount?: number | null } | null;
+  ability: { name: string; description: string; engineKey: string | null; engineValue: number | null; targetCount?: number | null; secondaryEngineKey?: string | null; secondaryEngineValue?: number | null; secondaryTargetCount?: number | null } | null;
 }
 
 interface BoardCard {
@@ -126,6 +126,16 @@ export function MatchTable(props: Props) {
   type ProphecyCard = { handId: string; name: string; power: number; cardType: string; imageUrl: string | null };
   const [prophecyCards, setProphecyCards] = useState<ProphecyCard[] | null>(null);
   const [prophecyRouting, setProphecyRouting] = useState<Record<string, "HAND" | "TOP" | "BOTTOM">>({});
+
+  // Fase de coleta de alvo do efeito secundario (quando habilidade dupla)
+  type CollectedTargets = {
+    targetBoardCardId?: string;
+    effectRow?: Row;
+    multiTargetIds?: string[];
+    prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>;
+  };
+  const [phase, setPhase] = useState<1 | 2>(1);
+  const [primaryTargets, setPrimaryTargets] = useState<CollectedTargets | null>(null);
   const [activatingLeader, setActivatingLeader] = useState<Side | null>(null);
   const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
 
@@ -329,15 +339,69 @@ export function MatchTable(props: Props) {
 
   function executePlay(row: Row, targetBoardCardId?: string, effectRow?: Row, multiTargetIds?: string[], prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>) {
     if (!selectedHandCard) return;
+
+    // Habilidade dupla: se estamos na fase 1 e tem efeito secundario, salva e passa pra fase 2
+    const hasSecondary = !!selectedHandCard.ability?.secondaryEngineKey;
+    if (hasSecondary && phase === 1) {
+      setPrimaryTargets({ targetBoardCardId, effectRow, multiTargetIds, prophecyRouting });
+      setPhase(2);
+      setChosenRow(row);
+      setTargetMode("NONE");
+      const sek = selectedHandCard.ability?.secondaryEngineKey;
+      const NEEDS_T = ["BOOST", "HEAL", "EVOLVE_FACTION", "DAMAGE", "DAMAGE_IF", "DESTROY_AND_DRAW"];
+      const NEEDS_R = ["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW"];
+      if (sek && NEEDS_T.includes(sek)) {
+        setTargetMode((sek === "BOOST" || sek === "HEAL" || sek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
+      } else if (sek && NEEDS_R.includes(sek)) {
+        setTargetMode(sek === "DESTROY_ROW" ? "ROW_ENEMY" : "ROW_ALLY");
+      } else if (sek === "BOOST_MANY") {
+        const max = selectedHandCard.ability?.secondaryTargetCount ?? 3;
+        setMultiSelectMode({ max, source: "BOARD" });
+        setMultiSelectIds([]);
+      } else if (sek === "SHUFFLE_AND_DRAW") {
+        const max = selectedHandCard.ability?.secondaryEngineValue ?? 3;
+        setMultiSelectMode({ max, source: "HAND" });
+        setMultiSelectIds([]);
+      } else if (sek === "PROPHECY") {
+        const peekCount = selectedHandCard.ability?.secondaryEngineValue ?? 3;
+        peekDeckTopAction(props.matchId, turnSide!, peekCount).then((cards) => {
+          setProphecyCards(cards);
+          const initialRouting: Record<string, "HAND" | "TOP" | "BOTTOM"> = {};
+          for (const c of cards) initialRouting[c.handId] = "TOP";
+          setProphecyRouting(initialRouting);
+        });
+      } else {
+        finalSubmit(row, { targetBoardCardId, effectRow, multiTargetIds, prophecyRouting }, {});
+      }
+      return;
+    }
+
+    const primary = phase === 2 ? primaryTargets! : { targetBoardCardId, effectRow, multiTargetIds, prophecyRouting };
+    const secondary = phase === 2 ? { targetBoardCardId, effectRow, multiTargetIds, prophecyRouting } : {};
+    finalSubmit(chosenRow ?? row, primary, secondary);
+  }
+
+  function finalSubmit(row: Row, primary: { targetBoardCardId?: string; effectRow?: Row; multiTargetIds?: string[]; prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }> }, secondary: { targetBoardCardId?: string; effectRow?: Row; multiTargetIds?: string[]; prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }> }) {
+    if (!selectedHandCard) return;
     const handCardId = selectedHandCard.handId;
     guard(async () => {
       await playCardAction({
         matchId: props.matchId, side: turnSide!, handCardId,
-        targetRow: row, targetBoardCardId, effectRow, multiTargetIds, prophecyRouting,
-        });
-        setSelectedHandCard(null);
+        targetRow: row,
+        targetBoardCardId: primary.targetBoardCardId,
+        effectRow: primary.effectRow,
+        multiTargetIds: primary.multiTargetIds,
+        prophecyRouting: primary.prophecyRouting,
+        secondaryTargetBoardCardId: secondary.targetBoardCardId,
+        secondaryEffectRow: secondary.effectRow,
+        secondaryMultiTargetIds: secondary.multiTargetIds,
+        secondaryProphecyRouting: secondary.prophecyRouting,
+      });
+      setSelectedHandCard(null);
       setChosenRow(null);
       setTargetMode("NONE");
+      setPhase(1);
+      setPrimaryTargets(null);
     });
   }
 
@@ -345,6 +409,8 @@ export function MatchTable(props: Props) {
     setSelectedHandCard(null);
     setChosenRow(null);
     setTargetMode("NONE");
+    setPhase(1);
+    setPrimaryTargets(null);
   }
 
 function handlePass() {
