@@ -93,6 +93,7 @@ interface Props {
   pausedBy: Side | null;
   drawOfferedBy: Side | null;
   winnerSide: Side | "DRAW" | null;
+  lastDiscarded: Record<Side, { name: string; imageUrl: string | null; frameUrl: string | null } | null>;
 }
 
 const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION"]);
@@ -605,10 +606,10 @@ export function MatchTableV2Skeleton(props: Props) {
         }}
       >
         <Region pos={{ top: "2.8%", left: "30.3%", width: "9.7%", height: "5.5%" }}>
-          <PlayerScore p={pA} side="A" turnSide={turnSide} hasPassed={pA.hasPassed} />
+          <PlayerScore p={pA} side="A" turnSide={turnSide} hasPassed={pA.hasPassed} total={rowTotal("A","SIEGE")+rowTotal("A","RANGED")+rowTotal("A","MELEE")} />
         </Region>
         <Region pos={{ top: "2.8%", left: "60%", width: "9.7%", height: "5.5%" }}>
-          <PlayerScore p={pB} side="B" turnSide={turnSide} hasPassed={pB.hasPassed} />
+          <PlayerScore p={pB} side="B" turnSide={turnSide} hasPassed={pB.hasPassed} total={rowTotal("B","SIEGE")+rowTotal("B","RANGED")+rowTotal("B","MELEE")} />
         </Region>
 
         <Region pos={{ top: "8.5%", left: "6.1%", width: "9.8%", height: "17%" }}>
@@ -616,14 +617,14 @@ export function MatchTableV2Skeleton(props: Props) {
         </Region>
         <Region pos={{ top: "30.6%", left: "3.1%", width: "5.8%", height: "14.2%" }}><DeckBox count={pA.deckRealCount} factionColor={pA.deck.faction.color} /></Region>
         <Region pos={{ top: "34%", left: "10.9%", width: "4%", height: "4.5%" }} label={pA.deckRealCount.toString()} />
-        <Region pos={{ top: "43.5%", left: "13%", width: "2%", height: "4.5%" }} label={pA.discardCount.toString()} />
+        <Region pos={{ top: "43.5%", left: "13%", width: "2%", height: "4.5%" }}><CemTile entry={props.lastDiscarded.A} count={pA.discardCount} /></Region>
 
         <Region pos={{ top: "58.6%", left: "6.1%", width: "9.7%", height: "17%" }}>
           <LeaderTile p={pB} side="B" turnSide={turnSide} onActivate={handleActivateLeader} disabled={isPending} />
         </Region>
         <Region pos={{ top: "80.2%", left: "3.1%", width: "5.7%", height: "13.8%" }}><DeckBox count={pB.deckRealCount} factionColor={pB.deck.faction.color} /></Region>
         <Region pos={{ top: "83.5%", left: "10.9%", width: "4%", height: "4.5%" }} label={pB.deckRealCount.toString()} />
-        <Region pos={{ top: "93%", left: "13%", width: "1.8%", height: "4%" }} label={pB.discardCount.toString()} />
+        <Region pos={{ top: "93%", left: "13%", width: "1.8%", height: "4%" }}><CemTile entry={props.lastDiscarded.B} count={pB.discardCount} /></Region>
 
         <Region pos={{ top: "20%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "SIEGE").toString()} />
         <Region pos={{ top: "40.5%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "RANGED").toString()} />
@@ -1572,6 +1573,34 @@ function ControlButton({ onClick, disabled, color, children }: { onClick: () => 
     </button>
   );
 }
+
+function CemTile({ entry, count }: { entry: { name: string; imageUrl: string | null; frameUrl: string | null } | null; count: number }) {
+  if (!entry) {
+    return <span style={{ color: "#52525b", fontSize: "10px", fontFamily: "monospace" }}>{count}</span>;
+  }
+  return (
+    <div
+      title={entry.name + " (descartada)"}
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        backgroundImage: entry.frameUrl ? "url(" + entry.frameUrl + ")" : entry.imageUrl ? "url(" + entry.imageUrl + ")" : undefined,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundColor: "#1a0f06",
+        border: "1px solid #71717a",
+        borderRadius: "2px",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.6)",
+        filter: "grayscale(0.4) brightness(0.85)",
+      }}
+    >
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, fontSize: "9px", fontFamily: "monospace", textAlign: "center", background: "rgba(0,0,0,0.85)", color: "#fcd34d", padding: "0 2px" }}>
+        {count}
+      </div>
+    </div>
+  );
+}
 function DeckBox({ count, factionColor }: { count: number; factionColor: string }) {
   return (
     <div
@@ -1686,7 +1715,7 @@ function LeaderTile({ p, side, turnSide, onActivate, disabled }: { p: PlayerInfo
   );
 }
 
-function PlayerScore({ p, side, turnSide, hasPassed }: { p: PlayerInfo; side: Side; turnSide: Side | null; hasPassed: boolean }) {
+function PlayerScore({ p, side, turnSide, hasPassed, total }: { p: PlayerInfo; side: Side; turnSide: Side | null; hasPassed: boolean; total: number }) {
   const isTurn = side === turnSide;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.1 }}>
@@ -1695,19 +1724,24 @@ function PlayerScore({ p, side, turnSide, hasPassed }: { p: PlayerInfo; side: Si
         {p.username} ({side})
         {hasPassed && <span style={{ marginLeft: "4px", color: "#f87171" }}>{"\u00B7 passou"}</span>}
       </div>
-      <div style={{ display: "flex", gap: "3px", marginTop: "2px" }}>
-        {[0, 1].map((i) => (
-          <span
-            key={i}
-            style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: i < p.roundsWon ? "#fbbf24" : "#3f3f46",
-              boxShadow: isTurn && i < p.roundsWon ? "0 0 4px rgba(251, 191, 36, 0.8)" : "none",
-            }}
-          />
-        ))}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "3px" }}>
+        <div style={{ display: "flex", gap: "3px" }}>
+          {[0, 1].map((i) => (
+            <span
+              key={i}
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: i < p.roundsWon ? "#fbbf24" : "#3f3f46",
+                boxShadow: isTurn && i < p.roundsWon ? "0 0 4px rgba(251, 191, 36, 0.8)" : "none",
+              }}
+            />
+          ))}
+        </div>
+        <div style={{ fontFamily: "monospace", fontSize: "14px", fontWeight: "bold", color: "#fcd34d", textShadow: "0 0 6px rgba(253, 224, 71, 0.5), 0 1px 2px rgba(0,0,0,0.8)" }}>
+          {total}
+        </div>
       </div>
     </div>
   );

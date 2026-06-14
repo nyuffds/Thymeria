@@ -234,6 +234,16 @@ export default async function PartidaPage({
         pausedBy={match.pausedBy as "A" | "B" | null}
         drawOfferedBy={match.drawOfferedBy as "A" | "B" | null}
         winnerSide={match.winnerSide as "A" | "B" | "DRAW" | null}
+        lastDiscarded={{
+          A: (() => {
+            const d = match.hands.find((h) => h.side === "A" && h.zone === "DISCARD");
+            return d ? { name: d.card.name, imageUrl: d.card.imageUrl, frameUrl: d.card.frameUrl } : null;
+          })(),
+          B: (() => {
+            const d = match.hands.find((h) => h.side === "B" && h.zone === "DISCARD");
+            return d ? { name: d.card.name, imageUrl: d.card.imageUrl, frameUrl: d.card.frameUrl } : null;
+          })(),
+        }}
       />
     </main>
   );
