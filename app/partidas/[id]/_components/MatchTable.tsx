@@ -112,8 +112,9 @@ export function MatchTable(props: Props) {
   function guard(fn: () => Promise<void>) {
     setError(null);
     startTransition(async () => {
-      try { await fn(); router.refresh(); }
-      catch (err) { setError(err instanceof Error ? err.message : "Erro."); }
+      try { await fn(); }
+      catch (err) { setError(err instanceof Error ? err.message : "Erro."); return; }
+      router.refresh();
     });
   }
 
