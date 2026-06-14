@@ -66,7 +66,7 @@ interface HandCard {
   imageUrl: string | null;
   frameUrl: string | null;
   faction: { name: string; color: string };
-  ability: { name: string; description: string; engineKey: string | null; engineValue: number | null } | null;
+  ability: { name: string; description: string; engineKey: string | null; engineValue: number | null; targetCount?: number | null; secondaryEngineKey?: string | null; secondaryEngineValue?: number | null; secondaryTargetCount?: number | null } | null;
 }
 
 interface MatchEvent {
@@ -172,6 +172,14 @@ export function MatchTableV2Skeleton(props: Props) {
   const [prophecyCards, setProphecyCards] = useState<{ handId: string; name: string; power: number; cardType: string; imageUrl: string | null }[] | null>(null);
   const [prophecyRouting, setProphecyRouting] = useState<Record<string, "HAND" | "TOP" | "BOTTOM">>({});
   const [weatherChoosingRow, setWeatherChoosingRow] = useState(false);
+  type CollectedTargets = {
+    targetBoardCardId?: string;
+    effectRow?: Row;
+    multiTargetIds?: string[];
+    prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>;
+  };
+  const [phase, setPhase] = useState<1 | 2>(1);
+  const [primaryTargets, setPrimaryTargets] = useState<CollectedTargets | null>(null);
 
   function weatherFixedRow(engineKey: string | null | undefined): Row | null {
     if (engineKey === "WEATHER_FROST") return "MELEE";
@@ -297,6 +305,56 @@ export function MatchTableV2Skeleton(props: Props) {
   }
 
   function executePlayCard(row: Row, targetBoardCardId: string | undefined) {
+    submitPlay(row, { targetBoardCardId });
+  }
+
+  function submitPlay(row: Row, currentTargets: CollectedTargets) {
+    if (!selectedHandCard) return;
+    const hasSecondary = !!selectedHandCard.ability?.secondaryEngineKey;
+
+    // Se tem efeito secundario e estamos na fase 1, sai para coletar alvos do secundario
+    if (hasSecondary && phase === 1) {
+      setPrimaryTargets(currentTargets);
+      setPhase(2);
+      setChosenRow(row);
+      // Limpa modos do primario e configura modos do secundario
+      setTargetMode("NONE");
+      setRowTargetMode("NONE");
+      setMultiSelectMode(null);
+      setMultiSelectIds([]);
+      const sek = selectedHandCard.ability?.secondaryEngineKey ?? null;
+      if (sek && NEEDS_TARGET.has(sek)) {
+        setTargetMode((sek === "BOOST" || sek === "HEAL" || sek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
+      } else if (sek && NEEDS_ROW_TARGET.has(sek)) {
+        setRowTargetMode((sek === "DESTROY_ROW" || sek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
+      } else if (sek === "BOOST_MANY") {
+        const max = selectedHandCard.ability?.secondaryTargetCount ?? 3;
+        setMultiSelectMode({ max, source: "BOARD" });
+      } else if (sek === "SHUFFLE_AND_DRAW") {
+        const max = selectedHandCard.ability?.secondaryEngineValue ?? 3;
+        setMultiSelectMode({ max, source: "HAND" });
+      } else if (sek === "PROPHECY") {
+        const peekCount = selectedHandCard.ability?.secondaryEngineValue ?? 3;
+        peekDeckTopAction(props.matchId, turnSide!, peekCount).then((cards) => {
+          setProphecyCards(cards);
+          const initialRouting: Record<string, "HAND" | "TOP" | "BOTTOM"> = {};
+          for (const c of cards) initialRouting[c.handId] = "TOP";
+          setProphecyRouting(initialRouting);
+        });
+      } else {
+        // Secundario sem alvo - finaliza ja
+        finalSubmit(row, currentTargets, {});
+      }
+      return;
+    }
+
+    // Fase 2 ou sem secondary: monta primary/secondary e finaliza
+    const primary = phase === 2 ? (primaryTargets ?? {}) : currentTargets;
+    const secondary = phase === 2 ? currentTargets : {};
+    finalSubmit(chosenRow ?? row, primary, secondary);
+  }
+
+  function finalSubmit(row: Row, primary: CollectedTargets, secondary: CollectedTargets) {
     if (!selectedHandCard || !turnSide) return;
     const handCardId = selectedHandCard.handId;
     guard(async () => {
@@ -305,17 +363,35 @@ export function MatchTableV2Skeleton(props: Props) {
         side: turnSide,
         handCardId,
         targetRow: row,
-        targetBoardCardId,
+        targetBoardCardId: primary.targetBoardCardId,
+        effectRow: primary.effectRow,
+        multiTargetIds: primary.multiTargetIds,
+        prophecyRouting: primary.prophecyRouting,
+        secondaryTargetBoardCardId: secondary.targetBoardCardId,
+        secondaryEffectRow: secondary.effectRow,
+        secondaryMultiTargetIds: secondary.multiTargetIds,
+        secondaryProphecyRouting: secondary.prophecyRouting,
       });
       setSelectedHandCard(null);
       setChosenRow(null);
       setTargetMode("NONE");
+      setRowTargetMode("NONE");
+      setMultiSelectMode(null);
+      setMultiSelectIds([]);
+      setProphecyCards(null);
+      setProphecyRouting({});
+      setPhase(1);
+      setPrimaryTargets(null);
+      setWeatherChoosingRow(false);
     });
   }
 
   function handleTargetClick(target: BoardCard) {
     if (!selectedHandCard || !chosenRow) return;
-    const ek = selectedHandCard.ability?.engineKey ?? null;
+    // Na fase 2, usa engineKey do secundario. Na fase 1, do principal.
+    const ek = phase === 2
+      ? (selectedHandCard.ability?.secondaryEngineKey ?? null)
+      : (selectedHandCard.ability?.engineKey ?? null);
     if (ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") {
       if (target.side !== turnSide) {
         setError("Esta habilidade requer carta aliada.");
@@ -335,22 +411,8 @@ export function MatchTableV2Skeleton(props: Props) {
   }
 
   function handleSelectEffectRow(effectRow: Row) {
-    if (!selectedHandCard || !chosenRow || !turnSide) return;
-    const handCardId = selectedHandCard.handId;
-    const row = chosenRow;
-    guard(async () => {
-      await playCardAction({
-        matchId: props.matchId,
-        side: turnSide,
-        handCardId,
-        targetRow: row,
-        effectRow,
-      });
-      setSelectedHandCard(null);
-      setChosenRow(null);
-      setTargetMode("NONE");
-      setRowTargetMode("NONE");
-    });
+    if (!selectedHandCard || !chosenRow) return;
+    submitPlay(chosenRow, { effectRow });
   }
 
   function toggleMultiSelectId(id: string) {
@@ -362,23 +424,11 @@ export function MatchTableV2Skeleton(props: Props) {
   }
 
   function confirmMultiSelect() {
-    if (!selectedHandCard || !chosenRow || !turnSide || multiSelectIds.length === 0) return;
-    const handCardId = selectedHandCard.handId;
-    const row = chosenRow;
-    const ids = multiSelectIds;
-    guard(async () => {
-      await playCardAction({
-        matchId: props.matchId,
-        side: turnSide,
-        handCardId,
-        targetRow: row,
-        multiTargetIds: ids,
-      });
-      setSelectedHandCard(null);
-      setChosenRow(null);
-      setMultiSelectMode(null);
-      setMultiSelectIds([]);
-    });
+    if (!selectedHandCard || !chosenRow || multiSelectIds.length === 0) return;
+    const ids = [...multiSelectIds];
+    setMultiSelectMode(null);
+    setMultiSelectIds([]);
+    submitPlay(chosenRow, { multiTargetIds: ids });
   }
 
   function cancelMultiSelect() {
@@ -393,23 +443,11 @@ export function MatchTableV2Skeleton(props: Props) {
   }
 
   function confirmProphecy() {
-    if (!selectedHandCard || !chosenRow || !turnSide || !prophecyCards) return;
-    const handCardId = selectedHandCard.handId;
-    const row = chosenRow;
-    const routing = prophecyCards.map((c) => ({ handId: c.handId, destination: prophecyRouting[c.handId] ?? "TOP" as "HAND" | "TOP" | "BOTTOM" }));
-    guard(async () => {
-      await playCardAction({
-        matchId: props.matchId,
-        side: turnSide,
-        handCardId,
-        targetRow: row,
-        prophecyRouting: routing,
-      });
-      setProphecyCards(null);
-      setProphecyRouting({});
-      setSelectedHandCard(null);
-      setChosenRow(null);
-    });
+    if (!selectedHandCard || !chosenRow || !prophecyCards) return;
+    const routing = prophecyCards.map((c) => ({ handId: c.handId, destination: (prophecyRouting[c.handId] ?? "TOP") as "HAND" | "TOP" | "BOTTOM" }));
+    setProphecyCards(null);
+    setProphecyRouting({});
+    submitPlay(chosenRow, { prophecyRouting: routing });
   }
 
   function cancelProphecy() {
@@ -425,6 +463,12 @@ export function MatchTableV2Skeleton(props: Props) {
     setTargetMode("NONE");
     setRowTargetMode("NONE");
     setWeatherChoosingRow(false);
+    setPhase(1);
+    setPrimaryTargets(null);
+    setMultiSelectMode(null);
+    setMultiSelectIds([]);
+    setProphecyCards(null);
+    setProphecyRouting({});
   }
 
   function rowsAllowed(card: HandCard | null): Row[] {
