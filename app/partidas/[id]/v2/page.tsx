@@ -85,7 +85,117 @@ export default async function PartidaPage({
         </p>
       </div>
 
-      <MatchTableV2Skeleton matchId={match.id} />
+      <MatchTableV2Skeleton
+        matchId={match.id}
+        status={match.status}
+        round={match.currentRound}
+        currentTurnSide={match.currentTurnSide as "A" | "B" | null}
+        players={{
+          A: {
+            username: pA.user.username,
+            roundsWon: pA.roundsWon,
+            hasPassed: pA.hasPassed,
+            leaderUsed: pA.leaderUsed,
+            handCount: match.hands.filter((h) => h.side === "A" && h.zone === "HAND").length,
+            discardCount: match.hands.filter((h) => h.side === "A" && h.zone === "DISCARD").length,
+            deckRealCount: match.hands.filter((h) => h.side === "A" && h.zone === "DECK").length,
+            deck: {
+              name: pA.deck.name,
+              faction: { name: pA.deck.faction.name, color: pA.deck.faction.color },
+              leader: pA.deck.leader ? {
+                cardId: pA.deck.leader.id,
+                name: pA.deck.leader.name,
+                imageUrl: pA.deck.leader.imageUrl,
+                frameUrl: pA.deck.leader.frameUrl,
+              } : null,
+            },
+          },
+          B: {
+            username: pB.user.username,
+            roundsWon: pB.roundsWon,
+            hasPassed: pB.hasPassed,
+            leaderUsed: pB.leaderUsed,
+            handCount: match.hands.filter((h) => h.side === "B" && h.zone === "HAND").length,
+            discardCount: match.hands.filter((h) => h.side === "B" && h.zone === "DISCARD").length,
+            deckRealCount: match.hands.filter((h) => h.side === "B" && h.zone === "DECK").length,
+            deck: {
+              name: pB.deck.name,
+              faction: { name: pB.deck.faction.name, color: pB.deck.faction.color },
+              leader: pB.deck.leader ? {
+                cardId: pB.deck.leader.id,
+                name: pB.deck.leader.name,
+                imageUrl: pB.deck.leader.imageUrl,
+                frameUrl: pB.deck.leader.frameUrl,
+              } : null,
+            },
+          },
+        }}
+        board={match.board.map((b) => ({
+          boardId: b.id,
+          cardId: b.cardId,
+          side: b.side as "A" | "B",
+          row: b.row as "MELEE" | "RANGED" | "SIEGE",
+          basePower: b.basePower,
+          power: b.basePower,
+          shielded: b.shielded,
+          isToken: b.isToken,
+          name: b.card.name,
+          rarity: b.card.rarity,
+          cardType: b.card.cardType,
+          isElite: b.card.isElite,
+          imageUrl: b.card.imageUrl,
+          frameUrl: b.card.frameUrl,
+          faction: { name: b.card.faction.name, color: b.card.faction.color },
+        }))}
+        hands={{
+          A: (match.mode === "HOTSEAT" || viewerSide === "A")
+            ? match.hands.filter((h) => h.side === "A" && h.zone === "HAND").map((h) => ({
+                handId: h.id,
+                cardId: h.cardId,
+                name: h.card.name,
+                power: h.card.power,
+                rows: h.card.rows,
+                rarity: h.card.rarity,
+                cardType: h.card.cardType,
+                isElite: h.card.isElite,
+                imageUrl: h.card.imageUrl,
+                frameUrl: h.card.frameUrl,
+                faction: { name: h.card.faction.name, color: h.card.faction.color },
+              }))
+            : [],
+          B: (match.mode === "HOTSEAT" || viewerSide === "B")
+            ? match.hands.filter((h) => h.side === "B" && h.zone === "HAND").map((h) => ({
+                handId: h.id,
+                cardId: h.cardId,
+                name: h.card.name,
+                power: h.card.power,
+                rows: h.card.rows,
+                rarity: h.card.rarity,
+                cardType: h.card.cardType,
+                isElite: h.card.isElite,
+                imageUrl: h.card.imageUrl,
+                frameUrl: h.card.frameUrl,
+                faction: { name: h.card.faction.name, color: h.card.faction.color },
+              }))
+            : [],
+        }}
+        mode={match.mode}
+        viewerSide={viewerSide}
+        currentRoundEvents={match.events
+          .filter((e) => e.round === match.currentRound)
+          .map((e) => ({
+            id: e.id,
+            type: e.type,
+            side: e.side as "A" | "B" | null,
+            payload: e.payload,
+            createdAt: e.createdAt.toISOString(),
+          }))}
+        weather={match.weather.map((w) => ({
+          weatherKey: w.weatherKey,
+          affectedRow: w.affectedRow as "MELEE" | "RANGED" | "SIEGE",
+          cardName: w.card.name,
+        }))}
+      />
     </main>
   );
 }
