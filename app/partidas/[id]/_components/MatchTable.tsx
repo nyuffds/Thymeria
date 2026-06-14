@@ -1,18 +1,9 @@
-"use client";
-
+﻿"use client";
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  redrawAction, skipRedrawAction, playCardAction,
-  passRoundAction, activateLeaderAction, abandonMatchAction, peekDeckTopAction,
-  offerDrawAction, respondDrawOfferAction,
-  pauseMatchAction, resumeMatchAction,
-} from "@/lib/match-actions";
-import { RARITIES, ROWS } from "@/lib/constants";
+import { passRoundAction, abandonMatchAction, pauseMatchAction, resumeMatchAction, offerDrawAction, activateLeaderAction, redrawAction, skipRedrawAction, playCardAction, peekDeckTopAction, respondDrawOfferAction } from "@/lib/match-actions";
 import { MatchEventLog } from "./MatchEventLog";
 import { CardTooltip } from "./CardTooltip";
-import { DeckPiles } from "./DeckPiles";
-import { AnimatedNumber } from "./AnimatedNumber";
 
 type Side = "A" | "B";
 type Row = "MELEE" | "RANGED" | "SIEGE";
@@ -23,10 +14,9 @@ interface PlayerInfo {
   hasPassed: boolean;
   leaderUsed: boolean;
   redrawsLeft: number;
-  deckCardCount: number;
-  handCount: number;
-  discardCount: number;
   deckRealCount: number;
+  discardCount: number;
+  handCount: number;
   deck: {
     name: string;
     faction: { name: string; color: string };
@@ -34,26 +24,11 @@ interface PlayerInfo {
       cardId: string;
       name: string;
       imageUrl: string | null;
-  frameUrl: string | null;
+      frameUrl: string | null;
       leaderMode: string | null;
       ability: { name: string; description: string; engineKey: string | null; targetCount?: number | null } | null;
     } | null;
   };
-}
-
-interface HandCard {
-  handId: string;
-  cardId: string;
-  name: string;
-  power: number;
-  rows: string;
-  rarity: string;
-  cardType: string;
-  isElite: boolean;
-  imageUrl: string | null;
-  frameUrl: string | null;
-  faction: { name: string; color: string };
-  ability: { name: string; description: string; engineKey: string | null; engineValue: number | null; targetCount?: number | null; secondaryEngineKey?: string | null; secondaryEngineValue?: number | null; secondaryTargetCount?: number | null } | null;
 }
 
 interface BoardCard {
@@ -72,7 +47,6 @@ interface BoardCard {
   imageUrl: string | null;
   frameUrl: string | null;
   faction: { name: string; color: string };
-  ability: { name: string; description: string } | null;
 }
 
 interface WeatherInfo {
@@ -81,105 +55,58 @@ interface WeatherInfo {
   cardName: string;
 }
 
+interface HandCard {
+  handId: string;
+  cardId: string;
+  name: string;
+  power: number;
+  rows: string;
+  rarity: string;
+  cardType: string;
+  isElite: boolean;
+  imageUrl: string | null;
+  frameUrl: string | null;
+  faction: { name: string; color: string };
+  ability: { name: string; description: string; engineKey: string | null; engineValue: number | null; targetCount?: number | null; secondaryEngineKey?: string | null; secondaryEngineValue?: number | null; secondaryTargetCount?: number | null } | null;
+}
+
+interface MatchEvent {
+  id: string;
+  type: string;
+  side: Side | null;
+  payload: string;
+  createdAt: string;
+}
+
 interface Props {
   matchId: string;
   status: string;
   round: number;
   currentTurnSide: Side | null;
-  winnerSide: Side | "DRAW" | null;
   players: Record<Side, PlayerInfo>;
-  hands: Record<Side, HandCard[]>;
   board: BoardCard[];
+  hands: Record<Side, HandCard[]>;
+  mode: string;
+  viewerSide: Side | null;
+  currentRoundEvents: MatchEvent[];
   weather: WeatherInfo[];
-  mode: string;                          // HOTSEAT | ONLINE
-  viewerSide: "A" | "B" | null;          // em ONLINE, qual lado o usuário logado está
-  drawOfferedBy: "A" | "B" | null;
-  pausedBy: "A" | "B" | null;
-  currentRoundEvents: { id: string; type: string; side: "A" | "B" | null; payload: string; createdAt: string }[];
+  pausedBy: Side | null;
+  drawOfferedBy: Side | null;
+  winnerSide: Side | "DRAW" | null;
+  lastDiscarded: Record<Side, { name: string; imageUrl: string | null; frameUrl: string | null } | null>;
 }
-
-const ROW_LABEL: Record<Row, string> = {
-  MELEE: "Corpo-a-corpo", RANGED: "Distância", SIEGE: "Cerco",
-};
-const ROW_ICON: Record<Row, string> = {
-  MELEE: "⚔", RANGED: "🏹", SIEGE: "🏰",
-};
 
 const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION"]);
 const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW", "WEATHER_RAIN"]);
-const WEATHER_NEEDS_ROW = new Set(["WEATHER_RAIN"]);
 
 export function MatchTable(props: Props) {
+  const pA = props.players.A;
+  const pB = props.players.B;
+
+  const [selectedHandCard, setSelectedHandCard] = useState<HandCard | null>(null);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-
-  const [redrawSelection, setRedrawSelection] = useState<Set<string>>(new Set());
-  const [selectedHandCard, setSelectedHandCard] = useState<HandCard | null>(null);
-  const [chosenRow, setChosenRow] = useState<Row | null>(null);
-  const [targetMode, setTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
-  const [pendingEliteTarget, setPendingEliteTarget] = useState<BoardCard | null>(null);
-  const [multiSelectMode, setMultiSelectMode] = useState<{ max: number; source: "BOARD" | "HAND" } | null>(null);
-  const [multiSelectIds, setMultiSelectIds] = useState<string[]>([]);
-
-  // Profecia: cartas reveladas do topo do deck + roteamento escolhido pelo jogador
-  type ProphecyCard = { handId: string; name: string; power: number; cardType: string; imageUrl: string | null };
-  const [prophecyCards, setProphecyCards] = useState<ProphecyCard[] | null>(null);
-  const [prophecyRouting, setProphecyRouting] = useState<Record<string, "HAND" | "TOP" | "BOTTOM">>({});
-
-  // Fase de coleta de alvo do efeito secundario (quando habilidade dupla)
-  type CollectedTargets = {
-    targetBoardCardId?: string;
-    effectRow?: Row;
-    multiTargetIds?: string[];
-    prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>;
-  };
-  const [phase, setPhase] = useState<1 | 2>(1);
-  const [primaryTargets, setPrimaryTargets] = useState<CollectedTargets | null>(null);
-  const [activatingLeader, setActivatingLeader] = useState<Side | null>(null);
-  const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
-
-  const turnSide = props.currentTurnSide;
-
-  // Em ONLINE: sempre mostra a mão do viewer (mesmo quando não é seu turno).
-  // Em HOTSEAT: mostra a mão de quem é o turno.
-  const isOnline = props.mode === "ONLINE";
-  const displaySide: Side | null = isOnline ? props.viewerSide : turnSide;
-  const canAct = isOnline ? (turnSide === props.viewerSide) : true;
-
-// SSE: escuta mudanças do servidor em tempo real
-  useEffect(() => {
-    console.log("[MatchTable SSE] useEffect rodou. isOnline=", isOnline, "status=", props.status);
-    if (!isOnline) {
-      console.log("[MatchTable SSE] NÃO conectando (isOnline=false)");
-      return;
-    }
-    if (props.status === "FINISHED") {
-      console.log("[MatchTable SSE] NÃO conectando (FINISHED)");
-      return;
-    }
-
-    console.log("[MatchTable SSE] conectando no stream...");
-    const eventSource = new EventSource("/api/partidas/" + props.matchId + "/stream");
-
-    eventSource.addEventListener("connected", (e) => {
-      console.log("[MatchTable SSE] CONNECTED:", e.data);
-    });
-
-    eventSource.addEventListener("change", (e) => {
-      console.log("[MatchTable SSE] CHANGE recebido, chamando router.refresh()", e.data);
-      router.refresh();
-    });
-
-    eventSource.addEventListener("error", (e) => {
-      console.log("[MatchTable SSE] ERROR:", e);
-    });
-
-    return () => {
-      console.log("[MatchTable SSE] desconectando...");
-      eventSource.close();
-    };
-  }, [isOnline, props.status, props.matchId, router]);
 
   function guard(fn: () => Promise<void>) {
     setError(null);
@@ -189,8 +116,41 @@ export function MatchTable(props: Props) {
     });
   }
 
+  function handlePass() {
+    if (!props.currentTurnSide || isPending) return;
+    if (!confirm("Passar a vez? Voce nao joga mais nesta ronda.")) return;
+    guard(async () => { await passRoundAction(props.matchId, props.currentTurnSide!); });
+  }
+  function handleAbandon() {
+    if (isPending) return;
+    if (!confirm("Abandonar a partida? Voce sera considerado derrotado.")) return;
+    guard(async () => { await abandonMatchAction(props.matchId); });
+  }
+  function handlePause() {
+    if (isPending) return;
+    if (!confirm("Pausar a partida?")) return;
+    guard(async () => { await pauseMatchAction(props.matchId); });
+  }
+  function handleOfferDraw() {
+    if (isPending) return;
+    if (!confirm("Oferecer empate ao oponente?")) return;
+    guard(async () => { await offerDrawAction(props.matchId); });
+  }
+
+  function handleRespondDraw(accept: boolean) {
+    guard(async () => { await respondDrawOfferAction(props.matchId, accept); });
+  }
+
+  function handleResume() {
+    guard(async () => { await resumeMatchAction(props.matchId); });
+  }
+
+  // Estado de redraw
+  const [redrawSelection, setRedrawSelection] = useState<Set<string>>(new Set());
+
   function toggleRedraw(handId: string) {
-    const player = props.players[turnSide!];
+    if (!props.currentTurnSide) return;
+    const player = props.players[props.currentTurnSide];
     setRedrawSelection((prev) => {
       const next = new Set(prev);
       if (next.has(handId)) next.delete(handId);
@@ -199,42 +159,152 @@ export function MatchTable(props: Props) {
     });
   }
   function confirmRedraw() {
+    if (!props.currentTurnSide) return;
     const ids = Array.from(redrawSelection);
     guard(async () => {
-      await redrawAction(props.matchId, turnSide!, ids);
+      await redrawAction(props.matchId, props.currentTurnSide!, ids);
       setRedrawSelection(new Set());
     });
   }
   function skipRedraw() {
+    if (!props.currentTurnSide) return;
     guard(async () => {
-      await skipRedrawAction(props.matchId, turnSide!);
+      await skipRedrawAction(props.matchId, props.currentTurnSide!);
       setRedrawSelection(new Set());
     });
   }
 
-  function handleSelectHandCard(card: HandCard) {
-    if (props.status !== "PLAYING") return;
-    if (!canAct) return;
-    if (!turnSide || props.players[turnSide].hasPassed) return;
-    setSelectedHandCard(card);
-    setChosenRow(null);
-    setTargetMode("NONE");
+  // Estado de ativacao do lider
+  const [activatingLeader, setActivatingLeader] = useState<Side | null>(null);
+  const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
+  const [chosenRow, setChosenRow] = useState<Row | null>(null);
+  const [targetMode, setTargetMode] = useState<"NONE" | "ALLY" | "ENEMY">("NONE");
+  const [rowTargetMode, setRowTargetMode] = useState<"NONE" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
+  const [multiSelectMode, setMultiSelectMode] = useState<{ max: number; source: "BOARD" | "HAND" } | null>(null);
+  const [multiSelectIds, setMultiSelectIds] = useState<string[]>([]);
+  const [prophecyCards, setProphecyCards] = useState<{ handId: string; name: string; power: number; cardType: string; imageUrl: string | null }[] | null>(null);
+  const [prophecyRouting, setProphecyRouting] = useState<Record<string, "HAND" | "TOP" | "BOTTOM">>({});
+  const [weatherChoosingRow, setWeatherChoosingRow] = useState(false);
+  type CollectedTargets = {
+    targetBoardCardId?: string;
+    effectRow?: Row;
+    multiTargetIds?: string[];
+    prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>;
+  };
+  const [phase, setPhase] = useState<1 | 2>(1);
+  const [primaryTargets, setPrimaryTargets] = useState<CollectedTargets | null>(null);
+
+  function weatherFixedRow(engineKey: string | null | undefined): Row | null {
+    if (engineKey === "WEATHER_FROST") return "MELEE";
+    if (engineKey === "WEATHER_FOG") return "RANGED";
+    if (engineKey === "WEATHER_STORM") return "SIEGE";  // backend aplica em SIEGE+RANGED
+    if (engineKey === "WEATHER_RAIN") return "SIEGE";   // RAIN agora e fixa em SIEGE
+    return null;
+  }
+  const turnSide = props.currentTurnSide;
+  const mySide: Side | null = props.mode === "ONLINE" ? props.viewerSide : turnSide;
+  const canResumePause = props.pausedBy !== null && mySide === props.pausedBy;
+
+  function handleActivateLeader() {
+    if (!turnSide) return;
+    const leader = props.players[turnSide].deck.leader;
+    if (!leader || leader.leaderMode !== "ACTIVE" || props.players[turnSide].leaderUsed) return;
+    const ek = leader.ability?.engineKey ?? null;
+
+    // Habilidades de clima do lider: fileira fixa segundo o engineKey, sem perguntar nada
+    const fixedWeatherRow = weatherFixedRow(ek);
+    if (fixedWeatherRow) {
+      guard(async () => {
+        await activateLeaderAction({ matchId: props.matchId, side: turnSide!, targetRow: fixedWeatherRow });
+      });
+      return;
+    }
+    if (ek === "CLEAR_WEATHER") {
+      guard(async () => {
+        await activateLeaderAction({ matchId: props.matchId, side: turnSide! });
+      });
+      return;
+    }
+
+    if (ek && NEEDS_TARGET.has(ek)) {
+      setActivatingLeader(turnSide);
+      setLeaderTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
+    } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
+      setActivatingLeader(turnSide);
+      setLeaderTargetMode((ek === "DESTROY_ROW") ? "ROW_ENEMY" : "ROW_ALLY");
+    } else {
+      guard(async () => {
+        await activateLeaderAction({ matchId: props.matchId, side: turnSide! });
+      });
+    }
+  }
+
+  function handleLeaderRowSelect(row: Row) {
+    if (!activatingLeader) return;
+    const side = activatingLeader;
+    guard(async () => {
+      await activateLeaderAction({ matchId: props.matchId, side, targetRow: row });
+      setActivatingLeader(null);
+      setLeaderTargetMode("NONE");
+    });
+  }
+
+  function handleLeaderTargetClick(target: BoardCard) {
+    if (!activatingLeader) return;
+    const side = activatingLeader;
+    const isRowMode = leaderTargetMode === "ROW_ENEMY" || leaderTargetMode === "ROW_ALLY";
+    guard(async () => {
+      await activateLeaderAction({
+        matchId: props.matchId,
+        side,
+        targetBoardCardId: isRowMode ? undefined : target.boardId,
+        targetRow: isRowMode ? target.row : undefined,
+      });
+      setActivatingLeader(null);
+      setLeaderTargetMode("NONE");
+    });
+  }
+
+  function cancelLeaderActivation() {
+    setActivatingLeader(null);
+    setLeaderTargetMode("NONE");
   }
 
   function handleChooseRow(row: Row) {
     if (!selectedHandCard) return;
+    const ek = selectedHandCard.ability?.engineKey ?? null;
     setChosenRow(row);
-    const ek = selectedHandCard.ability?.engineKey;
+
+    // Habilidades de fileira (BOOST_ROW, MULTIPLY_ROW, DESTROY_ROW, IMMUNE_ROW, WEATHER_RAIN)
+    if (ek && NEEDS_ROW_TARGET.has(ek)) {
+      setRowTargetMode((ek === "DESTROY_ROW" || ek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
+      return;
+    }
+
+    // Habilidades com alvo simples
+    if (ek && NEEDS_TARGET.has(ek)) {
+      setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
+      return;
+    }
+
+    // BOOST_MANY (Nutrir) - selecionar N aliados no board
     if (ek === "BOOST_MANY") {
-      const max = selectedHandCard.ability?.targetCount ?? 3;
+      const max = (selectedHandCard.ability as any)?.targetCount ?? 3;
       setMultiSelectMode({ max, source: "BOARD" });
       setMultiSelectIds([]);
-    } else if (ek === "SHUFFLE_AND_DRAW") {
+      return;
+    }
+
+    // SHUFFLE_AND_DRAW (Ganancia) - selecionar N cartas da mao
+    if (ek === "SHUFFLE_AND_DRAW") {
       const max = selectedHandCard.ability?.engineValue ?? 3;
       setMultiSelectMode({ max, source: "HAND" });
       setMultiSelectIds([]);
-    } else if (ek === "PROPHECY") {
-      // Abre modal especial: revela X cartas do topo do deck
+      return;
+    }
+
+    // PROPHECY (Profecia) - revela N do topo e jogador roteia
+    if (ek === "PROPHECY") {
       const peekCount = selectedHandCard.ability?.engineValue ?? 3;
       peekDeckTopAction(props.matchId, turnSide!, peekCount).then((cards) => {
         setProphecyCards(cards);
@@ -242,126 +312,42 @@ export function MatchTable(props: Props) {
         for (const c of cards) initialRouting[c.handId] = "TOP";
         setProphecyRouting(initialRouting);
       });
-    } else if (ek && NEEDS_TARGET.has(ek)) {
-      setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
-    } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
-      setTargetMode((ek === "DESTROY_ROW" || ek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
-    } else {
-      executePlay(row, undefined);
-    }
-  }
-
-  function handleTargetClick(target: BoardCard) {
-    if (!selectedHandCard || !chosenRow) return;
-    const ek = selectedHandCard.ability?.engineKey;
-
-    // Habilidades de fileira: pega o row do alvo clicado e envia como effectRow
-    if (ek && NEEDS_ROW_TARGET.has(ek)) {
-      // Valida lado da fileira
-      const isEnemyTarget = ek === "DESTROY_ROW" || ek === "WEATHER_RAIN";
-      if (isEnemyTarget && target.side === turnSide) {
-        setError("Esta habilidade requer fileira inimiga.");
-        return;
-      }
-      if (!isEnemyTarget && target.side !== turnSide) {
-        setError("Esta habilidade requer fileira aliada.");
-        return;
-      }
-      executePlay(chosenRow, undefined, target.row);
       return;
     }
 
-    if (ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") {
-      if (target.side !== turnSide) {
-        setError("Esta habilidade requer carta aliada.");
-        return;
-      }
-    } else if (ek === "DAMAGE" || ek === "DAMAGE_IF" || ek === "DESTROY_AND_DRAW") {
-      if (target.side === turnSide) {
-        setError("Esta habilidade requer carta inimiga.");
-        return;
-      }
-    }
-    // Se alvo for Elite, pede confirmacao
-    if (target.isElite) {
-      setPendingEliteTarget(target);
-      return;
-    }
-    executePlay(chosenRow, target.boardId);
+    // Sem alvo - joga direto
+    executePlayCard(row, undefined);
   }
 
-  function confirmEliteTarget() {
-    if (!pendingEliteTarget || !chosenRow) return;
-    executePlay(chosenRow, pendingEliteTarget.boardId);
-    setPendingEliteTarget(null);
+  function executePlayCard(row: Row, targetBoardCardId: string | undefined) {
+    submitPlay(row, { targetBoardCardId });
   }
 
-  function confirmMultiSelect() {
-    if (!chosenRow || multiSelectIds.length === 0) return;
-    executePlay(chosenRow, undefined, undefined, multiSelectIds);
-    setMultiSelectMode(null);
-    setMultiSelectIds([]);
-  }
-  function cancelMultiSelect() {
-    setMultiSelectMode(null);
-    setMultiSelectIds([]);
-    setSelectedHandCard(null);
-    setChosenRow(null);
-  }
-  function toggleMultiSelectId(id: string) {
-    setMultiSelectIds((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (multiSelectMode && prev.length >= multiSelectMode.max) return prev;
-      return [...prev, id];
-    });
-  }
-
-  function setProphecyDest(handId: string, dest: "HAND" | "TOP" | "BOTTOM") {
-    setProphecyRouting((prev) => ({ ...prev, [handId]: dest }));
-  }
-  function confirmProphecy() {
-    if (!chosenRow || !prophecyCards) return;
-    const routing = prophecyCards.map((c) => ({ handId: c.handId, destination: prophecyRouting[c.handId] ?? "TOP" }));
-    executePlay(chosenRow, undefined, undefined, undefined, routing);
-    setProphecyCards(null);
-    setProphecyRouting({});
-  }
-  function cancelProphecy() {
-    setProphecyCards(null);
-    setProphecyRouting({});
-    setSelectedHandCard(null);
-    setChosenRow(null);
-  }
-
-  function cancelEliteTarget() {
-    setPendingEliteTarget(null);
-  }
-
-  function executePlay(row: Row, targetBoardCardId?: string, effectRow?: Row, multiTargetIds?: string[], prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }>) {
+  function submitPlay(row: Row, currentTargets: CollectedTargets) {
     if (!selectedHandCard) return;
-
-    // Habilidade dupla: se estamos na fase 1 e tem efeito secundario, salva e passa pra fase 2
     const hasSecondary = !!selectedHandCard.ability?.secondaryEngineKey;
+
+    // Se tem efeito secundario e estamos na fase 1, sai para coletar alvos do secundario
     if (hasSecondary && phase === 1) {
-      setPrimaryTargets({ targetBoardCardId, effectRow, multiTargetIds, prophecyRouting });
+      setPrimaryTargets(currentTargets);
       setPhase(2);
       setChosenRow(row);
+      // Limpa modos do primario e configura modos do secundario
       setTargetMode("NONE");
-      const sek = selectedHandCard.ability?.secondaryEngineKey;
-      const NEEDS_T = ["BOOST", "HEAL", "EVOLVE_FACTION", "DAMAGE", "DAMAGE_IF", "DESTROY_AND_DRAW"];
-      const NEEDS_R = ["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW"];
-      if (sek && NEEDS_T.includes(sek)) {
+      setRowTargetMode("NONE");
+      setMultiSelectMode(null);
+      setMultiSelectIds([]);
+      const sek = selectedHandCard.ability?.secondaryEngineKey ?? null;
+      if (sek && NEEDS_TARGET.has(sek)) {
         setTargetMode((sek === "BOOST" || sek === "HEAL" || sek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
-      } else if (sek && NEEDS_R.includes(sek)) {
-        setTargetMode((sek === "DESTROY_ROW" || sek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
+      } else if (sek && NEEDS_ROW_TARGET.has(sek)) {
+        setRowTargetMode((sek === "DESTROY_ROW" || sek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
       } else if (sek === "BOOST_MANY") {
         const max = selectedHandCard.ability?.secondaryTargetCount ?? 3;
         setMultiSelectMode({ max, source: "BOARD" });
-        setMultiSelectIds([]);
       } else if (sek === "SHUFFLE_AND_DRAW") {
         const max = selectedHandCard.ability?.secondaryEngineValue ?? 3;
         setMultiSelectMode({ max, source: "HAND" });
-        setMultiSelectIds([]);
       } else if (sek === "PROPHECY") {
         const peekCount = selectedHandCard.ability?.secondaryEngineValue ?? 3;
         peekDeckTopAction(props.matchId, turnSide!, peekCount).then((cards) => {
@@ -371,22 +357,26 @@ export function MatchTable(props: Props) {
           setProphecyRouting(initialRouting);
         });
       } else {
-        finalSubmit(row, { targetBoardCardId, effectRow, multiTargetIds, prophecyRouting }, {});
+        // Secundario sem alvo - finaliza ja
+        finalSubmit(row, currentTargets, {});
       }
       return;
     }
 
-    const primary = phase === 2 ? primaryTargets! : { targetBoardCardId, effectRow, multiTargetIds, prophecyRouting };
-    const secondary = phase === 2 ? { targetBoardCardId, effectRow, multiTargetIds, prophecyRouting } : {};
+    // Fase 2 ou sem secondary: monta primary/secondary e finaliza
+    const primary = phase === 2 ? (primaryTargets ?? {}) : currentTargets;
+    const secondary = phase === 2 ? currentTargets : {};
     finalSubmit(chosenRow ?? row, primary, secondary);
   }
 
-  function finalSubmit(row: Row, primary: { targetBoardCardId?: string; effectRow?: Row; multiTargetIds?: string[]; prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }> }, secondary: { targetBoardCardId?: string; effectRow?: Row; multiTargetIds?: string[]; prophecyRouting?: Array<{ handId: string; destination: "HAND" | "TOP" | "BOTTOM" }> }) {
-    if (!selectedHandCard) return;
+  function finalSubmit(row: Row, primary: CollectedTargets, secondary: CollectedTargets) {
+    if (!selectedHandCard || !turnSide) return;
     const handCardId = selectedHandCard.handId;
     guard(async () => {
       await playCardAction({
-        matchId: props.matchId, side: turnSide!, handCardId,
+        matchId: props.matchId,
+        side: turnSide,
+        handCardId,
         targetRow: row,
         targetBoardCardId: primary.targetBoardCardId,
         effectRow: primary.effectRow,
@@ -400,1032 +390,1394 @@ export function MatchTable(props: Props) {
       setSelectedHandCard(null);
       setChosenRow(null);
       setTargetMode("NONE");
+      setRowTargetMode("NONE");
+      setMultiSelectMode(null);
+      setMultiSelectIds([]);
+      setProphecyCards(null);
+      setProphecyRouting({});
       setPhase(1);
       setPrimaryTargets(null);
+      setWeatherChoosingRow(false);
     });
+  }
+
+  function handleTargetClick(target: BoardCard) {
+    if (!selectedHandCard || !chosenRow) return;
+    // Na fase 2, usa engineKey do secundario. Na fase 1, do principal.
+    const ek = phase === 2
+      ? (selectedHandCard.ability?.secondaryEngineKey ?? null)
+      : (selectedHandCard.ability?.engineKey ?? null);
+    if (ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") {
+      if (target.side !== turnSide) {
+        setError("Esta habilidade requer carta aliada.");
+        return;
+      }
+    } else if (ek === "DAMAGE" || ek === "DAMAGE_IF" || ek === "DESTROY_AND_DRAW") {
+      if (target.side === turnSide) {
+        setError("Esta habilidade requer carta inimiga.");
+        return;
+      }
+    }
+    if (target.isElite) {
+      // Confirma elite com prompt simples por enquanto
+      if (!confirm("Carta Elite e' imune. Continuar mesmo assim?")) return;
+    }
+    executePlayCard(chosenRow, target.boardId);
+  }
+
+  function handleSelectEffectRow(effectRow: Row) {
+    if (!selectedHandCard || !chosenRow) return;
+    submitPlay(chosenRow, { effectRow });
+  }
+
+  function toggleMultiSelectId(id: string) {
+    setMultiSelectIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (multiSelectMode && prev.length >= multiSelectMode.max) return prev;
+      return [...prev, id];
+    });
+  }
+
+  function confirmMultiSelect() {
+    if (!selectedHandCard || !chosenRow || multiSelectIds.length === 0) return;
+    const ids = [...multiSelectIds];
+    setMultiSelectMode(null);
+    setMultiSelectIds([]);
+    submitPlay(chosenRow, { multiTargetIds: ids });
+  }
+
+  function cancelMultiSelect() {
+    setMultiSelectMode(null);
+    setMultiSelectIds([]);
+    setSelectedHandCard(null);
+    setChosenRow(null);
+  }
+
+  function setProphecyDest(handId: string, dest: "HAND" | "TOP" | "BOTTOM") {
+    setProphecyRouting((prev) => ({ ...prev, [handId]: dest }));
+  }
+
+  function confirmProphecy() {
+    if (!selectedHandCard || !chosenRow || !prophecyCards) return;
+    const routing = prophecyCards.map((c) => ({ handId: c.handId, destination: (prophecyRouting[c.handId] ?? "TOP") as "HAND" | "TOP" | "BOTTOM" }));
+    setProphecyCards(null);
+    setProphecyRouting({});
+    submitPlay(chosenRow, { prophecyRouting: routing });
+  }
+
+  function cancelProphecy() {
+    setProphecyCards(null);
+    setProphecyRouting({});
+    setSelectedHandCard(null);
+    setChosenRow(null);
   }
 
   function cancelPlay() {
     setSelectedHandCard(null);
     setChosenRow(null);
     setTargetMode("NONE");
+    setRowTargetMode("NONE");
+    setWeatherChoosingRow(false);
     setPhase(1);
     setPrimaryTargets(null);
+    setMultiSelectMode(null);
+    setMultiSelectIds([]);
+    setProphecyCards(null);
+    setProphecyRouting({});
   }
-
-  function selectRowForEffect(row: Row) {
-    if (!selectedHandCard || !chosenRow) return;
-    executePlay(chosenRow, undefined, row);
-  }
-
-function handlePass() {
-    if (!turnSide) return;
-    if (isPending) return; // bloqueia clique duplo
-    if (!confirm("Passar a vez? Você não joga mais nesta ronda.")) return;
-    guard(async () => { await passRoundAction(props.matchId, turnSide); });
-  }
-
-  function handleActivateLeader() {
-    const leader = props.players[turnSide!].deck.leader;
-    if (!leader || leader.leaderMode !== "ACTIVE") return;
-    const ek = leader.ability?.engineKey ?? null;
-    if (ek && NEEDS_TARGET.has(ek)) {
-      setActivatingLeader(turnSide);
-      setLeaderTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
-    } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
-      setActivatingLeader(turnSide);
-      setLeaderTargetMode((ek === "DESTROY_ROW" || ek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
-    } else {
-      guard(async () => {
-        await activateLeaderAction({ matchId: props.matchId, side: turnSide! });
-      });
-    }
-  }
-  function handleLeaderRowSelect(row: Row) {
-    if (!activatingLeader) return;
-    const side = activatingLeader;
-    guard(async () => {
-      await activateLeaderAction({
-        matchId: props.matchId,
-        side,
-        targetRow: row,
-      });
-      setActivatingLeader(null);
-      setLeaderTargetMode("NONE");
-    });
-  }
-
-  function handleLeaderTargetClick(target: BoardCard) {
-    if (!activatingLeader) return;
-    const side = activatingLeader;
-    guard(async () => {
-      await activateLeaderAction({
-        matchId: props.matchId,
-        side,
-        targetBoardCardId: (leaderTargetMode === "ROW_ENEMY" || leaderTargetMode === "ROW_ALLY") ? undefined : target.boardId,
-        targetRow: (leaderTargetMode === "ROW_ENEMY" || leaderTargetMode === "ROW_ALLY") ? target.row : undefined,
-      });
-      setActivatingLeader(null);
-      setLeaderTargetMode("NONE");
-    });
-  }
-  function cancelLeaderActivation() {
-    setActivatingLeader(null);
-    setLeaderTargetMode("NONE");
-  }
-
-  function handleAbandon() {
-    if (isPending) return;
-    if (!confirm("Abandonar a partida? Você será considerado derrotado.")) return;
-    guard(async () => { await abandonMatchAction(props.matchId); });
-  }
-
-  function handleOfferDraw() {
-    if (isPending) return;
-    if (!confirm("Oferecer empate ao oponente? Ele precisará aceitar.")) return;
-    guard(async () => { await offerDrawAction(props.matchId); });
-  }
-
-  function handleRespondDraw(accept: boolean) {
-    guard(async () => { await respondDrawOfferAction(props.matchId, accept); });
-  }
-
-  function handlePause() {
-    if (isPending) return;
-    if (!confirm("Pausar a partida? O timeout fica congelado até alguém retomar.")) return;
-    guard(async () => { await pauseMatchAction(props.matchId); });
-  }
-
-  function handleResume() {
-    guard(async () => { await resumeMatchAction(props.matchId); });
-  }
-
-  // Quem é "eu" (pra saber se posso retomar a pausa)
-  const mySide: "A" | "B" | null = isOnline ? props.viewerSide : turnSide;
-  const canResumePause = props.pausedBy !== null && mySide === props.pausedBy;
 
   function rowsAllowed(card: HandCard | null): Row[] {
     if (!card) return [];
     return card.rows.split(",").filter(Boolean) as Row[];
   }
-  function cardsOnRow(side: Side, row: Row): BoardCard[] {
+
+  function isRowAvailable(side: Side, row: Row): boolean {
+    if (!selectedHandCard) return false;
+    if (chosenRow) return false;
+    if (side !== turnSide) return false;
+    if (selectedHandCard.cardType === "WEATHER") return false;
+    return rowsAllowed(selectedHandCard).includes(row);
+  }
+
+  function handleSelectHandCard(card: HandCard) {
+    if (props.status !== "PLAYING") return;
+    if (selectedHandCard?.handId === card.handId) {
+      setSelectedHandCard(null);
+      setWeatherChoosingRow(false);
+      return;
+    }
+    setSelectedHandCard(card);
+    setWeatherChoosingRow(false);
+
+    // Carta WEATHER: fluxo especial sem precisar escolher fileira para colocar
+    if (card.cardType === "WEATHER") {
+      const ek = card.ability?.engineKey ?? null;
+      const fixed = weatherFixedRow(ek);
+      if (ek === "CLEAR_WEATHER") {
+        // Joga sem precisar de fileira
+        guard(async () => {
+          await playCardAction({
+            matchId: props.matchId,
+            side: turnSide!,
+            handCardId: card.handId,
+            targetRow: "MELEE", // backend ignora pra CLEAR_WEATHER
+          });
+          setSelectedHandCard(null);
+        });
+        return;
+      }
+      if (fixed) {
+        // FROST/FOG/STORM tem fileira fixa
+        guard(async () => {
+          await playCardAction({
+            matchId: props.matchId,
+            side: turnSide!,
+            handCardId: card.handId,
+            targetRow: fixed,
+          });
+          setSelectedHandCard(null);
+        });
+        return;
+      }
+      // WEATHER_RAIN agora tem fileira fixa SIEGE - cai no branch fixed acima
+    }
+  }
+
+  function playWeatherOnRow(row: Row) {
+    if (!selectedHandCard || !turnSide) return;
+    const handCardId = selectedHandCard.handId;
+    guard(async () => {
+      await playCardAction({
+        matchId: props.matchId,
+        side: turnSide,
+        handCardId,
+        targetRow: row,
+      });
+      setSelectedHandCard(null);
+      setWeatherChoosingRow(false);
+    });
+  }
+
+  const isOnline = props.mode === "ONLINE";
+  const displaySide: Side | null = isOnline ? props.viewerSide : props.currentTurnSide;
+  const hand: HandCard[] = displaySide ? props.hands[displaySide] : [];
+
+  // SSE: escuta mudancas do servidor em tempo real
+  useEffect(() => {
+    if (!isOnline) return;
+    if (props.status === "FINISHED") return;
+    const eventSource = new EventSource("/api/partidas/" + props.matchId + "/stream");
+    eventSource.addEventListener("change", () => {
+      router.refresh();
+    });
+    return () => {
+      eventSource.close();
+    };
+  }, [isOnline, props.status, props.matchId, router]);
+
+  if (props.status === "FINISHED") {
+    return <FinishedScreen winnerSide={props.winnerSide} players={props.players} mode={props.mode} />;
+  }
+
+  function cardsOn(side: Side, row: Row): BoardCard[] {
     return props.board.filter((b) => b.side === side && b.row === row);
   }
   function rowTotal(side: Side, row: Row): number {
-    return cardsOnRow(side, row).reduce((s, c) => s + c.power, 0);
-  }
-  function sideTotal(side: Side): number {
-    return props.board.filter((b) => b.side === side).reduce((s, c) => s + c.power, 0);
-  }
-  function weatherOnRow(row: Row): WeatherInfo | undefined {
-    return props.weather.find((w) => w.affectedRow === row);
+    return cardsOn(side, row).reduce((s, c) => s + c.power, 0);
   }
 
-  if (props.status === "FINISHED") {
-    return renderFinished();
+    function isCardTargetable(c: BoardCard): boolean {
+    if (activatingLeader) {
+      if (leaderTargetMode === "ALLY") return c.side === activatingLeader && !c.isElite;
+      if (leaderTargetMode === "ENEMY") return c.side !== activatingLeader && !c.isElite;
+      return false;
+    }
+    if (targetMode === "ALLY") return c.side === turnSide && !c.isElite;
+    if (targetMode === "ENEMY") return c.side !== turnSide && !c.isElite;
+    return false;
   }
 
-  const turnPlayer = turnSide ? props.players[turnSide] : null;
+  function dispatchCardClick(c: BoardCard) {
+    if (activatingLeader) return handleLeaderTargetClick(c);
+    return handleTargetClick(c);
+  }
 
-return (
-    <div className="flex gap-4">
+  return (
+    <>
+    <style>{`
+      @keyframes v2-pulse-glow {
+        0%, 100% { box-shadow: 0 0 16px rgba(253, 224, 71, 1), 0 0 6px rgba(253, 224, 71, 0.85); }
+        50% { box-shadow: 0 0 28px rgba(253, 224, 71, 1), 0 0 12px rgba(253, 224, 71, 1); }
+      }
+      @keyframes v2-card-enter {
+        from { opacity: 0; transform: translateY(-30px) scale(0.6) rotateZ(-8deg); }
+        70% { opacity: 1; transform: translateY(4px) scale(1.08) rotateZ(2deg); }
+        to { opacity: 1; transform: translateY(0) scale(1) rotateZ(0deg); }
+      }
+      .v2-card-enter {
+        animation: v2-card-enter 0.45s cubic-bezier(0.2, 1, 0.4, 1);
+      }
+    `}</style>
+    <div style={{ display: "flex", justifyContent: "center", padding: "20px", background: "#0c0a08", minHeight: "100vh" }}>
       <div
-        className="flex-1 space-y-3 min-w-0 rounded-2xl border-4 shadow-2xl p-4 relative overflow-hidden"
         style={{
-          borderColor: "#3d2817",
-          backgroundImage:
-            "linear-gradient(rgba(20, 12, 4, 0.15), rgba(20, 12, 4, 0.15)), " +
-            "url('/board.jpg')",
-          backgroundSize: "cover",
+          position: "relative",
+          width: "1400px",
+          maxWidth: "100%",
+          aspectRatio: "3 / 2",
+          backgroundImage: "url('/board.jpg')",
+          backgroundSize: "100% 100%",
           backgroundPosition: "center",
-          boxShadow: "inset 0 0 60px rgba(0, 0, 0, 0.7), 0 10px 40px rgba(0, 0, 0, 0.6)",
+          backgroundRepeat: "no-repeat",
+          borderRadius: "8px",
+          overflow: "hidden",
         }}
       >
-      {/* Banner gigante de turno */}
-      {turnSide && turnPlayer && (
+        <Region pos={{ top: "2.8%", left: "30.3%", width: "9.7%", height: "5.5%" }}>
+          <PlayerScore p={pA} side="A" turnSide={turnSide} hasPassed={pA.hasPassed} total={rowTotal("A","SIEGE")+rowTotal("A","RANGED")+rowTotal("A","MELEE")} />
+        </Region>
+        <Region pos={{ top: "2.8%", left: "60%", width: "9.7%", height: "5.5%" }}>
+          <PlayerScore p={pB} side="B" turnSide={turnSide} hasPassed={pB.hasPassed} total={rowTotal("B","SIEGE")+rowTotal("B","RANGED")+rowTotal("B","MELEE")} />
+        </Region>
+
+        <Region pos={{ top: "8.5%", left: "6.1%", width: "9.8%", height: "17%" }}>
+          <LeaderTile p={pA} side="A" turnSide={turnSide} onActivate={handleActivateLeader} disabled={isPending} />
+        </Region>
+        <Region pos={{ top: "30.6%", left: "3.1%", width: "5.8%", height: "14.2%" }}><DeckBox count={pA.deckRealCount} factionColor={pA.deck.faction.color} /></Region>
+        <Region pos={{ top: "34%", left: "10.9%", width: "4%", height: "4.5%" }} label={pA.deckRealCount.toString()} />
+        <Region pos={{ top: "43.5%", left: "13%", width: "2%", height: "4.5%" }}><CemTile entry={props.lastDiscarded.A} count={pA.discardCount} /></Region>
+
+        <Region pos={{ top: "58.6%", left: "6.1%", width: "9.7%", height: "17%" }}>
+          <LeaderTile p={pB} side="B" turnSide={turnSide} onActivate={handleActivateLeader} disabled={isPending} />
+        </Region>
+        <Region pos={{ top: "80.2%", left: "3.1%", width: "5.7%", height: "13.8%" }}><DeckBox count={pB.deckRealCount} factionColor={pB.deck.faction.color} /></Region>
+        <Region pos={{ top: "83.5%", left: "10.9%", width: "4%", height: "4.5%" }} label={pB.deckRealCount.toString()} />
+        <Region pos={{ top: "93%", left: "13%", width: "1.8%", height: "4%" }}><CemTile entry={props.lastDiscarded.B} count={pB.discardCount} /></Region>
+
+        <Region pos={{ top: "20%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "SIEGE").toString()} />
+        <Region pos={{ top: "40.5%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "RANGED").toString()} />
+        <Region pos={{ top: "61.5%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "MELEE").toString()} />
+
+        <Region pos={{ top: "9.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "SIEGE")} onClick={isRowAvailable("A", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
+          <CardLane cards={cardsOn("A", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+        </Region>
+        <Region pos={{ top: "9.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "SIEGE")} onClick={isRowAvailable("B", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
+          <CardLane cards={cardsOn("B", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+        </Region>
+        <Region pos={{ top: "31%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "RANGED")} onClick={isRowAvailable("A", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
+          <CardLane cards={cardsOn("A", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+        </Region>
+        <Region pos={{ top: "31%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "RANGED")} onClick={isRowAvailable("B", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
+          <CardLane cards={cardsOn("B", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+        </Region>
+        <Region pos={{ top: "52.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "MELEE")} onClick={isRowAvailable("A", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
+          <CardLane cards={cardsOn("A", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+        </Region>
+        <Region pos={{ top: "52.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "MELEE")} onClick={isRowAvailable("B", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
+          <CardLane cards={cardsOn("B", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+        </Region>
+
+        <Region pos={{ top: "20%", left: "75.3%", width: "4%", height: "4%" }} label={rowTotal("B", "SIEGE").toString()} />
+        <Region pos={{ top: "40.5%", left: "75.3%", width: "4%", height: "4%" }} label={rowTotal("B", "RANGED").toString()} />
+        <Region pos={{ top: "61.5%", left: "75.3%", width: "4%", height: "4%" }} label={rowTotal("B", "MELEE").toString()} />
+
+        <Region pos={{ top: "77.2%", left: "21.3%", width: "59.3%", height: "19.5%" }}>
+          <HandLane cards={hand} selectedHandId={selectedHandCard?.handId ?? null} onSelect={handleSelectHandCard} />
+        </Region>
+
+        {/* Barra de controles flutuante sobre a Mao */}
+        {/* Grupo esquerdo - antes do texto MAO DO JOGADOR */}
         <div
-          className="rounded-xl border-2 p-4 text-center"
           style={{
-            borderColor: turnPlayer.deck.faction.color,
-            background: "linear-gradient(135deg, " + turnPlayer.deck.faction.color + "22, transparent)",
+            position: "absolute",
+            top: "74.5%",
+            left: "22%",
+            display: "flex",
+            gap: "4px",
+            zIndex: 5,
           }}
         >
-          <p className="text-xs uppercase tracking-widest text-zinc-400">
-            {props.status === "REDRAW"
-              ? (isOnline && turnSide !== props.viewerSide ? "Redraw do oponente" : "Redraw")
-              : (isOnline && turnSide !== props.viewerSide ? "Vez do oponente" : "Vez de jogar")}
-          </p>
-          <p className="text-2xl font-heading font-bold mt-1" style={{ color: turnPlayer.deck.faction.color }}>
-            {turnPlayer.username}
-            <span className="text-zinc-500 text-base ml-2">(lado {turnSide})</span>
-          </p>
-          <p className="text-xs text-zinc-500 mt-1">
-            {turnPlayer.deck.faction.name} · {turnPlayer.deck.name}
-          </p>
+          <ControlButton onClick={handlePass} disabled={isPending} color="#3f3f46">Passar</ControlButton>
+          <ControlButton onClick={handleOfferDraw} disabled={isPending} color="#5b21b6">Empate</ControlButton>
         </div>
-      )}
+        {/* Grupo direito - depois do texto MAO DO JOGADOR */}
+        <div
+          style={{
+            position: "absolute",
+            top: "74.5%",
+            right: "21%",
+            display: "flex",
+            gap: "4px",
+            zIndex: 5,
+          }}
+        >
+          <ControlButton onClick={handlePause} disabled={isPending} color="#374151">Pausar</ControlButton>
+          <ControlButton onClick={handleAbandon} disabled={isPending} color="#7f1d1d">Abandonar</ControlButton>
+        </div>
+        {error && (
+          <div style={{ position: "absolute", top: "70%", left: "21.3%", width: "59.3%", textAlign: "center", color: "#fca5a5", fontSize: "11px", background: "rgba(127, 29, 29, 0.6)", padding: "2px 6px", borderRadius: "3px", zIndex: 6 }}>
+            {error}
+          </div>
+        )}
 
-{error && (
-        <p className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded px-3 py-2">
-          {error}
-        </p>
-      )}
-
-      {props.pausedBy && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border-2 border-amber-700 rounded-2xl p-8 max-w-md text-center shadow-2xl">
-            <p className="text-xs uppercase tracking-widest text-amber-400 mb-2">Partida pausada</p>
-            <p className="font-heading text-3xl text-amber-200 mb-3">
-              ⏸ Pausa
-            </p>
-            <p className="text-sm text-zinc-300 mb-6">
-              Pausada por {props.players[props.pausedBy].username} (lado {props.pausedBy}).
-              {canResumePause
-                ? " Você pausou — clique abaixo pra retomar."
-                : " Aguardando o jogador que pausou retomar."}
-            </p>
-            {canResumePause ? (
-              <button
-                onClick={handleResume}
-                disabled={isPending}
-                className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-zinc-950 font-semibold px-6 py-2 rounded-lg transition"
-              >
-                {isPending ? "Retomando..." : "▶ Retomar partida"}
-              </button>
+        {/* Banner de ativacao do lider */}
+        {activatingLeader && leaderTargetMode !== "NONE" && (
+          <div
+            style={{
+              position: "absolute",
+              top: "73%",
+              left: "21.3%",
+              width: "59.3%",
+              background: "rgba(91, 33, 182, 0.92)",
+              border: "1px solid #a78bfa",
+              color: "#e9d4ff",
+              padding: "6px 10px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              zIndex: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            }}
+          >
+            {(leaderTargetMode === "ROW_ENEMY" || leaderTargetMode === "ROW_ALLY") ? (
+              <>
+                <span>Lider: escolha a fileira {leaderTargetMode === "ROW_ALLY" ? "aliada" : "inimiga"}:</span>
+                <button onClick={() => handleLeaderRowSelect("MELEE")} disabled={isPending} style={leaderBtnStyle}>Vanguarda</button>
+                <button onClick={() => handleLeaderRowSelect("RANGED")} disabled={isPending} style={leaderBtnStyle}>Distancia</button>
+                <button onClick={() => handleLeaderRowSelect("SIEGE")} disabled={isPending} style={leaderBtnStyle}>Cerco</button>
+              </>
             ) : (
-              <p className="text-xs text-zinc-500 italic">
-                Aproveite a pausa.
-              </p>
+              <span>Lider: clique numa carta {leaderTargetMode === "ALLY" ? "aliada" : "inimiga"}</span>
             )}
+            <button onClick={cancelLeaderActivation} style={{ ...leaderBtnStyle, background: "transparent", border: "none", textDecoration: "underline" }}>cancelar</button>
           </div>
-        </div>
-      )}
+        )}
 
-
-      {props.drawOfferedBy && (() => {
-        const offeredByMe = isOnline
-          ? props.drawOfferedBy === props.viewerSide
-          : props.drawOfferedBy === turnSide;
-        return (
-          <div className="bg-purple-950/40 border-2 border-purple-700 rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-purple-200">
-                {offeredByMe
-                  ? "Você ofereceu empate. Aguardando resposta do oponente…"
-                  : "O oponente está oferecendo empate."}
-              </p>
-              {!offeredByMe && (
-                <p className="text-xs text-purple-300 mt-0.5">
-                  Aceitar encerra a partida sem vencedor.
-                </p>
-              )}
-            </div>
-            {!offeredByMe && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleRespondDraw(true)}
-                  disabled={isPending}
-                  className="bg-purple-600 hover:bg-purple-500 text-purple-50 font-semibold px-3 py-1.5 rounded text-sm transition"
-                >
-                  Aceitar empate
-                </button>
-                <button
-                  onClick={() => handleRespondDraw(false)}
-                  disabled={isPending}
-                  className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-sm transition"
-                >
-                  Recusar
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-{/* Lado B (sempre em cima) */}
-      {renderPlayerHeader("B")}
-      <div className="flex gap-3 items-stretch">
-        <div className="flex-1 space-y-2 min-w-0">
-          {(["SIEGE", "RANGED", "MELEE"] as Row[]).map((r) => renderRow("B", r))}
-        </div>
-        <DeckPiles
-          deckCount={props.players.B.deckRealCount}
-          discardCount={props.players.B.discardCount}
-          factionColor={props.players.B.deck.faction.color}
-          side="B"
-        />
-      </div>
-
-      <div
-        className="h-4 rounded-full shadow-inner my-3 relative"
-        style={{
-          background: "linear-gradient(to bottom, #3d2817, #8b6019, #f3c969, #8b6019, #3d2817)",
-          boxShadow: "0 0 20px rgba(212, 160, 74, 0.5), inset 0 1px 3px rgba(0, 0, 0, 0.6)",
-        }}
-      >
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
-          <span className="text-amber-200 text-xs px-3 bg-gradient-to-r from-transparent via-zinc-950 to-transparent">
-            ⚔
-          </span>
-        </div>
-      </div>
-
-{/* Lado A (sempre em baixo) */}
-      <div className="flex gap-3 items-stretch">
-        <div className="flex-1 space-y-2 min-w-0">
-          {(["MELEE", "RANGED", "SIEGE"] as Row[]).map((r) => renderRow("A", r))}
-        </div>
-        <DeckPiles
-          deckCount={props.players.A.deckRealCount}
-          discardCount={props.players.A.discardCount}
-          factionColor={props.players.A.deck.faction.color}
-          side="A"
-        />
-      </div>
-      {renderPlayerHeader("A")}
-
-      <div className="mt-4">{renderControl()}</div>
-
-      {selectedHandCard && !chosenRow && renderRowPicker()}
-
-      {targetMode !== "NONE" && (() => {
-        const isAllySide = targetMode === "ALLY" || targetMode === "ROW_ALLY";
-        const isRowMode = targetMode === "ROW_ALLY" || targetMode === "ROW_ENEMY";
-        const validTargets = props.board.filter((c) =>
-          isRowMode
-            ? (isAllySide ? c.side === turnSide : c.side !== turnSide)  // ROW: nao filtra Elite (afetam fileira inteira)
-            : isAllySide
-              ? (c.side === turnSide && !c.isElite)
-              : (c.side !== turnSide && !c.isElite)
-        );
-        const allTargets = props.board.filter((c) =>
-          isAllySide ? c.side === turnSide : c.side !== turnSide
-        );
-        const onlyElite = allTargets.length > 0 && validTargets.length === 0;
-        const noTargets = allTargets.length === 0;
-        return (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-amber-900/90 text-amber-100 text-sm px-4 py-2 rounded-lg shadow-xl z-40 border border-amber-600 flex items-center gap-3">
-            {(validTargets.length > 0 || isRowMode) && (
-              (isRowMode ? (<><span>Escolha a fileira {isAllySide ? "aliada" : "inimiga"} alvo:</span><button onClick={() => selectRowForEffect("MELEE")} className="ml-2 px-2 py-1 bg-amber-700 hover:bg-amber-600 rounded text-xs">Vanguarda</button><button onClick={() => selectRowForEffect("RANGED")} className="mx-1 px-2 py-1 bg-amber-700 hover:bg-amber-600 rounded text-xs">Distancia</button><button onClick={() => selectRowForEffect("SIEGE")} className="px-2 py-1 bg-amber-700 hover:bg-amber-600 rounded text-xs">Cerco</button></>) : (<span>Clique numa carta {isAllySide ? "aliada" : "inimiga"} no tabuleiro</span>))
-            )}
-            {onlyElite && (
-              <span>Todas as cartas {isAllySide ? "aliadas" : "inimigas"} sao Elite (imunes).</span>
-            )}
-            {noTargets && (
-              <span>Nenhuma carta {isAllySide ? "aliada" : "inimiga"} no campo.</span>
-            )}
+        {/* Banner de target da habilidade da carta */}
+        {targetMode !== "NONE" && (
+          <div
+            style={{
+              position: "absolute",
+              top: "73%",
+              left: "21.3%",
+              width: "59.3%",
+              background: "rgba(180, 83, 9, 0.92)",
+              border: "1px solid #fbbf24",
+              color: "#fef3c7",
+              padding: "6px 10px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              zIndex: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            }}
+          >
+            <span>Clique numa carta {targetMode === "ALLY" ? "aliada" : "inimiga"} no tabuleiro</span>
             {chosenRow && (
               <button
-                onClick={() => { executePlay(chosenRow, undefined); }}
+                onClick={() => executePlayCard(chosenRow!, undefined)}
                 disabled={isPending}
-                className="bg-zinc-700 hover:bg-zinc-600 text-zinc-100 px-3 py-1 rounded text-xs transition"
+                style={{ ...leaderBtnStyle, background: "#525252" }}
                 title="A carta entra em campo mas a habilidade nao tera efeito"
               >
                 Jogar sem efeito
               </button>
             )}
-            <button onClick={cancelPlay} className="underline text-amber-200">cancelar</button>
+            <button onClick={cancelPlay} style={{ ...leaderBtnStyle, background: "transparent", border: "none", textDecoration: "underline" }}>cancelar</button>
           </div>
-        );
-      })()}
+        )}
 
-      {/* Modal de confirmacao quando alvo for Elite */}
-      {/* Modal da Profecia: routear cada carta revelada */}
-      {prophecyCards && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border-2 border-purple-500 rounded-xl p-6 max-w-3xl w-full shadow-2xl">
-            <h3 className="text-xl font-bold text-purple-200 mb-2">Profecia: Veja seu futuro</h3>
-            <p className="text-sm text-zinc-400 mb-4">
-              Voce ve as proximas {prophecyCards.length} cartas do seu deck. Decida o destino de cada uma.
-            </p>
-            <div className="space-y-3 max-h-96 overflow-y-auto mb-4">
-              {prophecyCards.map((c, idx) => (
-                <div key={c.handId} className="bg-zinc-800 border border-zinc-700 rounded-lg p-3 flex items-center gap-3">
-                  <div className="text-xs text-zinc-500 font-mono w-6">{idx + 1}</div>
-                  {c.imageUrl && <img src={c.imageUrl} alt={c.name} className="w-12 h-16 object-cover rounded" />}
-                  <div className="flex-1">
-                    <div className="font-semibold text-zinc-100">{c.name}</div>
-                    <div className="text-xs text-zinc-400">{c.cardType} - Poder {c.power}</div>
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setProphecyDest(c.handId, "HAND")}
-                      className={"px-2 py-1 text-xs rounded font-semibold transition " + (prophecyRouting[c.handId] === "HAND" ? "bg-green-600 text-zinc-950" : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600")}
-                    >Mao</button>
-                    <button
-                      onClick={() => setProphecyDest(c.handId, "TOP")}
-                      className={"px-2 py-1 text-xs rounded font-semibold transition " + (prophecyRouting[c.handId] === "TOP" ? "bg-amber-600 text-zinc-950" : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600")}
-                    >Topo</button>
-                    <button
-                      onClick={() => setProphecyDest(c.handId, "BOTTOM")}
-                      className={"px-2 py-1 text-xs rounded font-semibold transition " + (prophecyRouting[c.handId] === "BOTTOM" ? "bg-red-600 text-zinc-100" : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600")}
-                    >Fundo</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={cancelProphecy} className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-100 rounded-lg text-sm">Cancelar</button>
-              <button onClick={confirmProphecy} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-zinc-100 font-semibold rounded-lg text-sm">Confirmar</button>
-            </div>
+        {/* Banner de selecao de fileira para habilidades de fileira */}
+        {rowTargetMode !== "NONE" && (
+          <div
+            style={{
+              position: "absolute",
+              top: "73%",
+              left: "21.3%",
+              width: "59.3%",
+              background: "rgba(180, 83, 9, 0.92)",
+              border: "1px solid #fbbf24",
+              color: "#fef3c7",
+              padding: "6px 10px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              zIndex: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            }}
+          >
+            <span>Escolha a fileira {rowTargetMode === "ROW_ALLY" ? "aliada" : "inimiga"} alvo:</span>
+            <button onClick={() => handleSelectEffectRow("MELEE")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#b45309" }}>Vanguarda</button>
+            <button onClick={() => handleSelectEffectRow("RANGED")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#b45309" }}>Distancia</button>
+            <button onClick={() => handleSelectEffectRow("SIEGE")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#b45309" }}>Cerco</button>
+            <button onClick={cancelPlay} style={{ ...leaderBtnStyle, background: "transparent", border: "none", textDecoration: "underline" }}>cancelar</button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Modal de multi-select para BOOST_MANY (Nutrir) */}
-      {multiSelectMode && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border-2 border-amber-500 rounded-xl p-6 max-w-2xl w-full shadow-2xl">
-            <h3 className="text-xl font-bold text-amber-200 mb-2">{multiSelectMode.source === "HAND" ? "Escolha cartas da mao" : "Escolha as cartas aliadas"}</h3>
-            <p className="text-sm text-zinc-400 mb-4">
-              {multiSelectMode.source === "HAND"
-                ? `Selecione ate ${multiSelectMode.max} cartas da mao para devolver ao deck.`
-                : `Selecione ate ${multiSelectMode.max} cartas aliadas para receber o efeito.`}
-              {" "}({multiSelectIds.length}/{multiSelectMode.max} selecionadas)
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-96 overflow-y-auto mb-4">
-              {multiSelectMode.source === "HAND"
-                ? props.hands[turnSide!].filter((c) => c.handId !== selectedHandCard?.handId).map((c) => {
-                    const isSelected = multiSelectIds.includes(c.handId);
-                    return (
-                      <button
-                        key={c.handId}
-                        onClick={() => toggleMultiSelectId(c.handId)}
-                        className={"text-left px-3 py-2 rounded-lg border-2 transition " + (isSelected ? "border-amber-500 bg-amber-900/30" : "border-zinc-700 bg-zinc-800 hover:border-zinc-600")}
-                      >
-                        <div className="font-semibold text-zinc-100 text-sm">{c.name}</div>
-                        <div className="text-xs text-zinc-400">Poder {c.power}</div>
-                      </button>
-                    );
-                  })
-                : props.board.filter((c) => c.side === turnSide && !c.isElite).map((c) => {
-                    const isSelected = multiSelectIds.includes(c.boardId);
-                    return (
-                      <button
-                        key={c.boardId}
-                        onClick={() => toggleMultiSelectId(c.boardId)}
-                        className={"text-left px-3 py-2 rounded-lg border-2 transition " + (isSelected ? "border-amber-500 bg-amber-900/30" : "border-zinc-700 bg-zinc-800 hover:border-zinc-600")}
-                      >
-                        <div className="font-semibold text-zinc-100 text-sm">{c.name}</div>
-                        <div className="text-xs text-zinc-400">{c.row} - Poder {c.power}</div>
-                      </button>
-                    );
-                  })}
-            </div>
-            {((multiSelectMode.source === "HAND" && props.hands[turnSide!].filter((c) => c.handId !== selectedHandCard?.handId).length === 0)
-              || (multiSelectMode.source === "BOARD" && props.board.filter((c) => c.side === turnSide && !c.isElite).length === 0)) && (
-              <p className="text-sm text-amber-400 mb-4 italic">Nenhuma carta disponivel.</p>
-            )}
-            <div className="flex justify-end gap-2">
-              <button onClick={cancelMultiSelect} className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-100 rounded-lg text-sm">Cancelar</button>
-              <button onClick={confirmMultiSelect} disabled={multiSelectIds.length === 0} className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-zinc-950 font-semibold rounded-lg text-sm">Confirmar</button>
-            </div>
+        {/* Banner de WEATHER_RAIN - escolha fileira do clima */}
+        {weatherChoosingRow && (
+          <div
+            style={{
+              position: "absolute",
+              top: "73%",
+              left: "21.3%",
+              width: "59.3%",
+              background: "rgba(30, 58, 138, 0.92)",
+              border: "1px solid #60a5fa",
+              color: "#dbeafe",
+              padding: "6px 10px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              zIndex: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            }}
+          >
+            <span>Escolha onde a chuva cai:</span>
+            <button onClick={() => playWeatherOnRow("MELEE")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#1e40af" }}>Vanguarda</button>
+            <button onClick={() => playWeatherOnRow("RANGED")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#1e40af" }}>Distancia</button>
+            <button onClick={() => playWeatherOnRow("SIEGE")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#1e40af" }}>Cerco</button>
+            <button onClick={cancelPlay} style={{ ...leaderBtnStyle, background: "transparent", border: "none", textDecoration: "underline" }}>cancelar</button>
           </div>
-        </div>
-      )}
+        )}
 
-      {pendingEliteTarget && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border-2 border-amber-500 rounded-xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-3xl">👑</span>
-              <h3 className="font-heading font-bold text-xl text-amber-300">Carta Elite</h3>
-            </div>
-            <p className="text-zinc-200 text-sm mb-2">
-              <span className="font-semibold text-amber-200">{pendingEliteTarget.name}</span> é uma carta Elite e é
-              <span className="text-amber-300 font-semibold"> imune a todos os efeitos</span> (boost, dano, climas).
-            </p>
-            <p className="text-zinc-400 text-xs italic mb-5">
-              Sua habilidade vai ser ativada mas não terá efeito sobre esta carta. Deseja continuar mesmo assim?
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={cancelEliteTarget}
-                disabled={isPending}
-                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-sm transition"
-              >
-                Escolher outro alvo
-              </button>
-              <button
-                onClick={confirmEliteTarget}
-                disabled={isPending}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold rounded text-sm transition"
-              >
-                Confirmar mesmo assim
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        {props.status === "REDRAW" && props.currentTurnSide && (
+          <RedrawModal
+            hand={props.hands[props.currentTurnSide]}
+            redrawsLeft={props.players[props.currentTurnSide].redrawsLeft}
+            selection={redrawSelection}
+            onToggle={toggleRedraw}
+            onConfirm={confirmRedraw}
+            onSkip={skipRedraw}
+            disabled={isPending}
+            playerName={props.players[props.currentTurnSide].username}
+          />
+        )}
 
-      {activatingLeader && leaderTargetMode !== "NONE" && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-purple-900/90 text-purple-100 text-sm px-4 py-2 rounded-lg shadow-xl z-40 border border-purple-600">
-          {(leaderTargetMode === "ROW_ENEMY" || leaderTargetMode === "ROW_ALLY") ? (<><span className="mr-2">Lider: escolha a fileira {leaderTargetMode === "ROW_ALLY" ? "aliada" : "inimiga"} alvo:</span><button onClick={() => handleLeaderRowSelect("MELEE")} className="mx-1 px-2 py-1 bg-purple-700 hover:bg-purple-600 rounded text-xs">Vanguarda</button><button onClick={() => handleLeaderRowSelect("RANGED")} className="mx-1 px-2 py-1 bg-purple-700 hover:bg-purple-600 rounded text-xs">Distancia</button><button onClick={() => handleLeaderRowSelect("SIEGE")} className="mx-1 px-2 py-1 bg-purple-700 hover:bg-purple-600 rounded text-xs">Cerco</button></>) : (<>Lider: clique numa carta {leaderTargetMode === "ALLY" ? "aliada" : "inimiga"}</>)}
-          <button onClick={cancelLeaderActivation} className="ml-3 underline text-purple-200">cancelar</button>
-        </div>
-      )}
+        {multiSelectMode && selectedHandCard && (
+          <MultiSelectModal
+            mode={multiSelectMode}
+            selectedIds={multiSelectIds}
+            onToggle={toggleMultiSelectId}
+            onConfirm={confirmMultiSelect}
+            onCancel={cancelMultiSelect}
+            disabled={isPending}
+            handCards={turnSide ? props.hands[turnSide].filter((c) => c.handId !== selectedHandCard.handId) : []}
+            boardCards={turnSide ? props.board.filter((c) => c.side === turnSide && !c.isElite) : []}
+          />
+        )}
+
+        {prophecyCards && (
+          <ProphecyModal
+            cards={prophecyCards}
+            routing={prophecyRouting}
+            onSetDest={setProphecyDest}
+            onConfirm={confirmProphecy}
+            onCancel={cancelProphecy}
+            disabled={isPending}
+          />
+        )}
+
+        {props.pausedBy && (
+          <PauseOverlay pausedBy={props.pausedBy} players={props.players} canResume={canResumePause} onResume={handleResume} disabled={isPending} />
+        )}
+
+        {props.drawOfferedBy && (
+          <DrawOfferBar
+            offeredByMe={(isOnline ? props.drawOfferedBy === props.viewerSide : props.drawOfferedBy === turnSide)}
+            onAccept={() => handleRespondDraw(true)}
+            onDecline={() => handleRespondDraw(false)}
+            disabled={isPending}
+          />
+        )}
+        <Region pos={{ top: "8.5%", left: "83.2%", width: "14.8%", height: "41%" }}><HistoryPanel events={props.currentRoundEvents} playerNames={{ A: pA.username, B: pB.username }} currentRound={props.round} /></Region>
+        <Region pos={{ top: "59.5%", left: "83.2%", width: "14.8%", height: "36.5%" }}><WeatherPanel weather={props.weather} /></Region>
       </div>
+    </div>
+    </>
+  );
+}
 
-      <div className="hidden md:block flex-shrink-0">
-        <MatchEventLog
-          events={props.currentRoundEvents}
-          playerNames={{ A: props.players.A.username, B: props.players.B.username }}
-          currentRound={props.round}
-        />
+
+function FinishedScreen({ winnerSide, players, mode }: { winnerSide: Side | "DRAW" | null; players: Record<Side, PlayerInfo>; mode: string }) {
+  let title = "";
+  let subtitle = "";
+  if (winnerSide === "DRAW") {
+    title = "Empate!";
+    subtitle = "Ambos ganharam o mesmo numero de rondas.";
+  } else if (winnerSide === "A" || winnerSide === "B") {
+    const p = players[winnerSide];
+    title = p.username + " venceu!";
+    subtitle = "Lado " + winnerSide + " - " + p.deck.faction.name;
+  }
+  return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", padding: "20px", background: "#0c0a08", fontFamily: "system-ui, sans-serif" }}>
+      <div style={{ background: "rgba(24, 24, 27, 0.85)", border: "2px solid rgba(180, 83, 9, 0.5)", borderRadius: "16px", padding: "48px", textAlign: "center", maxWidth: "600px", width: "100%" }}>
+        <p style={{ fontSize: "11px", color: "#f59e0b", textTransform: "uppercase", letterSpacing: "0.2em", marginBottom: "8px" }}>Fim de partida</p>
+        <h1 style={{ fontSize: "48px", fontWeight: "bold", color: "#fcd34d", margin: 0, marginBottom: "8px" }}>{title}</h1>
+        <p style={{ color: "#a8a29e", fontStyle: "italic", marginBottom: "32px" }}>{subtitle}</p>
+        <div style={{ display: "flex", justifyContent: "center", gap: "32px", marginBottom: "32px" }}>
+          {(["A", "B"] as Side[]).map((s) => {
+            const p = players[s];
+            return (
+              <div key={s}>
+                <p style={{ color: "#a8a29e", fontSize: "13px", margin: 0 }}>{p.username}</p>
+                <p style={{ fontSize: "28px", fontFamily: "monospace", fontWeight: "bold", color: "#fcd34d", margin: 0 }}>{p.roundsWon} ronda(s)</p>
+              </div>
+            );
+          })}
+        </div>
+        <a href={mode === "ONLINE" ? "/lobby" : "/partidas"} style={{ display: "inline-block", background: "#d97706", color: "#1c1917", padding: "10px 24px", borderRadius: "6px", fontWeight: "bold", textDecoration: "none" }}>Voltar</a>
       </div>
     </div>
   );
+}
 
-  function renderPlayerHeader(side: Side) {
-    const p = props.players[side];
-    const isTurn = turnSide === side && (props.status === "PLAYING" || props.status === "REDRAW");
-    return (
-      <div
-        className="flex items-center justify-between p-3 rounded-lg border-2 transition"
+function PauseOverlay({ pausedBy, players, canResume, onResume, disabled }: { pausedBy: Side; players: Record<Side, PlayerInfo>; canResume: boolean; onResume: () => void; disabled: boolean }) {
+  const p = players[pausedBy];
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ background: "#18181b", border: "2px solid #b45309", borderRadius: "16px", padding: "32px", textAlign: "center", maxWidth: "440px", width: "100%", color: "#e9d9b6", fontFamily: "system-ui, sans-serif" }}>
+        <p style={{ fontSize: "11px", color: "#f59e0b", textTransform: "uppercase", letterSpacing: "0.2em", marginBottom: "8px" }}>Partida pausada</p>
+        <p style={{ fontSize: "36px", color: "#fcd34d", fontWeight: "bold", margin: 0, marginBottom: "12px" }}>{"\u23F8"} Pausa</p>
+        <p style={{ color: "#d4d4d8", fontSize: "13px", marginBottom: "24px" }}>
+          Pausada por <strong>{p.username}</strong> (lado {pausedBy}).
+          {canResume ? " Voce pausou - clique abaixo para retomar." : " Aguardando o jogador que pausou retomar."}
+        </p>
+        {canResume ? (
+          <button
+            onClick={onResume}
+            disabled={disabled}
+            style={{ background: "#d97706", color: "#1c1917", border: "none", borderRadius: "6px", padding: "10px 24px", fontWeight: "bold", fontSize: "14px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}
+          >
+            {disabled ? "Retomando..." : "Retomar partida"}
+          </button>
+        ) : (
+          <p style={{ color: "#a8a29e", fontSize: "11px", fontStyle: "italic" }}>Aproveite a pausa.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DrawOfferBar({ offeredByMe, onAccept, onDecline, disabled }: { offeredByMe: boolean; onAccept: () => void; onDecline: () => void; disabled: boolean }) {
+  return (
+    <div style={{ position: "absolute", top: "67%", left: "21.3%", width: "59.3%", background: "rgba(91, 33, 182, 0.92)", border: "1px solid #a78bfa", color: "#e9d4ff", padding: "8px 12px", borderRadius: "4px", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", zIndex: 9, boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}>
+      <div>
+        <p style={{ margin: 0, fontWeight: "bold" }}>
+          {offeredByMe ? "Voce ofereceu empate. Aguardando resposta do oponente..." : "O oponente esta oferecendo empate."}
+        </p>
+        {!offeredByMe && <p style={{ margin: 0, fontSize: "10px", opacity: 0.8 }}>Aceitar encerra a partida sem vencedor.</p>}
+      </div>
+      {!offeredByMe && (
+        <div style={{ display: "flex", gap: "6px" }}>
+          <button onClick={onAccept} disabled={disabled} style={{ background: "#7c3aed", color: "#fafafa", border: "none", borderRadius: "4px", padding: "5px 12px", fontWeight: "bold", fontSize: "11px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>
+            Aceitar
+          </button>
+          <button onClick={onDecline} disabled={disabled} style={{ background: "#3f3f46", color: "#d4d4d8", border: "1px solid rgba(167, 139, 250, 0.4)", borderRadius: "4px", padding: "5px 12px", fontSize: "11px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>
+            Recusar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+function Region({
+  pos,
+  label,
+  children,
+  highlight,
+  onClick,
+}: {
+  pos: { top: string; left: string; width: string; height: string };
+  label?: string;
+  children?: React.ReactNode;
+  highlight?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        position: "absolute",
+        top: pos.top,
+        left: pos.left,
+        width: pos.width,
+        height: pos.height,
+        border: highlight ? "2px solid #fde047" : "none",
+        background: highlight ? "rgba(253, 224, 71, 0.18)" : "transparent",
+        boxShadow: highlight ? "0 0 16px rgba(253, 224, 71, 0.6) inset" : undefined,
+        cursor: onClick ? "pointer" : "default",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        fontSize: "11px",
+        color: "#f0d49a",
+        padding: "4px",
+        fontFamily: "system-ui, sans-serif",
+        overflow: "hidden",
+      }}
+    >
+      {children ?? label}
+    </div>
+  );
+}
+
+function CardLane({ cards, isTargetable, onCardClick }: { cards: BoardCard[]; isTargetable: (c: BoardCard) => boolean; onCardClick: (c: BoardCard) => void }) {
+  if (cards.length === 0) {
+    return <span style={{ color: "#444", fontSize: "9px", fontStyle: "italic" }}>vazia</span>;
+  }
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: "4px",
+        width: "100%",
+        height: "100%",
+        overflowX: "auto",
+        overflowY: "hidden",
+        padding: "2px",
+        alignItems: "center",
+      }}
+    >
+      {cards.map((c) => (
+        <MiniCard key={c.boardId} c={c} targetable={isTargetable(c)} onClick={() => onCardClick(c)} />
+      ))}
+    </div>
+  );
+}
+
+function HandLane({ cards, selectedHandId, onSelect }: { cards: HandCard[]; selectedHandId: string | null; onSelect: (c: HandCard) => void }) {
+  if (cards.length === 0) {
+    return <span style={{ color: "#666", fontSize: "10px", fontStyle: "italic" }}>Mao vazia</span>;
+  }
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: "4px",
+        width: "100%",
+        height: "100%",
+        overflowX: "auto",
+        overflowY: "hidden",
+        padding: "4px",
+        alignItems: "center",
+        justifyContent: cards.length < 8 ? "center" : "flex-start",
+      }}
+    >
+      {cards.map((c) => (
+        <HandCardTile key={c.handId} c={c} isSelected={selectedHandId === c.handId} onClick={() => onSelect(c)} />
+      ))}
+    </div>
+  );
+}
+
+function HandCardTile({ c, isSelected, onClick }: { c: HandCard; isSelected: boolean; onClick: () => void }) {
+  return (
+    <CardTooltip card={{ name: c.name, power: c.power, rarity: c.rarity, cardType: c.cardType, imageUrl: c.imageUrl, frameUrl: c.frameUrl, faction: c.faction, ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null }}>
+    <div
+      onClick={onClick}
+      style={{
+        flexShrink: 0,
+        width: "62px",
+        height: "93px",
+        borderRadius: "4px",
+        border: "2px solid " + (isSelected ? "#fde047" : (c.isElite ? "#fbbf24" : c.faction.color)),
+        backgroundImage: c.frameUrl
+          ? "url(" + c.frameUrl + ")"
+          : c.imageUrl
+          ? "url(" + c.imageUrl + ")"
+          : undefined,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundColor: "#1a0f06",
+        position: "relative",
+        boxShadow: isSelected ? "0 0 24px rgba(253, 224, 71, 1), 0 0 8px rgba(253, 224, 71, 0.85)" : (c.isElite ? "0 0 8px rgba(251, 191, 36, 0.7)" : "0 2px 4px rgba(0,0,0,0.6)"),
+        cursor: "pointer",
+        transform: isSelected ? "translateY(-12px) scale(1.15)" : "none",
+        transition: "transform 0.18s ease, box-shadow 0.18s ease",
+        zIndex: isSelected ? 20 : 1,
+        animation: isSelected ? "v2-pulse-glow 1.4s ease-in-out infinite" : "none",
+      }}
+    >
+      <span
         style={{
-          borderColor: isTurn ? "#d4a04a" : "#3d2817",
-          backgroundImage: "linear-gradient(rgba(40, 25, 10, 0.85), rgba(20, 12, 4, 0.9))",
-          boxShadow: isTurn
-            ? "0 0 20px rgba(212, 160, 74, 0.4), inset 0 1px 0 rgba(212, 160, 74, 0.3)"
-            : "inset 0 0 8px rgba(0, 0, 0, 0.5)",
+          position: "absolute",
+          top: "2px",
+          right: "2px",
+          width: "16px",
+          height: "16px",
+          background: "radial-gradient(circle, #d4a04a 0%, #8b6019 100%)",
+          color: "#1a0f06",
+          fontSize: "10px",
+          fontWeight: "bold",
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px solid #3d2817",
         }}
       >
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-full border-2 bg-zinc-800 flex-shrink-0"
-            style={{
-              borderColor: p.deck.faction.color,
-              ...(p.deck.leader?.imageUrl ? {
-                backgroundImage: "url(" + p.deck.leader.imageUrl + ")",
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              } : {}),
-            }}
-          />
-          <div>
-            <p className="font-semibold text-zinc-100">
-              {p.username} <span className="text-xs text-zinc-500">({side})</span>
-              {p.hasPassed && <span className="ml-2 text-xs text-amber-400">— passou</span>}
-            </p>
-            <p className="text-xs" style={{ color: p.deck.faction.color }}>
-              {p.deck.faction.name}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 text-sm">
-          <div className="text-zinc-400 text-xs">
-            Mão <span className="text-zinc-100 font-mono">{p.handCount}</span> · Deck <span className="text-zinc-100 font-mono">{p.deckCardCount}</span>
-          </div>
-          <div className="flex gap-1">
-            {[0, 1].map((i) => (
-              <span key={i} className={"w-3 h-3 rounded-full " +
-                (i < p.roundsWon ? "bg-amber-400" : "bg-zinc-700")} />
-            ))}
-          </div>
-          <div className="text-2xl font-mono font-bold text-amber-300 w-12 text-right">
-            <AnimatedNumber value={sideTotal(side)} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function renderRow(side: Side, row: Row) {
-    const cards = cardsOnRow(side, row);
-    const total = rowTotal(side, row);
-    const w = weatherOnRow(row);
-
-    // Só destaca fileira pra jogar se:
-    //  - tem carta selecionada
-    //  - ainda não escolheu fileira
-    //  - É O LADO DE QUEM ESTÁ JOGANDO (= turnSide)
-    //  - a carta permite essa fileira
-    //  - não é carta de clima
-const isAvailableToPlay =
-      canAct &&
-      selectedHandCard !== null &&
-      !chosenRow &&
-      side === turnSide &&
-      rowsAllowed(selectedHandCard).includes(row) &&
-      selectedHandCard.cardType !== "WEATHER";
-
-    const isTurnSide = side === turnSide;
-
-    return (
-<div
-        key={side + row}
-        className={"flex items-center gap-3 px-3 py-2 rounded-lg border-2 transition min-h-[170px] " +
-          (isAvailableToPlay ? " ring-2 ring-amber-400 cursor-pointer hover:brightness-125" : "")}
-style={{
-          borderColor: w
-            ? "rgba(96, 165, 250, 0.5)"
-            : isTurnSide
-              ? "#8b6019"
-              : "#3d2817",
-          backgroundImage: w
-            ? "linear-gradient(rgba(30, 58, 138, 0.4), rgba(15, 23, 42, 0.6))"
-            : "linear-gradient(rgba(60, 35, 15, 0.7), rgba(40, 22, 8, 0.85))",
-          boxShadow: isTurnSide
-            ? "inset 0 1px 0 rgba(212, 160, 74, 0.3), inset 0 -1px 0 rgba(0,0,0,0.5)"
-            : "inset 0 0 8px rgba(0, 0, 0, 0.5)",
+        {c.power}
+      </span>
+      <span
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          fontSize: "8px",
+          textAlign: "center",
+          padding: "1px 2px",
+          color: "#e9d9b6",
+          background: "linear-gradient(to top, rgba(20, 12, 4, 0.95) 0%, transparent 100%)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
-        onClick={isAvailableToPlay ? () => handleChooseRow(row) : undefined}
       >
-        <div className="w-20 flex-shrink-0 text-[10px] uppercase tracking-wider flex items-center gap-1.5"
-             style={{ color: "#c79a4b" }}>
-          <span className="text-lg" style={{ filter: "drop-shadow(0 0 4px rgba(212, 160, 74, 0.6))" }}>
-            {ROW_ICON[row]}
-          </span>
-          <span className="hidden sm:inline font-heading">{ROW_LABEL[row]}</span>
-        </div>
+        {c.name}
+      </span>
+    </div>
+    </CardTooltip>
+  );
+}
 
-          <div className="flex-1 flex gap-1.5 items-center overflow-x-auto overflow-y-visible py-1 scrollbar-thin">
-          {cards.length === 0 ? (
-            <span className="text-xs text-zinc-700 italic">vazia</span>
-          ) : (
-            cards.map((c) => renderBoardCard(c))
-          )}
-          {w && (
-            <span className="text-xs text-blue-300 italic ml-auto">
-              ⛈ {w.cardName}
-            </span>
-          )}
-        </div>
-
-<div
-          className="w-12 text-right font-mono font-bold text-xl"
+function MiniCard({ c, targetable, onClick }: { c: BoardCard; targetable: boolean; onClick: () => void }) {
+  return (
+    <CardTooltip card={{ name: c.name, power: c.power, basePower: c.basePower, rarity: c.rarity, cardType: c.cardType, imageUrl: c.imageUrl, frameUrl: c.frameUrl, faction: c.faction, ability: null, shielded: c.shielded, isToken: c.isToken }}>
+    <div
+      className="v2-card-enter"
+      onClick={targetable ? onClick : undefined}
+      style={{
+        flexShrink: 0,
+        width: "44px",
+        height: "66px",
+        borderRadius: "3px",
+        border: "1.5px solid " + (targetable ? "#fde047" : (c.isElite ? "#fbbf24" : c.faction.color)),
+        cursor: targetable ? "pointer" : "default",
+        backgroundImage: c.frameUrl
+          ? "url(" + c.frameUrl + ")"
+          : c.imageUrl
+          ? "url(" + c.imageUrl + ")"
+          : undefined,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundColor: "#1a0f06",
+        position: "relative",
+        boxShadow: targetable ? "0 0 16px rgba(253, 224, 71, 1), 0 0 6px rgba(253, 224, 71, 0.85)" : (c.isElite ? "0 0 6px rgba(251, 191, 36, 0.7)" : "0 1px 3px rgba(0,0,0,0.6)"),
+        animation: targetable ? "v2-pulse-glow 1.2s ease-in-out infinite" : "none",
+        transition: "transform 0.15s",
+        transform: targetable ? "scale(1.05)" : "none",
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: "1px",
+          right: "1px",
+          width: "14px",
+          height: "14px",
+          background: "radial-gradient(circle, #d4a04a 0%, #8b6019 100%)",
+          color: "#1a0f06",
+          fontSize: "9px",
+          fontWeight: "bold",
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px solid #3d2817",
+        }}
+      >
+        {c.power}
+      </span>
+      {c.shielded && (
+        <span
           style={{
-            color: "#f3c969",
-            textShadow: "0 0 8px rgba(243, 201, 105, 0.5), 0 2px 4px rgba(0,0,0,0.8)",
+            position: "absolute",
+            top: "1px",
+            left: "1px",
+            width: "10px",
+            height: "10px",
+            borderRadius: "50%",
+            background: "rgba(30, 58, 138, 0.9)",
+            color: "#bfdbfe",
+            fontSize: "8px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          <AnimatedNumber value={total} />
-        </div>
+          ◆
+        </span>
+      )}
+    </div>
+    </CardTooltip>
+  );
+}
+
+
+function HistoryPanel({ events, playerNames, currentRound }: { events: MatchEvent[]; playerNames: Record<Side, string>; currentRound: number }) {
+  return (
+    <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
+      <MatchEventLog events={events} playerNames={playerNames} currentRound={currentRound} />
+    </div>
+  );
+}
+
+
+function WeatherPanel({ weather }: { weather: WeatherInfo[] }) {
+  const rowLabel: Record<string, string> = { MELEE: "Corpo-a-corpo", RANGED: "Distancia", SIEGE: "Cerco" };
+  const weatherIcon: Record<string, string> = {
+    WEATHER_FROST: "❄",
+    WEATHER_FOG: "🌫",
+    WEATHER_RAIN: "🌧",
+    WEATHER_STORM: "⛈",
+  };
+  return (
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: "6px", gap: "4px", overflow: "auto" }}>
+      <div style={{ fontSize: "10px", color: "#94a3b8", textAlign: "center", marginBottom: "4px", fontWeight: "bold" }}>
+        CLIMA / EFEITOS
       </div>
-    );
-  }
-
-  function renderBoardCard(c: BoardCard) {
-    const rarity = RARITIES.find((r) => r.key === c.rarity);
-const isTargetable = canAct && (
-      ((targetMode === "ALLY" || targetMode === "ROW_ALLY") && c.side === turnSide) ||
-      ((targetMode === "ENEMY" || targetMode === "ROW_ENEMY") && c.side !== turnSide) ||
-      ((leaderTargetMode === "ALLY" || leaderTargetMode === "ROW_ALLY") && c.side === activatingLeader) ||
-      ((leaderTargetMode === "ENEMY" || leaderTargetMode === "ROW_ENEMY") && c.side !== activatingLeader)
-    );
-
-return (
-      <CardTooltip
-        key={c.boardId}
-card={{
-          name: c.name,
-          power: c.power,
-          basePower: c.basePower,
-          rarity: c.rarity,
-          cardType: c.cardType,
-          imageUrl: c.imageUrl,
-            frameUrl: c.frameUrl,
-          faction: c.faction,
-          ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
-          shielded: c.shielded,
-          isToken: c.isToken,
-        }}
-      >
-<button
-          onClick={isTargetable
-            ? (activatingLeader ? () => handleLeaderTargetClick(c) : () => handleTargetClick(c))
-            : undefined}
-          disabled={!isTargetable}
-          className={"relative rounded-md transition flex-shrink-0 animate-card-enter " +
-            (isTargetable ? "ring-2 ring-amber-400 cursor-pointer hover:scale-110 hover:z-20" : "cursor-default")}
-          style={{
-            width: "130px",
-            height: "195px",
-            padding: "3px",
-            background: c.isElite ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #b45309 100%)" : ("linear-gradient(135deg, #6b4423 0%, " + (rarity?.color ?? "#8b6019") + " 50%, #3d2817 100%)"),
-            boxShadow: c.isElite ? "0 0 16px rgba(251, 191, 36, 0.6), 0 4px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(251, 191, 36, 0.8)" : "0 4px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(212, 160, 74, 0.4)",
-          }}
-        >
-          {/* Container interno com imagem */}
+      {weather.length === 0 ? (
+        <div style={{ color: "#555", fontSize: "10px", fontStyle: "italic", textAlign: "center" }}>
+          Sem clima ativo
+        </div>
+      ) : (
+        weather.map((w, i) => (
           <div
-            className="relative w-full h-full rounded overflow-hidden"
+            key={i}
             style={{
-              backgroundImage: c.frameUrl ? "url(" + c.frameUrl + ")" : (c.imageUrl ? "url(" + c.imageUrl + ")" : undefined),
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              backgroundColor: "#27272a",
+              background: "rgba(30, 58, 138, 0.4)",
+              border: "1px solid rgba(96, 165, 250, 0.5)",
+              borderRadius: "3px",
+              padding: "4px 6px",
+              fontSize: "10px",
+              color: "#bfdbfe",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
             }}
           >
-            {/* Selo de poder no canto superior esquerdo */}
-            <div
-              className="absolute top-1 right-1 w-7 h-7 rounded-full flex items-center justify-center font-mono font-bold text-base shadow-lg border-2"
-              style={{
-                background: "radial-gradient(circle, #d4a04a 0%, #8b6019 100%)",
-                borderColor: "#3d2817",
-                color: "#1a0f06",
-                textShadow: "0 1px 0 rgba(255, 215, 130, 0.6)",
-              }}
-            >
-              {c.power}
+            <span style={{ fontSize: "14px" }}>{weatherIcon[w.weatherKey] ?? "⛅"}</span>
+            <div style={{ flex: 1, lineHeight: 1.2 }}>
+              <div style={{ fontWeight: "bold" }}>{w.cardName}</div>
+              <div style={{ fontSize: "9px", color: "#7dd3fc" }}>{rowLabel[w.affectedRow] ?? w.affectedRow}</div>
             </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
 
-                                        {c.isElite && (
-                <div
-                  className="absolute -top-2 left-1/2 -translate-x-1/2 text-2xl"
-                  style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.8))", zIndex: 10 }}
-                  title="Elite — imune a todos os efeitos"
-                >
-                  👑
-                </div>
-              )}
-              {/* Estados no canto superior direito */}
-            {(c.shielded || c.isToken) && (
-              <div className="absolute top-1 left-1 flex flex-col gap-0.5">
-                {c.shielded && (
-                  <span className="w-5 h-5 rounded-full bg-blue-900/90 border border-blue-400 flex items-center justify-center text-blue-200 text-xs shadow">
-                    ◆
-                  </span>
-                )}
-                {c.isToken && (
-                  <span className="w-5 h-5 rounded-full bg-zinc-800/90 border border-zinc-500 flex items-center justify-center text-zinc-300 text-[10px] shadow">
-                    •
-                  </span>
-                )}
+
+const leaderBtnStyle: React.CSSProperties = {
+  background: "#7c3aed",
+  color: "#fff",
+  border: "1px solid #a78bfa",
+  borderRadius: "3px",
+  padding: "2px 8px",
+  fontSize: "10px",
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
+
+
+function ProphecyModal({ cards, routing, onSetDest, onConfirm, onCancel, disabled }: {
+  cards: { handId: string; name: string; power: number; cardType: string; imageUrl: string | null }[];
+  routing: Record<string, "HAND" | "TOP" | "BOTTOM">;
+  onSetDest: (handId: string, dest: "HAND" | "TOP" | "BOTTOM") => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ background: "#18181b", border: "2px solid #a78bfa", borderRadius: "10px", padding: "20px", maxWidth: "700px", width: "100%", maxHeight: "85vh", overflow: "auto", color: "#e9d9b6", fontFamily: "system-ui, sans-serif" }}>
+        <h2 style={{ fontSize: "18px", color: "#c4b5fd", margin: 0, marginBottom: "4px" }}>Profecia - Veja seu futuro</h2>
+        <p style={{ fontSize: "12px", color: "#a8a29e", margin: 0, marginBottom: "14px" }}>
+          Voce ve as proximas {cards.length} carta(s) do seu deck. Decida o destino de cada uma:
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px" }}>
+          {cards.map((c, idx) => (
+            <div key={c.handId} style={{ background: "#27272a", border: "1px solid #3f3f46", borderRadius: "6px", padding: "8px 10px", display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#a8a29e", width: "20px" }}>{idx + 1}</div>
+              {c.imageUrl && <img src={c.imageUrl} alt={c.name} style={{ width: "36px", height: "50px", objectFit: "cover", borderRadius: "3px" }} />}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "13px", fontWeight: "bold" }}>{c.name}</div>
+                <div style={{ fontSize: "10px", color: "#a8a29e" }}>{c.cardType} - Poder {c.power}</div>
               </div>
-            )}
-
-            {/* Rodapé com nome em pergaminho */}
-            <div
-              className="absolute bottom-0 left-0 right-0 px-1.5 py-1 text-center"
-              style={{
-                background: "linear-gradient(to top, rgba(20, 12, 4, 0.98) 0%, rgba(20, 12, 4, 0.85) 60%, transparent 100%)",
-              }}
-            >
-              <p className="text-[10px] text-amber-100 font-heading leading-tight truncate"
-                 style={{ textShadow: "0 1px 2px rgba(0,0,0,0.9)" }}>
-                {c.name}
-              </p>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <ProphecyButton onClick={() => onSetDest(c.handId, "HAND")} active={routing[c.handId] === "HAND"} color="#16a34a">Mao</ProphecyButton>
+                <ProphecyButton onClick={() => onSetDest(c.handId, "TOP")} active={routing[c.handId] === "TOP"} color="#d97706">Topo</ProphecyButton>
+                <ProphecyButton onClick={() => onSetDest(c.handId, "BOTTOM")} active={routing[c.handId] === "BOTTOM"} color="#dc2626">Fundo</ProphecyButton>
+              </div>
             </div>
-          </div>
-        </button>
-      </CardTooltip>
-    );
-  }
-
-    function renderControl() {
-    if (!displaySide) return null;
-    const p = props.players[displaySide];
-
-    if (props.status === "REDRAW") {
-      // Em ONLINE, só seu lado vê seu próprio painel de redraw quando é sua vez
-      if (isOnline && (turnSide !== displaySide)) {
-        return (
-          <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 text-center text-zinc-400">
-            Aguardando oponente fazer redraw…
-          </div>
-        );
-      }
-      return renderRedrawPanel(displaySide);
-    }
-
-if (p.hasPassed) {
-      return (
-        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 text-center">
-          <p className="text-zinc-400 mb-3">Você passou. Aguarde o oponente.</p>
-          <div className="flex justify-center gap-2">
-            <button
-              onClick={handlePause}
-              disabled={isPending || !!props.pausedBy}
-              className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-300 px-3 py-1.5 rounded text-xs transition"
-            >
-              ⏸ Pausar
-            </button>
-            <button
-              onClick={handleAbandon}
-              disabled={isPending}
-              className="text-red-400 hover:text-red-300 px-3 py-1.5 rounded text-xs transition"
-            >
-              Abandonar
-            </button>
-          </div>
+          ))}
         </div>
-      );
-    }
-
-    // Em ONLINE: se não é sua vez, mostra a mão mas sem permitir ação
-    if (isOnline && !canAct) {
-      return renderPlayPanel(displaySide, true);
-    }
-
-    return renderPlayPanel(displaySide, false);
-  }
-
-  function renderRedrawPanel(side: Side) {
-    const p = props.players[side];
-    const hand = props.hands[side];
-
-    return (
-      <div className="bg-zinc-900/60 border-2 border-amber-700/40 rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-heading text-amber-200">
-            Mão de {p.username}
-          </h2>
-          <p className="text-xs text-zinc-400">
-            Selecione até {p.redrawsLeft} carta(s) pra trocar.
-            <span className="text-amber-300 font-mono ml-2">
-              {redrawSelection.size}/{p.redrawsLeft}
-            </span>
-          </p>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+          <button onClick={onCancel} disabled={disabled} style={{ background: "#3f3f46", color: "#e4e4e7", border: "1px solid rgba(212, 160, 74, 0.3)", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>Cancelar</button>
+          <button onClick={onConfirm} disabled={disabled} style={{ background: "#7c3aed", color: "#fafafa", border: "none", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", fontWeight: "bold", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>Confirmar</button>
         </div>
+      </div>
+    </div>
+  );
+}
 
-        <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 mb-3">
-          {hand.map((c) => {
-            const selected = redrawSelection.has(c.handId);
-return (
-              <CardTooltip
-                key={c.handId}
-                  card={{
-                  name: c.name,
-                  power: c.power,
-                  rarity: c.rarity,
-                  cardType: c.cardType,
-                  imageUrl: c.imageUrl,
-            frameUrl: c.frameUrl,
-                  faction: c.faction,
-                  ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
+function ProphecyButton({ onClick, active, color, children }: { onClick: () => void; active: boolean; color: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "4px 8px",
+        fontSize: "10px",
+        fontWeight: "bold",
+        borderRadius: "3px",
+        border: "none",
+        background: active ? color : "#3f3f46",
+        color: active ? "#fafafa" : "#a8a29e",
+        cursor: "pointer",
+        transition: "all 0.15s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+function MultiSelectModal({ mode, selectedIds, onToggle, onConfirm, onCancel, disabled, handCards, boardCards }: {
+  mode: { max: number; source: "BOARD" | "HAND" };
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  disabled: boolean;
+  handCards: HandCard[];
+  boardCards: BoardCard[];
+}) {
+  const items = mode.source === "HAND" ? handCards.map((c) => ({ id: c.handId, name: c.name, power: c.power, faction: c.faction, imageUrl: c.imageUrl, frameUrl: c.frameUrl })) : boardCards.map((c) => ({ id: c.boardId, name: c.name, power: c.power, faction: c.faction, imageUrl: c.imageUrl, frameUrl: c.frameUrl }));
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ background: "#18181b", border: "2px solid #f59e0b", borderRadius: "10px", padding: "20px", maxWidth: "800px", width: "100%", maxHeight: "85vh", overflow: "auto", color: "#e9d9b6", fontFamily: "system-ui, sans-serif" }}>
+        <h2 style={{ fontSize: "18px", color: "#fcd34d", margin: 0, marginBottom: "8px" }}>
+          {mode.source === "HAND" ? "Escolha cartas da mao" : "Escolha as cartas aliadas"}
+        </h2>
+        <p style={{ fontSize: "12px", color: "#a8a29e", margin: 0, marginBottom: "14px" }}>
+          {mode.source === "HAND" ? "Selecione ate " + mode.max + " carta(s) da mao para devolver ao deck." : "Selecione ate " + mode.max + " carta(s) aliada(s) para receber o efeito."}
+          <span style={{ marginLeft: "6px", color: "#fcd34d", fontFamily: "monospace" }}>
+            {selectedIds.length}/{mode.max}
+          </span>
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "8px", marginBottom: "14px" }}>
+          {items.length === 0 && (
+            <p style={{ color: "#a8a29e", fontStyle: "italic", gridColumn: "1 / -1" }}>Nenhuma carta disponivel.</p>
+          )}
+          {items.map((c) => {
+            const selected = selectedIds.includes(c.id);
+            return (
+              <button
+                key={c.id}
+                onClick={() => onToggle(c.id)}
+                disabled={disabled}
+                style={{
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "6px",
+                  border: "2px solid " + (selected ? "#f59e0b" : "#3f3f46"),
+                  background: selected ? "rgba(180, 83, 9, 0.3)" : "#27272a",
+                  color: "#e9d9b6",
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  transition: "all 0.15s",
                 }}
               >
-<button
-                  onClick={() => toggleRedraw(c.handId)}
-                  disabled={isPending}
-                  className={"relative aspect-[2/3] rounded border-2 overflow-hidden w-full h-full transition " +
-                    (selected ? "ring-2 ring-amber-500 opacity-60" : "hover:scale-105 hover:z-10")}
-                  style={{
-                    borderColor: selected ? "#f59e0b" : c.faction.color + "88",
-                    backgroundImage: c.frameUrl ? "url(" + c.frameUrl + ")" : (c.imageUrl ? "url(" + c.imageUrl + ")" : undefined),
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    backgroundColor: "#27272a",
-                  }}
-                >
-                  {/* Poder no canto superior esquerdo */}
-                  <span className="absolute top-0.5 right-0.5 font-mono font-bold text-amber-300 text-xs bg-black/70 px-1 rounded">
-                    {c.power}
-                  </span>
-                  {/* Nome em rodapé sobre gradiente */}
-                  <span className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-[9px] text-zinc-100 text-center truncate bg-gradient-to-t from-black/90 to-transparent">
-                    {c.name}
-                  </span>
-                </button>
-              </CardTooltip>
+                <div style={{ fontSize: "12px", fontWeight: "bold" }}>{c.name}</div>
+                <div style={{ fontSize: "10px", color: "#a8a29e" }}>Poder {c.power}</div>
+              </button>
             );
           })}
         </div>
-
-        <div className="flex gap-2 justify-end">
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
           <button
-            onClick={skipRedraw}
-            disabled={isPending}
-            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-sm transition"
+            onClick={onCancel}
+            disabled={disabled}
+            style={{ background: "#3f3f46", color: "#e4e4e7", border: "1px solid rgba(212, 160, 74, 0.3)", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}
           >
-            Pular (não trocar)
-          </button>
-          <button
-            onClick={confirmRedraw}
-            disabled={isPending || redrawSelection.size === 0}
-            className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-zinc-950 font-semibold px-4 py-2 rounded text-sm transition"
-          >
-            Trocar {redrawSelection.size}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function renderPlayPanel(side: Side, readonly: boolean = false) {
-    const p = props.players[side];
-    const hand = props.hands[side];
-    const leader = p.deck.leader;
-    const canActivateLeader = leader && leader.leaderMode === "ACTIVE" && !p.leaderUsed && !readonly;
-    
-    return (
-      <div className="bg-zinc-900/60 border-2 border-amber-700/40 rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-heading text-amber-200">
-            Mão de {p.username}
-          </h2>
-          <div className="flex gap-2">
-            {canActivateLeader && (
-              <button
-                onClick={handleActivateLeader}
-                disabled={isPending || !!selectedHandCard}
-                className="bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-purple-100 px-3 py-1.5 rounded text-sm transition"
-                title={leader.ability?.description ?? "Ativar habilidade do líder"}
-              >
-                ✦ Líder
-              </button>
-            )}
-<button
-              onClick={handlePass}
-              disabled={isPending}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded text-sm transition"
-            >
-              Passar
-            </button>
-            <button
-              onClick={handleOfferDraw}
-              disabled={isPending || !!props.drawOfferedBy || readonly}
-              className="bg-purple-900/50 hover:bg-purple-800/50 disabled:opacity-50 text-purple-300 px-3 py-1.5 rounded text-xs transition"
-              title={props.drawOfferedBy ? "Já há oferta de empate ativa" : "Oferecer empate ao oponente"}
-            >
-              Oferecer empate
-            </button>
-           <button
-              onClick={handlePause}
-              disabled={isPending || !!props.pausedBy}
-              className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-300 px-3 py-1.5 rounded text-xs transition"
-              title="Pausar a partida"
-            >
-              ⏸ Pausar
-            </button>
-            <button
-              onClick={handleAbandon}
-              disabled={isPending}
-              className="text-red-400 hover:text-red-300 px-3 py-1.5 rounded text-xs transition"
-            >
-              Abandonar
-            </button>
-          </div>
-        </div>
-
-        {selectedHandCard && (
-          <p className="text-xs text-amber-300 mb-2">
-            Carta selecionada: <span className="font-bold">{selectedHandCard.name}</span>.
-            {selectedHandCard.cardType === "WEATHER"
-              ? " Clima — escolha onde aplicar."
-              : " Clique numa fileira destacada do SEU lado (em " + (turnSide === "A" ? "baixo" : "cima") + ")."}
-            <button onClick={cancelPlay} className="ml-3 underline text-amber-200">cancelar</button>
-          </p>
-        )}
-
-        <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-          {hand.length === 0 ? (
-            <p className="col-span-full text-center text-zinc-500 text-sm italic py-4">
-              Mão vazia. Só resta passar.
-            </p>
-          ) : (
-            hand.map((c) => {
-              const isSelected = selectedHandCard?.handId === c.handId;
-return (
-                <CardTooltip
-                  key={c.handId}
-                  card={{
-                    name: c.name,
-                    power: c.power,
-                    rarity: c.rarity,
-                    cardType: c.cardType,
-                    imageUrl: c.imageUrl,
-                    frameUrl: c.frameUrl,
-                    faction: c.faction,
-                    ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
-                  }}
-                >
-<button
-                    onClick={() => handleSelectHandCard(c)}
-                    disabled={isPending}
-                    className={"relative aspect-[2/3] rounded border-2 overflow-hidden w-full h-full transition " +
-                      (isSelected ? "ring-2 ring-amber-500 scale-105 z-10" : "hover:scale-105 hover:z-10")}
-                    style={{
-                      borderColor: c.faction.color + "88",
-                      backgroundImage: c.frameUrl ? "url(" + c.frameUrl + ")" : (c.imageUrl ? "url(" + c.imageUrl + ")" : undefined),
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      backgroundColor: "#27272a",
-                    }}
-                  >
-                    <span className="absolute top-0.5 right-0.5 font-mono font-bold text-amber-300 text-xs bg-black/70 px-1 rounded">
-                      {c.power}
-                    </span>
-                    <span className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-[9px] text-zinc-100 text-center truncate bg-gradient-to-t from-black/90 to-transparent">
-                      {c.name}
-                    </span>
-                  </button>
-                </CardTooltip>
-              );
-            })
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  function renderRowPicker() {
-    if (!selectedHandCard) return null;
-    const ek = selectedHandCard.ability?.engineKey;
-    const isWeather = selectedHandCard.cardType === "WEATHER";
-    const needsRow = isWeather && (!ek || WEATHER_NEEDS_ROW.has(ek));
-    if (!needsRow) return null;
-
-    return (
-      <div className="fixed inset-0 bg-black/70 z-40 flex items-center justify-center p-4">
-        <div className="bg-zinc-900 border border-amber-700 rounded-xl p-5 max-w-sm w-full">
-          <h3 className="font-heading text-amber-200 mb-3">Escolha a fileira do clima</h3>
-          <div className="space-y-2">
-            {ROWS.map((r) => (
-              <button
-                key={r.key}
-                onClick={() => handleChooseRow(r.key as Row)}
-                disabled={isPending}
-                className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 p-3 rounded text-sm transition flex items-center gap-2"
-              >
-                <span className="text-lg">{ROW_ICON[r.key as Row]}</span> {r.label}
-              </button>
-            ))}
-          </div>
-          <button onClick={cancelPlay} className="mt-3 w-full text-zinc-500 hover:text-zinc-300 text-xs">
             Cancelar
           </button>
+          <button
+            onClick={onConfirm}
+            disabled={disabled || selectedIds.length === 0}
+            style={{ background: "#d97706", color: "#1c1917", border: "none", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", fontWeight: "bold", cursor: (disabled || selectedIds.length === 0) ? "not-allowed" : "pointer", opacity: (disabled || selectedIds.length === 0) ? 0.5 : 1 }}
+          >
+            Confirmar
+          </button>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
+function RedrawModal({ hand, redrawsLeft, selection, onToggle, onConfirm, onSkip, disabled, playerName }: {
+  hand: HandCard[];
+  redrawsLeft: number;
+  selection: Set<string>;
+  onToggle: (handId: string) => void;
+  onConfirm: () => void;
+  onSkip: () => void;
+  disabled: boolean;
+  playerName: string;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.78)",
+        zIndex: 100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+      }}
+    >
+      <div
+        style={{
+          background: "#18181b",
+          border: "2px solid #b45309",
+          borderRadius: "10px",
+          padding: "20px",
+          maxWidth: "900px",
+          width: "100%",
+          maxHeight: "85vh",
+          overflow: "auto",
+          color: "#e9d9b6",
+          fontFamily: "system-ui, sans-serif",
+        }}
+      >
+        <h2 style={{ fontSize: "18px", color: "#fcd34d", margin: 0, marginBottom: "4px" }}>
+          Redraw - {playerName}
+        </h2>
+        <p style={{ fontSize: "12px", color: "#a8a29e", margin: 0, marginBottom: "12px" }}>
+          Selecione ate <strong>{redrawsLeft}</strong> carta(s) para trocar.
+          <span style={{ marginLeft: "6px", color: "#fcd34d", fontFamily: "monospace" }}>
+            {selection.size}/{redrawsLeft}
+          </span>
+        </p>
 
-  function renderFinished() {
-    const winner = props.winnerSide;
-    let title = "";
-    let subtitle = "";
-    if (winner === "DRAW") {
-      title = "Empate!";
-      subtitle = "Ambos ganharam o mesmo número de rondas.";
-    } else if (winner) {
-      const p = props.players[winner];
-      title = p.username + " venceu!";
-      subtitle = "Lado " + winner + " · " + p.deck.faction.name;
-    }
-    return (
-      <div className="bg-zinc-900/80 border-2 border-amber-700/50 rounded-2xl p-12 text-center max-w-xl mx-auto mt-12">
-        <p className="text-xs uppercase text-amber-400 tracking-widest mb-2">Fim de partida</p>
-        <h1 className="font-heading text-5xl font-bold text-amber-200 mb-2">{title}</h1>
-        <p className="text-zinc-400 font-lore italic mb-6">{subtitle}</p>
-        <div className="flex justify-center gap-6 text-sm mb-8">
-          {(["A", "B"] as Side[]).map((s) => {
-            const p = props.players[s];
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
+            gap: "8px",
+            marginBottom: "16px",
+          }}
+        >
+          {hand.map((c) => {
+            const selected = selection.has(c.handId);
             return (
-              <div key={s}>
-                <p className="text-zinc-400">{p.username}</p>
-                <p className="text-2xl font-mono font-bold text-amber-300">{p.roundsWon} ronda(s)</p>
-              </div>
+              <button
+                key={c.handId}
+                onClick={() => onToggle(c.handId)}
+                disabled={disabled}
+                title={c.name + " - Poder " + c.power}
+                style={{
+                  aspectRatio: "2/3",
+                  border: "2px solid " + (selected ? "#f59e0b" : c.faction.color + "88"),
+                  borderRadius: "4px",
+                  backgroundImage: c.frameUrl ? "url(" + c.frameUrl + ")" : c.imageUrl ? "url(" + c.imageUrl + ")" : undefined,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundColor: "#27272a",
+                  opacity: selected ? 0.55 : 1,
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  position: "relative",
+                  boxShadow: selected ? "0 0 10px rgba(245, 158, 11, 0.7)" : "0 2px 4px rgba(0,0,0,0.5)",
+                  transition: "all 0.15s",
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "2px",
+                    right: "2px",
+                    background: "rgba(0,0,0,0.7)",
+                    color: "#fcd34d",
+                    fontFamily: "monospace",
+                    fontWeight: "bold",
+                    fontSize: "10px",
+                    padding: "1px 4px",
+                    borderRadius: "2px",
+                  }}
+                >
+                  {c.power}
+                </span>
+                <span
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    background: "linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%)",
+                    color: "#fafafa",
+                    fontSize: "9px",
+                    textAlign: "center",
+                    padding: "1px 2px",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {c.name}
+                </span>
+              </button>
             );
           })}
-          </div>
-        <a
-          href={props.mode === "ONLINE" ? "/lobby" : "/partidas"}
-          className="inline-block bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold px-6 py-2 rounded transition"
-        >
-          Voltar
-        </a>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+          <button
+            onClick={onSkip}
+            disabled={disabled}
+            style={{
+              background: "#3f3f46",
+              color: "#e4e4e7",
+              border: "1px solid rgba(212, 160, 74, 0.3)",
+              borderRadius: "4px",
+              padding: "8px 16px",
+              fontSize: "13px",
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.5 : 1,
+            }}
+          >
+            Pular (nao trocar)
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={disabled || selection.size === 0}
+            style={{
+              background: "#d97706",
+              color: "#1c1917",
+              border: "none",
+              borderRadius: "4px",
+              padding: "8px 16px",
+              fontSize: "13px",
+              fontWeight: "bold",
+              cursor: disabled || selection.size === 0 ? "not-allowed" : "pointer",
+              opacity: disabled || selection.size === 0 ? 0.5 : 1,
+            }}
+          >
+            Trocar {selection.size}
+          </button>
+        </div>
       </div>
-    );
+    </div>
+  );
+}
+function ControlButton({ onClick, disabled, color, children }: { onClick: () => void; disabled: boolean; color: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        background: color,
+        color: "#e9d9b6",
+        border: "1px solid rgba(212, 160, 74, 0.4)",
+        borderRadius: "4px",
+        padding: "4px 10px",
+        fontSize: "11px",
+        fontWeight: "bold",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        boxShadow: "0 2px 4px rgba(0,0,0,0.5)",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function CemTile({ entry, count }: { entry: { name: string; imageUrl: string | null; frameUrl: string | null } | null; count: number }) {
+  if (!entry) {
+    return <span style={{ color: "#52525b", fontSize: "10px", fontFamily: "monospace" }}>{count}</span>;
   }
+  return (
+    <div
+      title={entry.name + " (descartada)"}
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        backgroundImage: entry.frameUrl ? "url(" + entry.frameUrl + ")" : entry.imageUrl ? "url(" + entry.imageUrl + ")" : undefined,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundColor: "#1a0f06",
+        border: "1px solid #71717a",
+        borderRadius: "2px",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.6)",
+        filter: "grayscale(0.4) brightness(0.85)",
+      }}
+    >
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, fontSize: "9px", fontFamily: "monospace", textAlign: "center", background: "rgba(0,0,0,0.85)", color: "#fcd34d", padding: "0 2px" }}>
+        {count}
+      </div>
+    </div>
+  );
+}
+function DeckBox({ count, factionColor }: { count: number; factionColor: string }) {
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        border: "1px solid " + factionColor + "aa",
+        borderRadius: "3px",
+        backgroundImage: "linear-gradient(135deg, #3d2817 0%, #1a0f06 50%, #3d2817 100%)",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.5)",
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: factionColor + "cc",
+        textShadow: "0 0 6px " + factionColor + "88",
+        fontSize: "20px",
+      }}
+    >
+      <span>✦</span>
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          textAlign: "center",
+          fontSize: "10px",
+          fontFamily: "monospace",
+          fontWeight: "bold",
+          color: "#fde68a",
+          background: "rgba(0,0,0,0.75)",
+          padding: "1px 0",
+        }}
+      >
+        {count}
+      </div>
+    </div>
+  );
+}
+function LeaderTile({ p, side, turnSide, onActivate, disabled }: { p: PlayerInfo; side: Side; turnSide: Side | null; onActivate: () => void; disabled: boolean }) {
+  const leader = p.deck.leader;
+  if (!leader) {
+    return <div style={{ color: "#888", fontSize: "10px" }}>Sem lider</div>;
+  }
+  const canActivate = side === turnSide && leader.leaderMode === "ACTIVE" && !p.leaderUsed && !disabled;
+  const isTurn = side === turnSide;
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        backgroundImage: leader.frameUrl
+          ? "url(" + leader.frameUrl + ")"
+          : leader.imageUrl
+          ? "url(" + leader.imageUrl + ")"
+          : undefined,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundColor: "#1a0f06",
+        border: isTurn ? "3px solid #fde047" : "2px solid " + p.deck.faction.color,
+        borderRadius: "4px",
+        boxShadow: isTurn ? "0 0 20px rgba(253, 224, 71, 0.8), 0 0 8px rgba(253, 224, 71, 0.6) inset" : "none",
+        transition: "all 0.3s ease",
+      }}
+    >
+      {canActivate && (
+        <button
+          onClick={onActivate}
+          disabled={disabled}
+          title={leader.ability?.description ?? "Ativar habilidade do lider"}
+          style={{
+            position: "absolute",
+            bottom: "2px",
+            left: "2px",
+            right: "2px",
+            background: "rgba(91, 33, 182, 0.92)",
+            color: "#e9d4ff",
+            border: "1px solid #a78bfa",
+            borderRadius: "3px",
+            padding: "2px 0",
+            fontSize: "9px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            boxShadow: "0 0 6px rgba(167, 139, 250, 0.6)",
+          }}
+        >
+          ✦ Ativar
+        </button>
+      )}
+      {p.leaderUsed && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fde047",
+            fontSize: "9px",
+            fontWeight: "bold",
+            textAlign: "center",
+            borderRadius: "2px",
+          }}
+        >
+          USADO
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlayerScore({ p, side, turnSide, hasPassed, total }: { p: PlayerInfo; side: Side; turnSide: Side | null; hasPassed: boolean; total: number }) {
+  const isTurn = side === turnSide;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.1 }}>
+      <div style={{ fontSize: "10px", color: p.deck.faction.color, fontWeight: "bold", textShadow: isTurn ? "0 0 6px rgba(253, 224, 71, 0.8)" : "none" }}>
+        {isTurn && <span style={{ color: "#fde047" }}>{"\u25B6 "}</span>}
+        {p.username} ({side})
+        {hasPassed && <span style={{ marginLeft: "4px", color: "#f87171" }}>{"\u00B7 passou"}</span>}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "3px" }}>
+        <div style={{ display: "flex", gap: "3px" }}>
+          {[0, 1].map((i) => (
+            <span
+              key={i}
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: i < p.roundsWon ? "#fbbf24" : "#3f3f46",
+                boxShadow: isTurn && i < p.roundsWon ? "0 0 4px rgba(251, 191, 36, 0.8)" : "none",
+              }}
+            />
+          ))}
+        </div>
+        <div style={{ fontFamily: "monospace", fontSize: "14px", fontWeight: "bold", color: "#fcd34d", textShadow: "0 0 6px rgba(253, 224, 71, 0.5), 0 1px 2px rgba(0,0,0,0.8)" }}>
+          {total}
+        </div>
+      </div>
+    </div>
+  );
 }

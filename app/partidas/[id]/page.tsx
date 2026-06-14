@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -90,7 +90,6 @@ export default async function PartidaPage({
         status={match.status}
         round={match.currentRound}
         currentTurnSide={match.currentTurnSide as "A" | "B" | null}
-        winnerSide={match.winnerSide as "A" | "B" | "DRAW" | null}
         players={{
           A: {
             username: pA.user.username,
@@ -98,7 +97,6 @@ export default async function PartidaPage({
             hasPassed: pA.hasPassed,
             leaderUsed: pA.leaderUsed,
             redrawsLeft: pA.redrawsLeft,
-            deckCardCount: pA.deckCardCount,
             handCount: match.hands.filter((h) => h.side === "A" && h.zone === "HAND").length,
             discardCount: match.hands.filter((h) => h.side === "A" && h.zone === "DISCARD").length,
             deckRealCount: match.hands.filter((h) => h.side === "A" && h.zone === "DECK").length,
@@ -115,6 +113,7 @@ export default async function PartidaPage({
                   name: pA.deck.leader.card.ability.name,
                   description: pA.deck.leader.card.ability.description,
                   engineKey: pA.deck.leader.card.ability.engineKey,
+                  targetCount: pA.deck.leader.card.ability.targetCount,
                 } : null,
               } : null,
             },
@@ -125,7 +124,6 @@ export default async function PartidaPage({
             hasPassed: pB.hasPassed,
             leaderUsed: pB.leaderUsed,
             redrawsLeft: pB.redrawsLeft,
-            deckCardCount: pB.deckCardCount,
             handCount: match.hands.filter((h) => h.side === "B" && h.zone === "HAND").length,
             discardCount: match.hands.filter((h) => h.side === "B" && h.zone === "DISCARD").length,
             deckRealCount: match.hands.filter((h) => h.side === "B" && h.zone === "DECK").length,
@@ -142,11 +140,29 @@ export default async function PartidaPage({
                   name: pB.deck.leader.card.ability.name,
                   description: pB.deck.leader.card.ability.description,
                   engineKey: pB.deck.leader.card.ability.engineKey,
+                  targetCount: pB.deck.leader.card.ability.targetCount,
                 } : null,
               } : null,
             },
           },
         }}
+        board={match.board.map((b) => ({
+          boardId: b.id,
+          cardId: b.cardId,
+          side: b.side as "A" | "B",
+          row: b.row as "MELEE" | "RANGED" | "SIEGE",
+          basePower: b.basePower,
+          power: b.basePower,
+          shielded: b.shielded,
+          isToken: b.isToken,
+          name: b.card.name,
+          rarity: b.card.rarity,
+          cardType: b.card.cardType,
+          isElite: b.card.isElite,
+          imageUrl: b.card.imageUrl,
+          frameUrl: b.card.frameUrl,
+          faction: { name: b.card.faction.name, color: b.card.faction.color },
+        }))}
         hands={{
           A: (match.mode === "HOTSEAT" || viewerSide === "A")
             ? match.hands.filter((h) => h.side === "A" && h.zone === "HAND").map((h) => ({
@@ -199,33 +215,8 @@ export default async function PartidaPage({
               }))
             : [],
         }}
-        board={match.board.map((b) => ({
-          boardId: b.id,
-          cardId: b.cardId,
-          side: b.side as "A" | "B",
-          row: b.row as "MELEE" | "RANGED" | "SIEGE",
-          basePower: b.basePower,
-          power: b.power,
-          shielded: b.shielded,
-          isToken: b.isToken,
-          name: b.card.name,
-          rarity: b.card.rarity,
-          cardType: b.card.cardType,
-          isElite: b.card.isElite,
-          imageUrl: b.card.imageUrl,
-          frameUrl: b.card.frameUrl,
-          faction: { name: b.card.faction.name, color: b.card.faction.color },
-          ability: b.card.ability ? {
-            name: b.card.ability.name,
-            description: b.card.ability.description,
-          } : null,
-        }))}
-        weather={match.weather.map((w) => ({
-          weatherKey: w.weatherKey,
-          affectedRow: w.affectedRow as "MELEE" | "RANGED" | "SIEGE",
-          cardName: w.card.name,
-        }))}
-
+        mode={match.mode}
+        viewerSide={viewerSide}
         currentRoundEvents={match.events
           .filter((e) => e.round === match.currentRound)
           .map((e) => ({
@@ -235,11 +226,24 @@ export default async function PartidaPage({
             payload: e.payload,
             createdAt: e.createdAt.toISOString(),
           }))}
-
-        mode={match.mode}
-        viewerSide={viewerSide}
-        drawOfferedBy={match.drawOfferedBy as "A" | "B" | null}
+        weather={match.weather.map((w) => ({
+          weatherKey: w.weatherKey,
+          affectedRow: w.affectedRow as "MELEE" | "RANGED" | "SIEGE",
+          cardName: w.card.name,
+        }))}
         pausedBy={match.pausedBy as "A" | "B" | null}
+        drawOfferedBy={match.drawOfferedBy as "A" | "B" | null}
+        winnerSide={match.winnerSide as "A" | "B" | "DRAW" | null}
+        lastDiscarded={{
+          A: (() => {
+            const d = match.hands.find((h) => h.side === "A" && h.zone === "DISCARD");
+            return d ? { name: d.card.name, imageUrl: d.card.imageUrl, frameUrl: d.card.frameUrl } : null;
+          })(),
+          B: (() => {
+            const d = match.hands.find((h) => h.side === "B" && h.zone === "DISCARD");
+            return d ? { name: d.card.name, imageUrl: d.card.imageUrl, frameUrl: d.card.frameUrl } : null;
+          })(),
+        }}
       />
     </main>
   );
