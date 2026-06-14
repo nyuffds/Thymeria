@@ -1,7 +1,7 @@
 ﻿"use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { passRoundAction, abandonMatchAction, pauseMatchAction, resumeMatchAction, offerDrawAction, activateLeaderAction, redrawAction, skipRedrawAction, playCardAction, peekDeckTopAction } from "@/lib/match-actions";
+import { passRoundAction, abandonMatchAction, pauseMatchAction, resumeMatchAction, offerDrawAction, activateLeaderAction, redrawAction, skipRedrawAction, playCardAction, peekDeckTopAction, respondDrawOfferAction } from "@/lib/match-actions";
 import { MatchEventLog } from "./MatchEventLog";
 
 type Side = "A" | "B";
@@ -89,6 +89,9 @@ interface Props {
   viewerSide: Side | null;
   currentRoundEvents: MatchEvent[];
   weather: WeatherInfo[];
+  pausedBy: Side | null;
+  drawOfferedBy: Side | null;
+  winnerSide: Side | "DRAW" | null;
 }
 
 const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION"]);
@@ -130,6 +133,14 @@ export function MatchTableV2Skeleton(props: Props) {
     if (isPending) return;
     if (!confirm("Oferecer empate ao oponente?")) return;
     guard(async () => { await offerDrawAction(props.matchId); });
+  }
+
+  function handleRespondDraw(accept: boolean) {
+    guard(async () => { await respondDrawOfferAction(props.matchId, accept); });
+  }
+
+  function handleResume() {
+    guard(async () => { await resumeMatchAction(props.matchId); });
   }
 
   // Estado de redraw
@@ -189,6 +200,8 @@ export function MatchTableV2Skeleton(props: Props) {
     return null;
   }
   const turnSide = props.currentTurnSide;
+  const mySide: Side | null = props.mode === "ONLINE" ? props.viewerSide : turnSide;
+  const canResumePause = props.pausedBy !== null && mySide === props.pausedBy;
 
   function handleActivateLeader() {
     if (!turnSide) return;
@@ -547,6 +560,10 @@ export function MatchTableV2Skeleton(props: Props) {
   const displaySide: Side | null = isOnline ? props.viewerSide : props.currentTurnSide;
   const hand: HandCard[] = displaySide ? props.hands[displaySide] : [];
 
+  if (props.status === "FINISHED") {
+    return <FinishedScreen winnerSide={props.winnerSide} players={props.players} mode={props.mode} />;
+  }
+
   function cardsOn(side: Side, row: Row): BoardCard[] {
     return props.board.filter((b) => b.side === side && b.row === row);
   }
@@ -842,6 +859,19 @@ export function MatchTableV2Skeleton(props: Props) {
             disabled={isPending}
           />
         )}
+
+        {props.pausedBy && (
+          <PauseOverlay pausedBy={props.pausedBy} players={props.players} canResume={canResumePause} onResume={handleResume} disabled={isPending} />
+        )}
+
+        {props.drawOfferedBy && (
+          <DrawOfferBar
+            offeredByMe={(isOnline ? props.drawOfferedBy === props.viewerSide : props.drawOfferedBy === turnSide)}
+            onAccept={() => handleRespondDraw(true)}
+            onDecline={() => handleRespondDraw(false)}
+            disabled={isPending}
+          />
+        )}
         <Region pos={{ top: "8.5%", left: "83.2%", width: "14.8%", height: "41%" }}><HistoryPanel events={props.currentRoundEvents} playerNames={{ A: pA.username, B: pB.username }} currentRound={props.round} /></Region>
         <Region pos={{ top: "59.5%", left: "83.2%", width: "14.8%", height: "36.5%" }}><WeatherPanel weather={props.weather} /></Region>
       </div>
@@ -849,6 +879,90 @@ export function MatchTableV2Skeleton(props: Props) {
   );
 }
 
+
+function FinishedScreen({ winnerSide, players, mode }: { winnerSide: Side | "DRAW" | null; players: Record<Side, PlayerInfo>; mode: string }) {
+  let title = "";
+  let subtitle = "";
+  if (winnerSide === "DRAW") {
+    title = "Empate!";
+    subtitle = "Ambos ganharam o mesmo numero de rondas.";
+  } else if (winnerSide === "A" || winnerSide === "B") {
+    const p = players[winnerSide];
+    title = p.username + " venceu!";
+    subtitle = "Lado " + winnerSide + " - " + p.deck.faction.name;
+  }
+  return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", padding: "20px", background: "#0c0a08", fontFamily: "system-ui, sans-serif" }}>
+      <div style={{ background: "rgba(24, 24, 27, 0.85)", border: "2px solid rgba(180, 83, 9, 0.5)", borderRadius: "16px", padding: "48px", textAlign: "center", maxWidth: "600px", width: "100%" }}>
+        <p style={{ fontSize: "11px", color: "#f59e0b", textTransform: "uppercase", letterSpacing: "0.2em", marginBottom: "8px" }}>Fim de partida</p>
+        <h1 style={{ fontSize: "48px", fontWeight: "bold", color: "#fcd34d", margin: 0, marginBottom: "8px" }}>{title}</h1>
+        <p style={{ color: "#a8a29e", fontStyle: "italic", marginBottom: "32px" }}>{subtitle}</p>
+        <div style={{ display: "flex", justifyContent: "center", gap: "32px", marginBottom: "32px" }}>
+          {(["A", "B"] as Side[]).map((s) => {
+            const p = players[s];
+            return (
+              <div key={s}>
+                <p style={{ color: "#a8a29e", fontSize: "13px", margin: 0 }}>{p.username}</p>
+                <p style={{ fontSize: "28px", fontFamily: "monospace", fontWeight: "bold", color: "#fcd34d", margin: 0 }}>{p.roundsWon} ronda(s)</p>
+              </div>
+            );
+          })}
+        </div>
+        <a href={mode === "ONLINE" ? "/lobby" : "/partidas"} style={{ display: "inline-block", background: "#d97706", color: "#1c1917", padding: "10px 24px", borderRadius: "6px", fontWeight: "bold", textDecoration: "none" }}>Voltar</a>
+      </div>
+    </div>
+  );
+}
+
+function PauseOverlay({ pausedBy, players, canResume, onResume, disabled }: { pausedBy: Side; players: Record<Side, PlayerInfo>; canResume: boolean; onResume: () => void; disabled: boolean }) {
+  const p = players[pausedBy];
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ background: "#18181b", border: "2px solid #b45309", borderRadius: "16px", padding: "32px", textAlign: "center", maxWidth: "440px", width: "100%", color: "#e9d9b6", fontFamily: "system-ui, sans-serif" }}>
+        <p style={{ fontSize: "11px", color: "#f59e0b", textTransform: "uppercase", letterSpacing: "0.2em", marginBottom: "8px" }}>Partida pausada</p>
+        <p style={{ fontSize: "36px", color: "#fcd34d", fontWeight: "bold", margin: 0, marginBottom: "12px" }}>{"\u23F8"} Pausa</p>
+        <p style={{ color: "#d4d4d8", fontSize: "13px", marginBottom: "24px" }}>
+          Pausada por <strong>{p.username}</strong> (lado {pausedBy}).
+          {canResume ? " Voce pausou - clique abaixo para retomar." : " Aguardando o jogador que pausou retomar."}
+        </p>
+        {canResume ? (
+          <button
+            onClick={onResume}
+            disabled={disabled}
+            style={{ background: "#d97706", color: "#1c1917", border: "none", borderRadius: "6px", padding: "10px 24px", fontWeight: "bold", fontSize: "14px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}
+          >
+            {disabled ? "Retomando..." : "Retomar partida"}
+          </button>
+        ) : (
+          <p style={{ color: "#a8a29e", fontSize: "11px", fontStyle: "italic" }}>Aproveite a pausa.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DrawOfferBar({ offeredByMe, onAccept, onDecline, disabled }: { offeredByMe: boolean; onAccept: () => void; onDecline: () => void; disabled: boolean }) {
+  return (
+    <div style={{ position: "absolute", top: "67%", left: "21.3%", width: "59.3%", background: "rgba(91, 33, 182, 0.92)", border: "1px solid #a78bfa", color: "#e9d4ff", padding: "8px 12px", borderRadius: "4px", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", zIndex: 9, boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}>
+      <div>
+        <p style={{ margin: 0, fontWeight: "bold" }}>
+          {offeredByMe ? "Voce ofereceu empate. Aguardando resposta do oponente..." : "O oponente esta oferecendo empate."}
+        </p>
+        {!offeredByMe && <p style={{ margin: 0, fontSize: "10px", opacity: 0.8 }}>Aceitar encerra a partida sem vencedor.</p>}
+      </div>
+      {!offeredByMe && (
+        <div style={{ display: "flex", gap: "6px" }}>
+          <button onClick={onAccept} disabled={disabled} style={{ background: "#7c3aed", color: "#fafafa", border: "none", borderRadius: "4px", padding: "5px 12px", fontWeight: "bold", fontSize: "11px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>
+            Aceitar
+          </button>
+          <button onClick={onDecline} disabled={disabled} style={{ background: "#3f3f46", color: "#d4d4d8", border: "1px solid rgba(167, 139, 250, 0.4)", borderRadius: "4px", padding: "5px 12px", fontSize: "11px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>
+            Recusar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 function Region({
   pos,
   label,

@@ -231,6 +231,9 @@ export default async function PartidaPage({
           affectedRow: w.affectedRow as "MELEE" | "RANGED" | "SIEGE",
           cardName: w.card.name,
         }))}
+        pausedBy={match.pausedBy as "A" | "B" | null}
+        drawOfferedBy={match.drawOfferedBy as "A" | "B" | null}
+        winnerSide={match.winnerSide as "A" | "B" | "DRAW" | null}
       />
     </main>
   );
