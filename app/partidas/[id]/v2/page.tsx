@@ -96,6 +96,7 @@ export default async function PartidaPage({
             roundsWon: pA.roundsWon,
             hasPassed: pA.hasPassed,
             leaderUsed: pA.leaderUsed,
+            redrawsLeft: pA.redrawsLeft,
             handCount: match.hands.filter((h) => h.side === "A" && h.zone === "HAND").length,
             discardCount: match.hands.filter((h) => h.side === "A" && h.zone === "DISCARD").length,
             deckRealCount: match.hands.filter((h) => h.side === "A" && h.zone === "DECK").length,
@@ -107,6 +108,13 @@ export default async function PartidaPage({
                 name: pA.deck.leader.card.name,
                 imageUrl: pA.deck.leader.card.imageUrl,
                 frameUrl: pA.deck.leader.card.frameUrl,
+                leaderMode: pA.deck.leader.card.leaderMode,
+                ability: pA.deck.leader.card.ability ? {
+                  name: pA.deck.leader.card.ability.name,
+                  description: pA.deck.leader.card.ability.description,
+                  engineKey: pA.deck.leader.card.ability.engineKey,
+                  targetCount: pA.deck.leader.card.ability.targetCount,
+                } : null,
               } : null,
             },
           },
@@ -115,6 +123,7 @@ export default async function PartidaPage({
             roundsWon: pB.roundsWon,
             hasPassed: pB.hasPassed,
             leaderUsed: pB.leaderUsed,
+            redrawsLeft: pB.redrawsLeft,
             handCount: match.hands.filter((h) => h.side === "B" && h.zone === "HAND").length,
             discardCount: match.hands.filter((h) => h.side === "B" && h.zone === "DISCARD").length,
             deckRealCount: match.hands.filter((h) => h.side === "B" && h.zone === "DECK").length,
@@ -126,6 +135,13 @@ export default async function PartidaPage({
                 name: pB.deck.leader.card.name,
                 imageUrl: pB.deck.leader.card.imageUrl,
                 frameUrl: pB.deck.leader.card.frameUrl,
+                leaderMode: pB.deck.leader.card.leaderMode,
+                ability: pB.deck.leader.card.ability ? {
+                  name: pB.deck.leader.card.ability.name,
+                  description: pB.deck.leader.card.ability.description,
+                  engineKey: pB.deck.leader.card.ability.engineKey,
+                  targetCount: pB.deck.leader.card.ability.targetCount,
+                } : null,
               } : null,
             },
           },
@@ -161,6 +177,12 @@ export default async function PartidaPage({
                 imageUrl: h.card.imageUrl,
                 frameUrl: h.card.frameUrl,
                 faction: { name: h.card.faction.name, color: h.card.faction.color },
+                ability: h.card.ability ? {
+                  name: h.card.ability.name,
+                  description: h.card.ability.description,
+                  engineKey: h.card.ability.engineKey,
+                  engineValue: h.card.ability.engineValue,
+                } : null,
               }))
             : [],
           B: (match.mode === "HOTSEAT" || viewerSide === "B")
@@ -176,6 +198,12 @@ export default async function PartidaPage({
                 imageUrl: h.card.imageUrl,
                 frameUrl: h.card.frameUrl,
                 faction: { name: h.card.faction.name, color: h.card.faction.color },
+                ability: h.card.ability ? {
+                  name: h.card.ability.name,
+                  description: h.card.ability.description,
+                  engineKey: h.card.ability.engineKey,
+                  engineValue: h.card.ability.engineValue,
+                } : null,
               }))
             : [],
         }}
