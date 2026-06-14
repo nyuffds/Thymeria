@@ -585,9 +585,7 @@ export function MatchTable(props: Props) {
     };
   }, [isOnline, props.status, props.matchId, router]);
 
-  if (props.status === "FINISHED") {
-    return <FinishedScreen winnerSide={props.winnerSide} players={props.players} mode={props.mode} />;
-  }
+  // Quando FINISHED, board fica visivel ao fundo e FinishedScreen aparece como modal
 
   function cardsOn(side: Side, row: Row): BoardCard[] {
     return props.board.filter((b) => b.side === side && b.row === row);
@@ -912,6 +910,15 @@ export function MatchTable(props: Props) {
             disabled={isPending}
           />
         )}
+
+        {props.status === "FINISHED" && (
+          <FinishedScreen
+            winnerSide={props.winnerSide}
+            players={props.players}
+            mode={props.mode}
+            events={props.currentRoundEvents}
+          />
+        )}
         <Region pos={{ top: "8.5%", left: "83.2%", width: "14.8%", height: "41%" }}><HistoryPanel events={props.currentRoundEvents} playerNames={{ A: pA.username, B: pB.username }} currentRound={props.round} /></Region>
         <Region pos={{ top: "59.5%", left: "83.2%", width: "14.8%", height: "36.5%" }}><WeatherPanel weather={props.weather} /></Region>
       </div>
@@ -921,7 +928,8 @@ export function MatchTable(props: Props) {
 }
 
 
-function FinishedScreen({ winnerSide, players, mode }: { winnerSide: Side | "DRAW" | null; players: Record<Side, PlayerInfo>; mode: string }) {
+function FinishedScreen({ winnerSide, players, mode, events }: { winnerSide: Side | "DRAW" | null; players: Record<Side, PlayerInfo>; mode: string; events: MatchEvent[] }) {
+  const [showLog, setShowLog] = useState(false);
   let title = "";
   let subtitle = "";
   if (winnerSide === "DRAW") {
@@ -933,23 +941,38 @@ function FinishedScreen({ winnerSide, players, mode }: { winnerSide: Side | "DRA
     subtitle = "Lado " + winnerSide + " - " + p.deck.faction.name;
   }
   return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", padding: "20px", background: "#0c0a08", fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ background: "rgba(24, 24, 27, 0.85)", border: "2px solid rgba(180, 83, 9, 0.5)", borderRadius: "16px", padding: "48px", textAlign: "center", maxWidth: "600px", width: "100%" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 250, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", background: "rgba(0,0,0,0.78)", fontFamily: "system-ui, sans-serif", overflow: "auto" }}>
+      <div style={{ background: "rgba(24, 24, 27, 0.96)", border: "2px solid rgba(180, 83, 9, 0.5)", borderRadius: "16px", padding: showLog ? "32px" : "48px", textAlign: "center", maxWidth: showLog ? "720px" : "600px", width: "100%", maxHeight: "90vh", overflow: "auto" }}>
         <p style={{ fontSize: "11px", color: "#f59e0b", textTransform: "uppercase", letterSpacing: "0.2em", marginBottom: "8px" }}>Fim de partida</p>
-        <h1 style={{ fontSize: "48px", fontWeight: "bold", color: "#fcd34d", margin: 0, marginBottom: "8px" }}>{title}</h1>
-        <p style={{ color: "#a8a29e", fontStyle: "italic", marginBottom: "32px" }}>{subtitle}</p>
-        <div style={{ display: "flex", justifyContent: "center", gap: "32px", marginBottom: "32px" }}>
+        <h1 style={{ fontSize: "44px", fontWeight: "bold", color: "#fcd34d", margin: 0, marginBottom: "6px" }}>{title}</h1>
+        <p style={{ color: "#a8a29e", fontStyle: "italic", marginBottom: "24px" }}>{subtitle}</p>
+        <div style={{ display: "flex", justifyContent: "center", gap: "32px", marginBottom: "24px" }}>
           {(["A", "B"] as Side[]).map((s) => {
             const p = players[s];
             return (
               <div key={s}>
-                <p style={{ color: "#a8a29e", fontSize: "13px", margin: 0 }}>{p.username}</p>
-                <p style={{ fontSize: "28px", fontFamily: "monospace", fontWeight: "bold", color: "#fcd34d", margin: 0 }}>{p.roundsWon} ronda(s)</p>
+                <p style={{ color: "#a8a29e", fontSize: "12px", margin: 0 }}>{p.username}</p>
+                <p style={{ fontSize: "26px", fontFamily: "monospace", fontWeight: "bold", color: "#fcd34d", margin: 0 }}>{p.roundsWon} ronda(s)</p>
               </div>
             );
           })}
         </div>
-        <a href={mode === "ONLINE" ? "/lobby" : "/partidas"} style={{ display: "inline-block", background: "#d97706", color: "#1c1917", padding: "10px 24px", borderRadius: "6px", fontWeight: "bold", textDecoration: "none" }}>Voltar</a>
+
+        {showLog && (
+          <div style={{ marginBottom: "20px", textAlign: "left", background: "rgba(15,15,16,0.7)", border: "1px solid rgba(82, 82, 91, 0.5)", borderRadius: "8px", padding: "8px", maxHeight: "40vh", overflow: "auto" }}>
+            <MatchEventLog events={events} playerNames={{ A: players.A.username, B: players.B.username }} currentRound={0} />
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "center", gap: "10px", flexWrap: "wrap" }}>
+          <button
+            onClick={() => setShowLog((v) => !v)}
+            style={{ background: "#3f3f46", color: "#e4e4e7", border: "1px solid rgba(212, 160, 74, 0.3)", borderRadius: "6px", padding: "10px 20px", fontSize: "13px", fontWeight: "bold", cursor: "pointer" }}
+          >
+            {showLog ? "Ocultar log" : "Ver log da \u00faltima ronda"}
+          </button>
+          <a href={mode === "ONLINE" ? "/lobby" : "/partidas"} style={{ display: "inline-block", background: "#d97706", color: "#1c1917", padding: "10px 20px", borderRadius: "6px", fontWeight: "bold", textDecoration: "none", fontSize: "13px" }}>Voltar</a>
+        </div>
       </div>
     </div>
   );
