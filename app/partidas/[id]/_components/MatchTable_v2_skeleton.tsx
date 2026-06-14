@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { passRoundAction, abandonMatchAction, pauseMatchAction, resumeMatchAction, offerDrawAction, activateLeaderAction, redrawAction, skipRedrawAction, playCardAction, peekDeckTopAction, respondDrawOfferAction } from "@/lib/match-actions";
 import { MatchEventLog } from "./MatchEventLog";
+import { CardTooltip } from "./CardTooltip";
 
 type Side = "A" | "B";
 type Row = "MELEE" | "RANGED" | "SIEGE";
@@ -604,10 +605,10 @@ export function MatchTableV2Skeleton(props: Props) {
         }}
       >
         <Region pos={{ top: "2.8%", left: "30.3%", width: "9.7%", height: "5.5%" }}>
-          <PlayerScore p={pA} side="A" />
+          <PlayerScore p={pA} side="A" turnSide={turnSide} hasPassed={pA.hasPassed} />
         </Region>
         <Region pos={{ top: "2.8%", left: "60%", width: "9.7%", height: "5.5%" }}>
-          <PlayerScore p={pB} side="B" />
+          <PlayerScore p={pB} side="B" turnSide={turnSide} hasPassed={pB.hasPassed} />
         </Region>
 
         <Region pos={{ top: "8.5%", left: "6.1%", width: "9.8%", height: "17%" }}>
@@ -985,8 +986,8 @@ function Region({
         left: pos.left,
         width: pos.width,
         height: pos.height,
-        border: highlight ? "2px solid #fde047" : "1px dashed rgba(255, 80, 80, 0.4)",
-        background: highlight ? "rgba(253, 224, 71, 0.18)" : "rgba(0, 0, 0, 0.15)",
+        border: highlight ? "2px solid #fde047" : "none",
+        background: highlight ? "rgba(253, 224, 71, 0.18)" : "transparent",
         boxShadow: highlight ? "0 0 16px rgba(253, 224, 71, 0.6) inset" : undefined,
         cursor: onClick ? "pointer" : "default",
         display: "flex",
@@ -1056,8 +1057,8 @@ function HandLane({ cards, selectedHandId, onSelect }: { cards: HandCard[]; sele
 
 function HandCardTile({ c, isSelected, onClick }: { c: HandCard; isSelected: boolean; onClick: () => void }) {
   return (
+    <CardTooltip card={{ name: c.name, power: c.power, rarity: c.rarity, cardType: c.cardType, imageUrl: c.imageUrl, frameUrl: c.frameUrl, faction: c.faction, ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null }}>
     <div
-      title={c.name + " - Poder " + c.power}
       onClick={onClick}
       style={{
         flexShrink: 0,
@@ -1119,13 +1120,14 @@ function HandCardTile({ c, isSelected, onClick }: { c: HandCard; isSelected: boo
         {c.name}
       </span>
     </div>
+    </CardTooltip>
   );
 }
 
 function MiniCard({ c, targetable, onClick }: { c: BoardCard; targetable: boolean; onClick: () => void }) {
   return (
+    <CardTooltip card={{ name: c.name, power: c.power, basePower: c.basePower, rarity: c.rarity, cardType: c.cardType, imageUrl: c.imageUrl, frameUrl: c.frameUrl, faction: c.faction, ability: null, shielded: c.shielded, isToken: c.isToken }}>
     <div
-      title={c.name + " - Poder " + c.power}
       onClick={targetable ? onClick : undefined}
       style={{
         flexShrink: 0,
@@ -1187,6 +1189,7 @@ function MiniCard({ c, targetable, onClick }: { c: BoardCard; targetable: boolea
         </span>
       )}
     </div>
+    </CardTooltip>
   );
 }
 
@@ -1615,6 +1618,7 @@ function LeaderTile({ p, side, turnSide, onActivate, disabled }: { p: PlayerInfo
     return <div style={{ color: "#888", fontSize: "10px" }}>Sem lider</div>;
   }
   const canActivate = side === turnSide && leader.leaderMode === "ACTIVE" && !p.leaderUsed && !disabled;
+  const isTurn = side === turnSide;
   return (
     <div
       style={{
@@ -1629,8 +1633,10 @@ function LeaderTile({ p, side, turnSide, onActivate, disabled }: { p: PlayerInfo
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundColor: "#1a0f06",
-        border: "2px solid " + p.deck.faction.color,
+        border: isTurn ? "3px solid #fde047" : "2px solid " + p.deck.faction.color,
         borderRadius: "4px",
+        boxShadow: isTurn ? "0 0 20px rgba(253, 224, 71, 0.8), 0 0 8px rgba(253, 224, 71, 0.6) inset" : "none",
+        transition: "all 0.3s ease",
       }}
     >
       {canActivate && (
@@ -1680,11 +1686,14 @@ function LeaderTile({ p, side, turnSide, onActivate, disabled }: { p: PlayerInfo
   );
 }
 
-function PlayerScore({ p, side }: { p: PlayerInfo; side: Side }) {
+function PlayerScore({ p, side, turnSide, hasPassed }: { p: PlayerInfo; side: Side; turnSide: Side | null; hasPassed: boolean }) {
+  const isTurn = side === turnSide;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.1 }}>
-      <div style={{ fontSize: "10px", color: p.deck.faction.color, fontWeight: "bold" }}>
+      <div style={{ fontSize: "10px", color: p.deck.faction.color, fontWeight: "bold", textShadow: isTurn ? "0 0 6px rgba(253, 224, 71, 0.8)" : "none" }}>
+        {isTurn && <span style={{ color: "#fde047" }}>{"\u25B6 "}</span>}
         {p.username} ({side})
+        {hasPassed && <span style={{ marginLeft: "4px", color: "#f87171" }}>{"\u00B7 passou"}</span>}
       </div>
       <div style={{ display: "flex", gap: "3px", marginTop: "2px" }}>
         {[0, 1].map((i) => (
@@ -1695,6 +1704,7 @@ function PlayerScore({ p, side }: { p: PlayerInfo; side: Side }) {
               height: "8px",
               borderRadius: "50%",
               background: i < p.roundsWon ? "#fbbf24" : "#3f3f46",
+              boxShadow: isTurn && i < p.roundsWon ? "0 0 4px rgba(251, 191, 36, 0.8)" : "none",
             }}
           />
         ))}
