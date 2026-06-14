@@ -38,7 +38,7 @@ export default function RegrasJogoPage() {
           <h2 className="text-xl font-heading text-amber-200">Estrutura da partida</h2>
           <ol className="list-decimal list-inside space-y-2">
             <li>
-              <strong className="text-amber-300">Inicio:</strong> ambos recebem 10 cartas. Voce pode trocar ate 2 cartas
+              <strong className="text-amber-300">Inicio:</strong> ambos recebem 10 cartas. Voce pode trocar ate 3 cartas
               na primeira ronda (Redraw).
             </li>
             <li>
@@ -51,7 +51,7 @@ export default function RegrasJogoPage() {
             </li>
             <li>
               <strong className="text-amber-300">Nova ronda:</strong> as cartas no tabuleiro vao pro cemiterio,
-              novos Redraws (1 na ronda 2, 0 na ronda 3), e quem perdeu a ronda anterior comeca.
+              novos Redraws (2 na ronda 2, 1 na ronda 3), e quem perdeu a ronda anterior comeca.
             </li>
             <li>
               <strong className="text-amber-300">Vitoria:</strong> quem ganhar 2 rondas primeiro vence a partida.

@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -6,6 +6,11 @@ import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
 import { LobbyList } from "./_components/LobbyList";
 import { CreateLobbyButton } from "./_components/CreateLobbyButton";
+import { Leaderboard } from "./_components/Leaderboard";
+import { HeadToHead } from "./_components/HeadToHead";
+import { TopCards } from "./_components/TopCards";
+import { getLeaderboard, getMostUsedCards } from "@/lib/stats";
+import { getHeadToHeadAction } from "./_actions";
 
 const prisma = new PrismaClient();
 
@@ -59,6 +64,17 @@ export default async function LobbyPage() {
 
   const ownOpenLobby = decorated.find((l) => l.youCreated);
 
+  // Stats para o leaderboard / head-to-head / cartas mais usadas
+  const [leaderboard, topCards, allPlayers] = await Promise.all([
+    getLeaderboard(10),
+    getMostUsedCards(10),
+    prisma.user.findMany({ select: { id: true, username: true }, orderBy: { username: "asc" } }).then((us) => us.map((u) => ({ userId: u.id, username: u.username }))),
+  ]);
+  const me = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { username: true },
+  });
+
   return (
     <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
       <div className="flex items-end justify-between mb-6">
@@ -79,6 +95,28 @@ export default async function LobbyPage() {
       ) : (
         <LobbyList lobbies={decorated} />
       )}
+
+      <section className="mt-12 space-y-8">
+        <div>
+          <h2 className="text-xl font-bold text-amber-200 font-heading mb-3">Leaderboard</h2>
+          <Leaderboard entries={leaderboard} currentUserId={user.id} />
+        </div>
+
+        <div>
+          <h2 className="text-xl font-bold text-amber-200 font-heading mb-3">Comparar com outro jogador</h2>
+          <HeadToHead
+            currentUserId={user.id}
+            currentUsername={me?.username ?? "Voce"}
+            players={allPlayers}
+            onCompare={getHeadToHeadAction}
+          />
+        </div>
+
+        <div>
+          <h2 className="text-xl font-bold text-amber-200 font-heading mb-3">Cartas mais usadas</h2>
+          <TopCards cards={topCards} />
+        </div>
+      </section>
     </main>
   );
 }
