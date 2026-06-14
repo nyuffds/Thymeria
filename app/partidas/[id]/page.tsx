@@ -162,6 +162,7 @@ export default async function PartidaPage({
           imageUrl: b.card.imageUrl,
           frameUrl: b.card.frameUrl,
           faction: { name: b.card.faction.name, color: b.card.faction.color },
+          ability: b.card.ability ? { name: b.card.ability.name, description: b.card.ability.description } : null,
         }))}
         hands={{
           A: (match.mode === "HOTSEAT" || viewerSide === "A")

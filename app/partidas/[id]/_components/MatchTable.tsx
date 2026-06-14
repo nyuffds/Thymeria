@@ -47,6 +47,7 @@ interface BoardCard {
   imageUrl: string | null;
   frameUrl: string | null;
   faction: { name: string; color: string };
+  ability: { name: string; description: string } | null;
 }
 
 interface WeatherInfo {
@@ -1168,7 +1169,7 @@ function HandCardTile({ c, isSelected, onClick }: { c: HandCard; isSelected: boo
 
 function MiniCard({ c, targetable, onClick }: { c: BoardCard; targetable: boolean; onClick: () => void }) {
   return (
-    <CardTooltip card={{ name: c.name, power: c.power, basePower: c.basePower, rarity: c.rarity, cardType: c.cardType, imageUrl: c.imageUrl, frameUrl: c.frameUrl, faction: c.faction, ability: null, shielded: c.shielded, isToken: c.isToken }}>
+    <CardTooltip card={{ name: c.name, power: c.power, basePower: c.basePower, rarity: c.rarity, cardType: c.cardType, imageUrl: c.imageUrl, frameUrl: c.frameUrl, faction: c.faction, ability: c.ability, shielded: c.shielded, isToken: c.isToken }}>
     <div
       className="v2-card-enter"
       onClick={targetable ? onClick : undefined}
