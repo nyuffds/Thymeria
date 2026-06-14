@@ -152,7 +152,7 @@ export default async function PartidaPage({
           side: b.side as "A" | "B",
           row: b.row as "MELEE" | "RANGED" | "SIEGE",
           basePower: b.basePower,
-          power: b.basePower,
+          power: b.power,
           shielded: b.shielded,
           isToken: b.isToken,
           name: b.card.name,

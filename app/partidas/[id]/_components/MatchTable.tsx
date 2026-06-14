@@ -499,6 +499,10 @@ export function MatchTable(props: Props) {
     return rowsAllowed(selectedHandCard).includes(row);
   }
 
+  function weatherOnRow(row: Row): WeatherInfo | undefined {
+    return props.weather.find((w) => w.affectedRow === row);
+  }
+
   function handleSelectHandCard(card: HandCard) {
     if (props.status !== "PLAYING") return;
     if (selectedHandCard?.handId === card.handId) {
@@ -658,22 +662,22 @@ export function MatchTable(props: Props) {
         <Region pos={{ top: "40.5%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "RANGED").toString()} />
         <Region pos={{ top: "61.5%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "MELEE").toString()} />
 
-        <Region pos={{ top: "9.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "SIEGE")} onClick={isRowAvailable("A", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
+        <Region pos={{ top: "9.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "SIEGE")} weathered={!!weatherOnRow("SIEGE")} onClick={isRowAvailable("A", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
           <CardLane cards={cardsOn("A", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
-        <Region pos={{ top: "9.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "SIEGE")} onClick={isRowAvailable("B", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
+        <Region pos={{ top: "9.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "SIEGE")} weathered={!!weatherOnRow("SIEGE")} onClick={isRowAvailable("B", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
           <CardLane cards={cardsOn("B", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
-        <Region pos={{ top: "31%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "RANGED")} onClick={isRowAvailable("A", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
+        <Region pos={{ top: "31%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "RANGED")} weathered={!!weatherOnRow("RANGED")} onClick={isRowAvailable("A", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
           <CardLane cards={cardsOn("A", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
-        <Region pos={{ top: "31%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "RANGED")} onClick={isRowAvailable("B", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
+        <Region pos={{ top: "31%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "RANGED")} weathered={!!weatherOnRow("RANGED")} onClick={isRowAvailable("B", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
           <CardLane cards={cardsOn("B", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
-        <Region pos={{ top: "52.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "MELEE")} onClick={isRowAvailable("A", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
+        <Region pos={{ top: "52.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "MELEE")} weathered={!!weatherOnRow("MELEE")} onClick={isRowAvailable("A", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
           <CardLane cards={cardsOn("A", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
-        <Region pos={{ top: "52.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "MELEE")} onClick={isRowAvailable("B", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
+        <Region pos={{ top: "52.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "MELEE")} weathered={!!weatherOnRow("MELEE")} onClick={isRowAvailable("B", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
           <CardLane cards={cardsOn("B", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
 
@@ -999,12 +1003,14 @@ function Region({
   label,
   children,
   highlight,
+  weathered,
   onClick,
 }: {
   pos: { top: string; left: string; width: string; height: string };
   label?: string;
   children?: React.ReactNode;
   highlight?: boolean;
+  weathered?: boolean;
   onClick?: () => void;
 }) {
   return (
@@ -1016,9 +1022,13 @@ function Region({
         left: pos.left,
         width: pos.width,
         height: pos.height,
-        border: highlight ? "2px solid #fde047" : "none",
-        background: highlight ? "rgba(253, 224, 71, 0.18)" : "transparent",
-        boxShadow: highlight ? "0 0 16px rgba(253, 224, 71, 0.6) inset" : undefined,
+        border: highlight ? "2px solid #fde047" : (weathered ? "2px solid rgba(96, 165, 250, 0.7)" : "none"),
+        background: highlight
+          ? "rgba(253, 224, 71, 0.18)"
+          : (weathered ? "linear-gradient(rgba(30, 58, 138, 0.4), rgba(15, 23, 42, 0.55))" : "transparent"),
+        boxShadow: highlight
+          ? "0 0 16px rgba(253, 224, 71, 0.6) inset"
+          : (weathered ? "0 0 16px rgba(96, 165, 250, 0.45) inset" : undefined),
         cursor: onClick ? "pointer" : "default",
         display: "flex",
         alignItems: "center",
