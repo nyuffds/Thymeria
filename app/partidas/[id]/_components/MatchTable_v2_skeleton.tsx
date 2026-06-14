@@ -590,6 +590,21 @@ export function MatchTableV2Skeleton(props: Props) {
   }
 
   return (
+    <>
+    <style>{`
+      @keyframes v2-pulse-glow {
+        0%, 100% { box-shadow: 0 0 16px rgba(253, 224, 71, 1), 0 0 6px rgba(253, 224, 71, 0.85); }
+        50% { box-shadow: 0 0 28px rgba(253, 224, 71, 1), 0 0 12px rgba(253, 224, 71, 1); }
+      }
+      @keyframes v2-card-enter {
+        from { opacity: 0; transform: translateY(-30px) scale(0.6) rotateZ(-8deg); }
+        70% { opacity: 1; transform: translateY(4px) scale(1.08) rotateZ(2deg); }
+        to { opacity: 1; transform: translateY(0) scale(1) rotateZ(0deg); }
+      }
+      .v2-card-enter {
+        animation: v2-card-enter 0.45s cubic-bezier(0.2, 1, 0.4, 1);
+      }
+    `}</style>
     <div style={{ display: "flex", justifyContent: "center", padding: "20px", background: "#0c0a08", minHeight: "100vh" }}>
       <div
         style={{
@@ -878,6 +893,7 @@ export function MatchTableV2Skeleton(props: Props) {
         <Region pos={{ top: "59.5%", left: "83.2%", width: "14.8%", height: "36.5%" }}><WeatherPanel weather={props.weather} /></Region>
       </div>
     </div>
+    </>
   );
 }
 
@@ -1076,10 +1092,12 @@ function HandCardTile({ c, isSelected, onClick }: { c: HandCard; isSelected: boo
         backgroundPosition: "center",
         backgroundColor: "#1a0f06",
         position: "relative",
-        boxShadow: isSelected ? "0 0 14px rgba(253, 224, 71, 0.9)" : (c.isElite ? "0 0 8px rgba(251, 191, 36, 0.7)" : "0 2px 4px rgba(0,0,0,0.6)"),
+        boxShadow: isSelected ? "0 0 24px rgba(253, 224, 71, 1), 0 0 8px rgba(253, 224, 71, 0.85)" : (c.isElite ? "0 0 8px rgba(251, 191, 36, 0.7)" : "0 2px 4px rgba(0,0,0,0.6)"),
         cursor: "pointer",
-        transform: isSelected ? "translateY(-6px) scale(1.06)" : "none",
-        transition: "transform 0.15s, box-shadow 0.15s",
+        transform: isSelected ? "translateY(-12px) scale(1.15)" : "none",
+        transition: "transform 0.18s ease, box-shadow 0.18s ease",
+        zIndex: isSelected ? 20 : 1,
+        animation: isSelected ? "v2-pulse-glow 1.4s ease-in-out infinite" : "none",
       }}
     >
       <span
@@ -1129,6 +1147,7 @@ function MiniCard({ c, targetable, onClick }: { c: BoardCard; targetable: boolea
   return (
     <CardTooltip card={{ name: c.name, power: c.power, basePower: c.basePower, rarity: c.rarity, cardType: c.cardType, imageUrl: c.imageUrl, frameUrl: c.frameUrl, faction: c.faction, ability: null, shielded: c.shielded, isToken: c.isToken }}>
     <div
+      className="v2-card-enter"
       onClick={targetable ? onClick : undefined}
       style={{
         flexShrink: 0,
@@ -1146,7 +1165,10 @@ function MiniCard({ c, targetable, onClick }: { c: BoardCard; targetable: boolea
         backgroundPosition: "center",
         backgroundColor: "#1a0f06",
         position: "relative",
-        boxShadow: targetable ? "0 0 8px rgba(253, 224, 71, 0.85)" : (c.isElite ? "0 0 6px rgba(251, 191, 36, 0.7)" : "0 1px 3px rgba(0,0,0,0.6)"),
+        boxShadow: targetable ? "0 0 16px rgba(253, 224, 71, 1), 0 0 6px rgba(253, 224, 71, 0.85)" : (c.isElite ? "0 0 6px rgba(251, 191, 36, 0.7)" : "0 1px 3px rgba(0,0,0,0.6)"),
+        animation: targetable ? "v2-pulse-glow 1.2s ease-in-out infinite" : "none",
+        transition: "transform 0.15s",
+        transform: targetable ? "scale(1.05)" : "none",
       }}
     >
       <span
