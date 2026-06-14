@@ -109,7 +109,7 @@ const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_A
 const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW", "WEATHER_RAIN"]);
 const WEATHER_NEEDS_ROW = new Set(["WEATHER_RAIN"]);
 
-export function MatchTable(props: Props) {
+export function MatchTableV2(props: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);

@@ -1,0 +1,90 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Preview Tabuleiro V2</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0c0a08; color: #e9d9b6; font-family: system-ui, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .board { position: relative; width: 1400px; max-width: 100%; aspect-ratio: 3 / 2; background-image: url('/board.jpg'); background-size: 100% 100%; background-position: center; background-repeat: no-repeat; border-radius: 8px; overflow: hidden; }
+  .region { position: absolute; border: 2px dashed rgba(255, 80, 80, 0.85); background: rgba(0, 0, 0, 0.20); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 11px; color: #f0d49a; padding: 4px; }
+
+  /* Top - indicadores / placar */
+  .r-scoreA { top: 2.8%; left: 30.3%; width: 9.7%; height: 5.5%; }
+  .r-scoreB { top: 2.8%; left: 60%; width: 9.7%; height: 5.5%; }
+
+  /* Zona Esquerda Superior (Player A) */
+  .r-leaderA { top: 8.5%; left: 6.1%; width: 9.8%; height: 17%; }
+  .r-deckA   { top: 30.6%; left: 3.1%; width: 5.8%; height: 14.2%; }
+  .r-slotA1  { top: 34%; left: 10.9%; width: 4%; height: 4.5%; }
+  .r-slotA2  { top: 43.5%; left: 13%; width: 2%; height: 4.5%; }
+
+  /* Zona Esquerda Inferior (Player B) */
+  .r-leaderB { top: 58.6%; left: 6.1%; width: 9.7%; height: 17%; }
+  .r-deckB   { top: 80.2%; left: 3.1%; width: 5.7%; height: 13.8%; }
+  .r-slotB1  { top: 83.5%; left: 10.9%; width: 4%; height: 4.5%; }
+  .r-slotB2  { top: 93%; left: 13%; width: 1.8%; height: 4%; }
+
+/* Losangos — Pontos por Fileira (Esquerda) */
+  .r-ptsA-Siege  { top: 20%; left: 22.6%; width: 4%; height: 4%; }
+  .r-ptsA-Ranged { top: 40.5%; left: 22.6%; width: 4%; height: 4%; }
+  .r-ptsA-Melee  { top: 61.5%; left: 22.6%; width: 4%; height: 4%; }
+
+  /* Cartas — 3 fileiras x 2 lados (Esquerda / Direita) */
+  .r-cardsA-Siege  { top: 9.5%; left: 27.5%; width: 23%; height: 21%; }
+  .r-cardsB-Siege  { top: 9.5%; left: 52.8%; width: 22.4%; height: 21%; }
+  .r-cardsA-Ranged { top: 31%; left: 27.5%; width: 23%; height: 21%; }
+  .r-cardsB-Ranged { top: 31%; left: 52.8%; width: 22.4%; height: 21%; }
+  .r-cardsA-Melee  { top: 52.5%; left: 27.5%; width: 23%; height: 21%; }
+  .r-cardsB-Melee  { top: 52.5%; left: 52.8%; width: 22.4%; height: 21%; }
+
+/* Losangos — Pontos por Fileira (Direita) */
+  .r-ptsB-Siege  { top: 20%; left: 75.3%; width: 4%; height: 4%; }
+  .r-ptsB-Ranged { top: 40.5%; left: 75.3%; width: 4%; height: 4%; }
+  .r-ptsB-Melee  { top: 61.5%; left: 75.3%; width: 4%; height: 4%; }
+
+  /* Mão do Jogador */
+  .r-hand { top: 77.2%; left: 21.3%; width: 59.3%; height: 19.5%; }
+
+  /* Direita */
+  .r-history { top: 8.5%; left: 83.2%; width: 14.8%; height: 41%; }
+  .r-weather { top: 59.5%; left: 83.2%; width: 14.8%; height: 36.5%; }
+</style>
+</head>
+<body>
+<div class="board">
+    <div class="region r-scoreA">Placar A</div>
+    <div class="region r-scoreB">Placar B</div>
+
+    <div class="region r-leaderA">Líder A</div>
+    <div class="region r-deckA">Deck A</div>
+    <div class="region r-slotA1">Slot A1</div>
+    <div class="region r-slotA2">Slot A2</div>
+
+    <div class="region r-leaderB">Líder B</div>
+    <div class="region r-deckB">Deck B</div>
+    <div class="region r-slotB1">Slot B1</div>
+    <div class="region r-slotB2">Slot B2</div>
+
+    <div class="region r-ptsA-Siege">Pts Cerco E</div>
+    <div class="region r-ptsA-Ranged">Pts Dist E</div>
+    <div class="region r-ptsA-Melee">Pts Melee E</div>
+
+    <div class="region r-cardsA-Siege">CERCO ESQ</div>
+    <div class="region r-cardsB-Siege">CERCO DIR</div>
+    <div class="region r-cardsA-Ranged">DIST ESQ</div>
+    <div class="region r-cardsB-Ranged">DIST DIR</div>
+    <div class="region r-cardsA-Melee">MELEE ESQ</div>
+    <div class="region r-cardsB-Melee">MELEE DIR</div>
+
+    <div class="region r-ptsB-Siege">Pts Cerco D</div>
+    <div class="region r-ptsB-Ranged">Pts Dist D</div>
+    <div class="region r-ptsB-Melee">Pts Melee D</div>
+
+    <div class="region r-hand">Mão do Jogador</div>
+
+    <div class="region r-history">Histórico</div>
+    <div class="region r-weather">Clima / Efeitos</div>
+  </div>
+</body>
+</html>
