@@ -1,4 +1,4 @@
-// lib/actions.ts
+﻿// lib/actions.ts
 // Server Actions usadas pelos formulários de login e definição de senha.
 
 "use server";
@@ -270,6 +270,9 @@ export async function createCardAction(data: {
   loreText: string;
   imageUrl: string;
   frameUrl: string;
+  marketEligible: boolean;
+  boosterEligible: boolean;
+
   isReleased: boolean;
 }) {
   const name = data.name.trim();
@@ -299,6 +302,8 @@ export async function createCardAction(data: {
       imageUrl: data.imageUrl.trim() || null,
       frameUrl: data.frameUrl.trim() || null,
       isReleased: data.isReleased,
+      marketEligible: data.marketEligible,
+      boosterEligible: data.boosterEligible,
     },
   });
 
@@ -320,6 +325,9 @@ export async function updateCardAction(id: string, data: {
   loreText: string;
   imageUrl: string;
   frameUrl: string;
+  marketEligible: boolean;
+  boosterEligible: boolean;
+
   isReleased: boolean;
 }) {
   const name = data.name.trim();
@@ -350,6 +358,8 @@ export async function updateCardAction(id: string, data: {
       imageUrl: data.imageUrl.trim() || null,
       frameUrl: data.frameUrl.trim() || null,
       isReleased: data.isReleased,
+      marketEligible: data.marketEligible,
+      boosterEligible: data.boosterEligible,
     },
   });
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -38,6 +38,8 @@ type Mode =
         imageUrl: string;
         frameUrl: string;
         isReleased: boolean;
+        marketEligible: boolean;
+        boosterEligible: boolean;
       };
     };
 
@@ -65,6 +67,8 @@ export function CardForm(props: Mode) {
         imageUrl: "",
         frameUrl: "",
         isReleased: true,
+        marketEligible: true,
+        boosterEligible: true,
       };
 
   const [name, setName]             = useState(init.name);
@@ -80,6 +84,8 @@ export function CardForm(props: Mode) {
   const [imageUrl, setImageUrl]     = useState(init.imageUrl);
   const [frameUrl, setFrameUrl]     = useState(init.frameUrl);
   const [isReleased, setIsReleased] = useState(init.isReleased);
+  const [marketEligible, setMarketEligible] = useState(init.marketEligible);
+  const [boosterEligible, setBoosterEligible] = useState(init.boosterEligible);
 
   function toggleRow(rowKey: string) {
     setRows((prev) =>
@@ -111,6 +117,8 @@ export function CardForm(props: Mode) {
       imageUrl,
       frameUrl,
       isReleased,
+      marketEligible,
+      boosterEligible,
     };
 
     startTransition(async () => {
@@ -368,6 +376,32 @@ export function CardForm(props: Mode) {
               className="w-4 h-4 accent-amber-500"
             />
             Liberada (jogadores podem encontrar em boosters)
+          </label>
+        </div>
+
+        <div>
+          <label className="flex items-center gap-2 text-zinc-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={boosterEligible}
+              onChange={(e) => setBoosterEligible(e.target.checked)}
+              disabled={isPending}
+              className="w-4 h-4 accent-amber-500"
+            />
+            Sorteavel em boosters
+          </label>
+        </div>
+
+        <div>
+          <label className="flex items-center gap-2 text-zinc-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={marketEligible}
+              onChange={(e) => setMarketEligible(e.target.checked)}
+              disabled={isPending}
+              className="w-4 h-4 accent-amber-500"
+            />
+            Listavel no mercado P2P
           </label>
         </div>
 

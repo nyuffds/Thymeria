@@ -31,6 +31,8 @@ model User {
   pity          UserPity[]
   decks         Deck[]
   matchPlayers  MatchPlayer[]
+  marketSelling MarketListing[] @relation("MarketSeller")
+  marketBuying  MarketListing[] @relation("MarketBuyer")
 
 }
 
@@ -91,7 +93,9 @@ model Card {
   leaderMode  String?  // ACTIVE | PERSISTENT | PASSIVE (apenas para cartas LEADER)
   loreText    String?
   imageUrl    String?
-  isReleased  Boolean  @default(true)
+  isReleased       Boolean  @default(true)
+  marketEligible   Boolean  @default(true)
+  boosterEligible  Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   frameUrl    String?  // URL de moldura PNG customizada (transparente); null = usa frame padrao
@@ -106,6 +110,7 @@ model Card {
   maxPerDeckOverride  Int?
 
   collectedBy        UserCollection[]
+  marketListings     MarketListing[]
   boosterFixedRules  BoosterRule[]    @relation("FixedPool")
   openingResults     BoosterOpeningResult[]
   inDecksAsLeader    DeckLeader[]
@@ -142,6 +147,8 @@ model GameSettings {
   minCardsPerDeck     Int @default(20)
   maxCardsPerDeck     Int @default(30)
 
+  marketFeePercent    Float @default(0.05)
+
   updatedAt DateTime @updatedAt
 }
 
@@ -160,6 +167,31 @@ model UserCollection {
 
   @@unique([userId, cardId])
   @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// MERCADO DE CARTAS
+// ─────────────────────────────────────────────
+
+model MarketListing {
+  id            String   @id @default(cuid())
+  sellerUserId  String
+  cardId        String
+  quantity      Int
+  pricePerUnit  Int      // 0 = de graca
+  status        String   @default("ACTIVE") // ACTIVE | SOLD | CANCELLED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  soldAt        DateTime?
+  buyerUserId   String?
+
+  seller User @relation("MarketSeller", fields: [sellerUserId], references: [id], onDelete: Cascade)
+  buyer  User? @relation("MarketBuyer", fields: [buyerUserId], references: [id])
+  card   Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([sellerUserId])
+  @@index([cardId])
 }
 
 // ─────────────────────────────────────────────

@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 // app/admin/cartas/[id]/page.tsx
 import Link from "next/link";
@@ -49,6 +49,8 @@ export default async function EditarCartaPage({
           imageUrl: card.imageUrl ?? "",
           frameUrl: card.frameUrl ?? "",
           isReleased: card.isReleased,
+          marketEligible: card.marketEligible,
+          boosterEligible: card.boosterEligible,
         }}
       />
     </main>

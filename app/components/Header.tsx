@@ -70,6 +70,11 @@ export function Header() {
           )}
 
         {username && (
+            <Link href="/mercado" className="text-zinc-300 hover:text-amber-200 transition">
+              Mercado
+            </Link>
+          )}
+        {username && (
             <Link href="/estante" className="text-zinc-300 hover:text-amber-200 transition">
               Estante
             </Link>
