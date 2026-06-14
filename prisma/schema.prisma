@@ -33,6 +33,9 @@ model User {
   matchPlayers  MatchPlayer[]
   marketSelling MarketListing[] @relation("MarketSeller")
   marketBuying  MarketListing[] @relation("MarketBuyer")
+  tradesCreated  TradeOffer[]    @relation("TradeCreator")
+  tradesTargeted TradeOffer[]    @relation("TradeTarget")
+  tradesAccepted TradeOffer[]    @relation("TradeAcceptor")
 
 }
 
@@ -111,6 +114,8 @@ model Card {
 
   collectedBy        UserCollection[]
   marketListings     MarketListing[]
+  tradesOffered      TradeOfferCard[]
+  tradesDemanded     TradeOfferDemand[]
   boosterFixedRules  BoosterRule[]    @relation("FixedPool")
   openingResults     BoosterOpeningResult[]
   inDecksAsLeader    DeckLeader[]
@@ -191,6 +196,61 @@ model MarketListing {
 
   @@index([status])
   @@index([sellerUserId])
+  @@index([cardId])
+}
+
+// ─────────────────────────────────────────────
+// TROCAS DE CARTAS (P2P)
+// ─────────────────────────────────────────────
+
+model TradeOffer {
+  id              String   @id @default(cuid())
+  creatorUserId   String
+  targetUserId    String?  // null = oferta publica
+  status          String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | CANCELLED
+  coinsOffered    Int      @default(0)
+  coinsDemanded   Int      @default(0)
+  acceptorUserId  String?
+  acceptedAt      DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  note            String?
+
+  creator   User  @relation("TradeCreator",  fields: [creatorUserId],  references: [id], onDelete: Cascade)
+  target    User? @relation("TradeTarget",   fields: [targetUserId],   references: [id])
+  acceptor  User? @relation("TradeAcceptor", fields: [acceptorUserId], references: [id])
+  offered   TradeOfferCard[]
+  demanded  TradeOfferDemand[]
+
+  @@index([status])
+  @@index([creatorUserId])
+  @@index([targetUserId])
+}
+
+model TradeOfferCard {
+  id        String @id @default(cuid())
+  offerId   String
+  cardId    String
+  quantity  Int
+
+  offer TradeOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  card  Card       @relation(fields: [cardId],  references: [id], onDelete: Cascade)
+
+  @@index([offerId])
+  @@index([cardId])
+}
+
+model TradeOfferDemand {
+  id        String @id @default(cuid())
+  offerId   String
+  cardId    String
+  quantity  Int
+
+  offer TradeOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  card  Card       @relation(fields: [cardId],  references: [id], onDelete: Cascade)
+
+  @@index([offerId])
   @@index([cardId])
 }
 

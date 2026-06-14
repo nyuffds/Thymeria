@@ -56,6 +56,9 @@ export default async function MercadoPage() {
           <Link href="/mercado/minhas" className="text-sm text-zinc-300 hover:text-amber-200 transition">
             Minhas listagens
           </Link>
+          <Link href="/mercado/trocas" className="text-sm text-zinc-300 hover:text-amber-200 transition">
+            Trocas
+          </Link>
           <Link href="/mercado/nova" className="bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold px-4 py-2 rounded-lg transition">
             + Vender carta
           </Link>
