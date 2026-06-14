@@ -1108,6 +1108,7 @@ async function validateDeckCards(params: {
   userId: string;
   factionId: string;
   cardIds: string[];           // 1 entrada por cópia (3x mesma = 3 entradas)
+  isAdmin?: boolean;
 }) {
   if (params.cardIds.length === 0) return;
 
@@ -1146,6 +1147,7 @@ async function validateDeckCards(params: {
     if (!card) throw new Error(`Carta ${cardId} não existe.`);
 
     // Posse
+    if (params.isAdmin) continue; // bypass propriedade pra admin
     const owned = ownedByCard.get(cardId) ?? 0;
     if (count > owned) {
       throw new Error(`Você só tem ${owned} cópia(s) de "${card.name}" (tentou usar ${count}).`);
@@ -1208,7 +1210,7 @@ export async function createDeckAction(data: {
   const ownership = await prisma.userCollection.findUnique({
     where: { userId_cardId: { userId: user.id, cardId: leaderCard.id } },
   });
-  if (!ownership || ownership.quantity < 1) {
+  if (user.role !== "ADMIN" && (!ownership || ownership.quantity < 1)) {
     throw new Error("Você não possui esse líder na sua coleção.");
   }
 
@@ -1308,10 +1310,11 @@ export async function addCardToDeckAction(deckId: string, cardId: string) {
   // Simula adicionar e valida tudo (posse + limite por carta + facção)
   const newCardIds = [...deck.cards.map((c) => c.cardId), cardId];
   await validateDeckCards({
-    userId: user.id,
-    factionId: deck.factionId,
-    cardIds: newCardIds,
-  });
+      userId: user.id,
+      factionId: deck.factionId,
+      cardIds: newCardIds,
+      isAdmin: user.role === "ADMIN",
+    });
 
   await prisma.deckCard.create({
     data: { deckId, cardId },
@@ -1373,7 +1376,7 @@ export async function changeDeckLeaderAction(deckId: string, newLeaderCardId: st
   const ownership = await prisma.userCollection.findUnique({
     where: { userId_cardId: { userId: user.id, cardId: newLeaderCardId } },
   });
-  if (!ownership || ownership.quantity < 1) {
+  if (user.role !== "ADMIN" && (!ownership || ownership.quantity < 1)) {
     throw new Error("Você não possui esse líder na sua coleção.");
   }
 

@@ -20,7 +20,7 @@ export default async function EditarDeckPage({
 
   const user = await prisma.user.findUnique({
     where: { username: session.user.name },
-    select: { id: true },
+    select: { id: true, role: true },
   });
   if (!user) redirect("/login");
 
@@ -51,34 +51,49 @@ export default async function EditarDeckPage({
     eligibleFactionIds.push(neutralFaction.id);
   }
 
-  const ownedEntries = await prisma.userCollection.findMany({
-    where: {
-      userId: user.id,
-      quantity: { gt: 0 },
-      card: {
-        factionId: { in: eligibleFactionIds },
-        cardType:  { in: ["UNIT", "SPECIAL", "WEATHER"] },
-        isReleased: true,
+  const ownedEntries = user.role === "ADMIN"
+    ? (await prisma.card.findMany({
+        where: {
+          factionId: { in: eligibleFactionIds },
+          cardType: { in: ["UNIT", "SPECIAL", "WEATHER"] },
+          isReleased: true,
+        },
+        include: { faction: true, ability: true },
+      })).map((c) => ({ card: c, quantity: 99 }))
+    : await prisma.userCollection.findMany({
+      where: {
+        userId: user.id,
+        quantity: { gt: 0 },
+        card: {
+          factionId: { in: eligibleFactionIds },
+          cardType:  { in: ["UNIT", "SPECIAL", "WEATHER"] },
+          isReleased: true,
+        },
       },
-    },
-    include: {
-      card: { include: { faction: true, ability: true } },
-    },
+      include: {
+        card: { include: { faction: true, ability: true } },
+      },
     orderBy: [{ card: { rarity: "asc" } }, { card: { name: "asc" } }],
   });
 
   // Líderes que o jogador possui (pra trocar líder)
-  const ownedLeaders = await prisma.userCollection.findMany({
-    where: {
-      userId: user.id,
-      quantity: { gt: 0 },
-      card: { cardType: "LEADER", isReleased: true },
-    },
-    include: {
-      card: { include: { faction: true } },
-    },
-    orderBy: { card: { name: "asc" } },
-  });
+  const ownedLeaders = user.role === "ADMIN"
+    ? (await prisma.card.findMany({
+        where: { cardType: "LEADER", isReleased: true },
+        include: { faction: true },
+        orderBy: { name: "asc" },
+      })).map((c) => ({ card: c, quantity: 99 }))
+    : await prisma.userCollection.findMany({
+        where: {
+          userId: user.id,
+          quantity: { gt: 0 },
+          card: { cardType: "LEADER", isReleased: true },
+        },
+        include: {
+          card: { include: { faction: true } },
+        },
+        orderBy: { card: { name: "asc" } },
+      });
 
   // Conta quantas cópias de cada carta estão no deck
   const usageInDeck = new Map<string, number>();

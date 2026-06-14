@@ -14,22 +14,28 @@ export default async function NovoDeckPage() {
 
   const user = await prisma.user.findUnique({
     where: { username: session.user.name },
-    select: { id: true },
+    select: { id: true, role: true },
   });
   if (!user) redirect("/login");
 
   // Busca os líderes que o jogador possui (cartas LEADER com quantity >= 1)
-  const ownedLeaders = await prisma.userCollection.findMany({
-    where: {
-      userId: user.id,
-      quantity: { gt: 0 },
-      card: { cardType: "LEADER", isReleased: true },
-    },
-    include: {
-      card: { include: { faction: true } },
-    },
-    orderBy: { card: { name: "asc" } },
-  });
+  const ownedLeaders = user.role === "ADMIN"
+    ? (await prisma.card.findMany({
+        where: { cardType: "LEADER", isReleased: true },
+        include: { faction: true },
+        orderBy: { name: "asc" },
+      })).map((c) => ({ card: c, quantity: 999 }))
+    : await prisma.userCollection.findMany({
+        where: {
+          userId: user.id,
+          quantity: { gt: 0 },
+          card: { cardType: "LEADER", isReleased: true },
+        },
+        include: {
+          card: { include: { faction: true } },
+        },
+        orderBy: { card: { name: "asc" } },
+      });
 
   return (
     <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
