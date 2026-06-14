@@ -151,8 +151,8 @@ export function MatchTable(props: Props) {
   const [redrawSelection, setRedrawSelection] = useState<Set<string>>(new Set());
 
   function toggleRedraw(handId: string) {
-    if (!props.currentTurnSide) return;
-    const player = props.players[props.currentTurnSide];
+    if (!canAct || !mySide) return;
+    const player = props.players[mySide];
     setRedrawSelection((prev) => {
       const next = new Set(prev);
       if (next.has(handId)) next.delete(handId);
@@ -161,17 +161,17 @@ export function MatchTable(props: Props) {
     });
   }
   function confirmRedraw() {
-    if (!props.currentTurnSide) return;
+    if (!canAct || !mySide) return;
     const ids = Array.from(redrawSelection);
     guard(async () => {
-      await redrawAction(props.matchId, props.currentTurnSide!, ids);
+      await redrawAction(props.matchId, mySide!, ids);
       setRedrawSelection(new Set());
     });
   }
   function skipRedraw() {
-    if (!props.currentTurnSide) return;
+    if (!canAct || !mySide) return;
     guard(async () => {
-      await skipRedrawAction(props.matchId, props.currentTurnSide!);
+      await skipRedrawAction(props.matchId, mySide!);
       setRedrawSelection(new Set());
     });
   }
@@ -205,10 +205,13 @@ export function MatchTable(props: Props) {
   }
   const turnSide = props.currentTurnSide;
   const mySide: Side | null = props.mode === "ONLINE" ? props.viewerSide : turnSide;
+  const canAct: boolean = props.mode === "ONLINE"
+    ? (props.viewerSide !== null && props.viewerSide === props.currentTurnSide)
+    : (props.currentTurnSide !== null);
   const canResumePause = props.pausedBy !== null && mySide === props.pausedBy;
 
   function handleActivateLeader() {
-    if (!turnSide) return;
+    if (!canAct || !turnSide) return;
     const leader = props.players[turnSide].deck.leader;
     if (!leader || leader.leaderMode !== "ACTIVE" || props.players[turnSide].leaderUsed) return;
     const ek = leader.ability?.engineKey ?? null;
@@ -242,7 +245,7 @@ export function MatchTable(props: Props) {
   }
 
   function handleLeaderRowSelect(row: Row) {
-    if (!activatingLeader) return;
+    if (!canAct || !activatingLeader) return;
     const side = activatingLeader;
     guard(async () => {
       await activateLeaderAction({ matchId: props.matchId, side, targetRow: row });
@@ -252,7 +255,7 @@ export function MatchTable(props: Props) {
   }
 
   function handleLeaderTargetClick(target: BoardCard) {
-    if (!activatingLeader) return;
+    if (!canAct || !activatingLeader) return;
     const side = activatingLeader;
     const isRowMode = leaderTargetMode === "ROW_ENEMY" || leaderTargetMode === "ROW_ALLY";
     guard(async () => {
@@ -273,7 +276,7 @@ export function MatchTable(props: Props) {
   }
 
   function handleChooseRow(row: Row) {
-    if (!selectedHandCard) return;
+    if (!canAct || !selectedHandCard) return;
     const ek = selectedHandCard.ability?.engineKey ?? null;
     setChosenRow(row);
 
@@ -404,7 +407,7 @@ export function MatchTable(props: Props) {
   }
 
   function handleTargetClick(target: BoardCard) {
-    if (!selectedHandCard || !chosenRow) return;
+    if (!canAct || !selectedHandCard || !chosenRow) return;
     // Na fase 2, usa engineKey do secundario. Na fase 1, do principal.
     const ek = phase === 2
       ? (selectedHandCard.ability?.secondaryEngineKey ?? null)
@@ -428,7 +431,7 @@ export function MatchTable(props: Props) {
   }
 
   function handleSelectEffectRow(effectRow: Row) {
-    if (!selectedHandCard || !chosenRow) return;
+    if (!canAct || !selectedHandCard || !chosenRow) return;
     submitPlay(chosenRow, { effectRow });
   }
 
@@ -506,6 +509,7 @@ export function MatchTable(props: Props) {
   }
 
   function handleSelectHandCard(card: HandCard) {
+    if (!canAct) return;
     if (props.status !== "PLAYING") return;
     if (selectedHandCard?.handId === card.handId) {
       setSelectedHandCard(null);
@@ -647,14 +651,14 @@ export function MatchTable(props: Props) {
         </Region>
 
         <Region pos={{ top: "8.5%", left: "6.1%", width: "9.8%", height: "17%" }}>
-          <LeaderTile p={pA} side="A" turnSide={turnSide} onActivate={handleActivateLeader} disabled={isPending} />
+          <LeaderTile p={pA} side="A" turnSide={turnSide} canAct={canAct} onActivate={handleActivateLeader} disabled={isPending} />
         </Region>
         <Region pos={{ top: "30.6%", left: "3.1%", width: "5.8%", height: "14.2%" }}><DeckBox count={pA.deckRealCount} factionColor={pA.deck.faction.color} /></Region>
         <Region pos={{ top: "34%", left: "10.9%", width: "4%", height: "4.5%" }} label={pA.deckRealCount.toString()} />
         <Region pos={{ top: "43.5%", left: "13%", width: "2%", height: "4.5%" }}><CemTile entry={props.lastDiscarded.A} count={pA.discardCount} /></Region>
 
         <Region pos={{ top: "58.6%", left: "6.1%", width: "9.7%", height: "17%" }}>
-          <LeaderTile p={pB} side="B" turnSide={turnSide} onActivate={handleActivateLeader} disabled={isPending} />
+          <LeaderTile p={pB} side="B" turnSide={turnSide} canAct={canAct} onActivate={handleActivateLeader} disabled={isPending} />
         </Region>
         <Region pos={{ top: "80.2%", left: "3.1%", width: "5.7%", height: "13.8%" }}><DeckBox count={pB.deckRealCount} factionColor={pB.deck.faction.color} /></Region>
         <Region pos={{ top: "83.5%", left: "10.9%", width: "4%", height: "4.5%" }} label={pB.deckRealCount.toString()} />
@@ -859,16 +863,16 @@ export function MatchTable(props: Props) {
           </div>
         )}
 
-        {props.status === "REDRAW" && props.currentTurnSide && (
+        {props.status === "REDRAW" && canAct && mySide && (
           <RedrawModal
-            hand={props.hands[props.currentTurnSide]}
-            redrawsLeft={props.players[props.currentTurnSide].redrawsLeft}
+            hand={props.hands[mySide]}
+            redrawsLeft={props.players[mySide].redrawsLeft}
             selection={redrawSelection}
             onToggle={toggleRedraw}
             onConfirm={confirmRedraw}
             onSkip={skipRedraw}
             disabled={isPending}
-            playerName={props.players[props.currentTurnSide].username}
+            playerName={props.players[mySide].username}
           />
         )}
 
@@ -1688,12 +1692,12 @@ function DeckBox({ count, factionColor }: { count: number; factionColor: string 
     </div>
   );
 }
-function LeaderTile({ p, side, turnSide, onActivate, disabled }: { p: PlayerInfo; side: Side; turnSide: Side | null; onActivate: () => void; disabled: boolean }) {
+function LeaderTile({ p, side, turnSide, canAct, onActivate, disabled }: { p: PlayerInfo; side: Side; turnSide: Side | null; canAct: boolean; onActivate: () => void; disabled: boolean }) {
   const leader = p.deck.leader;
   if (!leader) {
     return <div style={{ color: "#888", fontSize: "10px" }}>Sem lider</div>;
   }
-  const canActivate = side === turnSide && leader.leaderMode === "ACTIVE" && !p.leaderUsed && !disabled;
+  const canActivate = canAct && side === turnSide && leader.leaderMode === "ACTIVE" && !p.leaderUsed && !disabled;
   const isTurn = side === turnSide;
   return (
     <div
