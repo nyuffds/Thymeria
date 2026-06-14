@@ -1,7 +1,7 @@
 ﻿"use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { passRoundAction, abandonMatchAction, pauseMatchAction, resumeMatchAction, offerDrawAction, activateLeaderAction, redrawAction, skipRedrawAction, playCardAction } from "@/lib/match-actions";
+import { passRoundAction, abandonMatchAction, pauseMatchAction, resumeMatchAction, offerDrawAction, activateLeaderAction, redrawAction, skipRedrawAction, playCardAction, peekDeckTopAction } from "@/lib/match-actions";
 import { MatchEventLog } from "./MatchEventLog";
 
 type Side = "A" | "B";
@@ -165,6 +165,21 @@ export function MatchTableV2Skeleton(props: Props) {
   const [activatingLeader, setActivatingLeader] = useState<Side | null>(null);
   const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
   const [chosenRow, setChosenRow] = useState<Row | null>(null);
+  const [targetMode, setTargetMode] = useState<"NONE" | "ALLY" | "ENEMY">("NONE");
+  const [rowTargetMode, setRowTargetMode] = useState<"NONE" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
+  const [multiSelectMode, setMultiSelectMode] = useState<{ max: number; source: "BOARD" | "HAND" } | null>(null);
+  const [multiSelectIds, setMultiSelectIds] = useState<string[]>([]);
+  const [prophecyCards, setProphecyCards] = useState<{ handId: string; name: string; power: number; cardType: string; imageUrl: string | null }[] | null>(null);
+  const [prophecyRouting, setProphecyRouting] = useState<Record<string, "HAND" | "TOP" | "BOTTOM">>({});
+  const [weatherChoosingRow, setWeatherChoosingRow] = useState(false);
+
+  function weatherFixedRow(engineKey: string | null | undefined): Row | null {
+    if (engineKey === "WEATHER_FROST") return "MELEE";
+    if (engineKey === "WEATHER_FOG") return "RANGED";
+    if (engineKey === "WEATHER_STORM") return "SIEGE";  // backend aplica em SIEGE+RANGED
+    if (engineKey === "WEATHER_RAIN") return "SIEGE";   // RAIN agora e fixa em SIEGE
+    return null;
+  }
   const turnSide = props.currentTurnSide;
 
   function handleActivateLeader() {
@@ -172,15 +187,31 @@ export function MatchTableV2Skeleton(props: Props) {
     const leader = props.players[turnSide].deck.leader;
     if (!leader || leader.leaderMode !== "ACTIVE" || props.players[turnSide].leaderUsed) return;
     const ek = leader.ability?.engineKey ?? null;
+
+    // Habilidades de clima do lider: fileira fixa segundo o engineKey, sem perguntar nada
+    const fixedWeatherRow = weatherFixedRow(ek);
+    if (fixedWeatherRow) {
+      guard(async () => {
+        await activateLeaderAction({ matchId: props.matchId, side: turnSide!, targetRow: fixedWeatherRow });
+      });
+      return;
+    }
+    if (ek === "CLEAR_WEATHER") {
+      guard(async () => {
+        await activateLeaderAction({ matchId: props.matchId, side: turnSide! });
+      });
+      return;
+    }
+
     if (ek && NEEDS_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
       setLeaderTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
     } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
-      setLeaderTargetMode((ek === "DESTROY_ROW" || ek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
+      setLeaderTargetMode((ek === "DESTROY_ROW") ? "ROW_ENEMY" : "ROW_ALLY");
     } else {
       guard(async () => {
-        await activateLeaderAction({ matchId: props.matchId, side: turnSide });
+        await activateLeaderAction({ matchId: props.matchId, side: turnSide! });
       });
     }
   }
@@ -219,22 +250,181 @@ export function MatchTableV2Skeleton(props: Props) {
   function handleChooseRow(row: Row) {
     if (!selectedHandCard) return;
     const ek = selectedHandCard.ability?.engineKey ?? null;
-    // Por enquanto: so jogadas SIMPLES (sem alvo) funcionam
-    if (ek && (NEEDS_TARGET.has(ek) || NEEDS_ROW_TARGET.has(ek))) {
-      setError("Habilidades com alvo ainda nao implementadas no v2.");
+    setChosenRow(row);
+
+    // Habilidades de fileira (BOOST_ROW, MULTIPLY_ROW, DESTROY_ROW, IMMUNE_ROW, WEATHER_RAIN)
+    if (ek && NEEDS_ROW_TARGET.has(ek)) {
+      setRowTargetMode((ek === "DESTROY_ROW" || ek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
       return;
     }
-    setChosenRow(row);
+
+    // Habilidades com alvo simples
+    if (ek && NEEDS_TARGET.has(ek)) {
+      setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
+      return;
+    }
+
+    // BOOST_MANY (Nutrir) - selecionar N aliados no board
+    if (ek === "BOOST_MANY") {
+      const max = (selectedHandCard.ability as any)?.targetCount ?? 3;
+      setMultiSelectMode({ max, source: "BOARD" });
+      setMultiSelectIds([]);
+      return;
+    }
+
+    // SHUFFLE_AND_DRAW (Ganancia) - selecionar N cartas da mao
+    if (ek === "SHUFFLE_AND_DRAW") {
+      const max = selectedHandCard.ability?.engineValue ?? 3;
+      setMultiSelectMode({ max, source: "HAND" });
+      setMultiSelectIds([]);
+      return;
+    }
+
+    // PROPHECY (Profecia) - revela N do topo e jogador roteia
+    if (ek === "PROPHECY") {
+      const peekCount = selectedHandCard.ability?.engineValue ?? 3;
+      peekDeckTopAction(props.matchId, turnSide!, peekCount).then((cards) => {
+        setProphecyCards(cards);
+        const initialRouting: Record<string, "HAND" | "TOP" | "BOTTOM"> = {};
+        for (const c of cards) initialRouting[c.handId] = "TOP";
+        setProphecyRouting(initialRouting);
+      });
+      return;
+    }
+
+    // Sem alvo - joga direto
+    executePlayCard(row, undefined);
+  }
+
+  function executePlayCard(row: Row, targetBoardCardId: string | undefined) {
+    if (!selectedHandCard || !turnSide) return;
+    const handCardId = selectedHandCard.handId;
     guard(async () => {
       await playCardAction({
         matchId: props.matchId,
-        side: turnSide!,
-        handCardId: selectedHandCard.handId,
+        side: turnSide,
+        handCardId,
         targetRow: row,
+        targetBoardCardId,
       });
       setSelectedHandCard(null);
       setChosenRow(null);
+      setTargetMode("NONE");
     });
+  }
+
+  function handleTargetClick(target: BoardCard) {
+    if (!selectedHandCard || !chosenRow) return;
+    const ek = selectedHandCard.ability?.engineKey ?? null;
+    if (ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") {
+      if (target.side !== turnSide) {
+        setError("Esta habilidade requer carta aliada.");
+        return;
+      }
+    } else if (ek === "DAMAGE" || ek === "DAMAGE_IF" || ek === "DESTROY_AND_DRAW") {
+      if (target.side === turnSide) {
+        setError("Esta habilidade requer carta inimiga.");
+        return;
+      }
+    }
+    if (target.isElite) {
+      // Confirma elite com prompt simples por enquanto
+      if (!confirm("Carta Elite e' imune. Continuar mesmo assim?")) return;
+    }
+    executePlayCard(chosenRow, target.boardId);
+  }
+
+  function handleSelectEffectRow(effectRow: Row) {
+    if (!selectedHandCard || !chosenRow || !turnSide) return;
+    const handCardId = selectedHandCard.handId;
+    const row = chosenRow;
+    guard(async () => {
+      await playCardAction({
+        matchId: props.matchId,
+        side: turnSide,
+        handCardId,
+        targetRow: row,
+        effectRow,
+      });
+      setSelectedHandCard(null);
+      setChosenRow(null);
+      setTargetMode("NONE");
+      setRowTargetMode("NONE");
+    });
+  }
+
+  function toggleMultiSelectId(id: string) {
+    setMultiSelectIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (multiSelectMode && prev.length >= multiSelectMode.max) return prev;
+      return [...prev, id];
+    });
+  }
+
+  function confirmMultiSelect() {
+    if (!selectedHandCard || !chosenRow || !turnSide || multiSelectIds.length === 0) return;
+    const handCardId = selectedHandCard.handId;
+    const row = chosenRow;
+    const ids = multiSelectIds;
+    guard(async () => {
+      await playCardAction({
+        matchId: props.matchId,
+        side: turnSide,
+        handCardId,
+        targetRow: row,
+        multiTargetIds: ids,
+      });
+      setSelectedHandCard(null);
+      setChosenRow(null);
+      setMultiSelectMode(null);
+      setMultiSelectIds([]);
+    });
+  }
+
+  function cancelMultiSelect() {
+    setMultiSelectMode(null);
+    setMultiSelectIds([]);
+    setSelectedHandCard(null);
+    setChosenRow(null);
+  }
+
+  function setProphecyDest(handId: string, dest: "HAND" | "TOP" | "BOTTOM") {
+    setProphecyRouting((prev) => ({ ...prev, [handId]: dest }));
+  }
+
+  function confirmProphecy() {
+    if (!selectedHandCard || !chosenRow || !turnSide || !prophecyCards) return;
+    const handCardId = selectedHandCard.handId;
+    const row = chosenRow;
+    const routing = prophecyCards.map((c) => ({ handId: c.handId, destination: prophecyRouting[c.handId] ?? "TOP" as "HAND" | "TOP" | "BOTTOM" }));
+    guard(async () => {
+      await playCardAction({
+        matchId: props.matchId,
+        side: turnSide,
+        handCardId,
+        targetRow: row,
+        prophecyRouting: routing,
+      });
+      setProphecyCards(null);
+      setProphecyRouting({});
+      setSelectedHandCard(null);
+      setChosenRow(null);
+    });
+  }
+
+  function cancelProphecy() {
+    setProphecyCards(null);
+    setProphecyRouting({});
+    setSelectedHandCard(null);
+    setChosenRow(null);
+  }
+
+  function cancelPlay() {
+    setSelectedHandCard(null);
+    setChosenRow(null);
+    setTargetMode("NONE");
+    setRowTargetMode("NONE");
+    setWeatherChoosingRow(false);
   }
 
   function rowsAllowed(card: HandCard | null): Row[] {
@@ -254,9 +444,59 @@ export function MatchTableV2Skeleton(props: Props) {
     if (props.status !== "PLAYING") return;
     if (selectedHandCard?.handId === card.handId) {
       setSelectedHandCard(null);
-    } else {
-      setSelectedHandCard(card);
+      setWeatherChoosingRow(false);
+      return;
     }
+    setSelectedHandCard(card);
+    setWeatherChoosingRow(false);
+
+    // Carta WEATHER: fluxo especial sem precisar escolher fileira para colocar
+    if (card.cardType === "WEATHER") {
+      const ek = card.ability?.engineKey ?? null;
+      const fixed = weatherFixedRow(ek);
+      if (ek === "CLEAR_WEATHER") {
+        // Joga sem precisar de fileira
+        guard(async () => {
+          await playCardAction({
+            matchId: props.matchId,
+            side: turnSide!,
+            handCardId: card.handId,
+            targetRow: "MELEE", // backend ignora pra CLEAR_WEATHER
+          });
+          setSelectedHandCard(null);
+        });
+        return;
+      }
+      if (fixed) {
+        // FROST/FOG/STORM tem fileira fixa
+        guard(async () => {
+          await playCardAction({
+            matchId: props.matchId,
+            side: turnSide!,
+            handCardId: card.handId,
+            targetRow: fixed,
+          });
+          setSelectedHandCard(null);
+        });
+        return;
+      }
+      // WEATHER_RAIN agora tem fileira fixa SIEGE - cai no branch fixed acima
+    }
+  }
+
+  function playWeatherOnRow(row: Row) {
+    if (!selectedHandCard || !turnSide) return;
+    const handCardId = selectedHandCard.handId;
+    guard(async () => {
+      await playCardAction({
+        matchId: props.matchId,
+        side: turnSide,
+        handCardId,
+        targetRow: row,
+      });
+      setSelectedHandCard(null);
+      setWeatherChoosingRow(false);
+    });
   }
 
   const isOnline = props.mode === "ONLINE";
@@ -271,10 +511,19 @@ export function MatchTableV2Skeleton(props: Props) {
   }
 
     function isCardTargetable(c: BoardCard): boolean {
-    if (!activatingLeader) return false;
-    if (leaderTargetMode === "ALLY") return c.side === activatingLeader && !c.isElite;
-    if (leaderTargetMode === "ENEMY") return c.side !== activatingLeader && !c.isElite;
+    if (activatingLeader) {
+      if (leaderTargetMode === "ALLY") return c.side === activatingLeader && !c.isElite;
+      if (leaderTargetMode === "ENEMY") return c.side !== activatingLeader && !c.isElite;
+      return false;
+    }
+    if (targetMode === "ALLY") return c.side === turnSide && !c.isElite;
+    if (targetMode === "ENEMY") return c.side !== turnSide && !c.isElite;
     return false;
+  }
+
+  function dispatchCardClick(c: BoardCard) {
+    if (activatingLeader) return handleLeaderTargetClick(c);
+    return handleTargetClick(c);
   }
 
   return (
@@ -319,22 +568,22 @@ export function MatchTableV2Skeleton(props: Props) {
         <Region pos={{ top: "61.5%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "MELEE").toString()} />
 
         <Region pos={{ top: "9.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "SIEGE")} onClick={isRowAvailable("A", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
-          <CardLane cards={cardsOn("A", "SIEGE")} isTargetable={isCardTargetable} onCardClick={handleLeaderTargetClick} />
+          <CardLane cards={cardsOn("A", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
         <Region pos={{ top: "9.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "SIEGE")} onClick={isRowAvailable("B", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
-          <CardLane cards={cardsOn("B", "SIEGE")} isTargetable={isCardTargetable} onCardClick={handleLeaderTargetClick} />
+          <CardLane cards={cardsOn("B", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
         <Region pos={{ top: "31%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "RANGED")} onClick={isRowAvailable("A", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
-          <CardLane cards={cardsOn("A", "RANGED")} isTargetable={isCardTargetable} onCardClick={handleLeaderTargetClick} />
+          <CardLane cards={cardsOn("A", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
         <Region pos={{ top: "31%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "RANGED")} onClick={isRowAvailable("B", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
-          <CardLane cards={cardsOn("B", "RANGED")} isTargetable={isCardTargetable} onCardClick={handleLeaderTargetClick} />
+          <CardLane cards={cardsOn("B", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
         <Region pos={{ top: "52.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "MELEE")} onClick={isRowAvailable("A", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
-          <CardLane cards={cardsOn("A", "MELEE")} isTargetable={isCardTargetable} onCardClick={handleLeaderTargetClick} />
+          <CardLane cards={cardsOn("A", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
         <Region pos={{ top: "52.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "MELEE")} onClick={isRowAvailable("B", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
-          <CardLane cards={cardsOn("B", "MELEE")} isTargetable={isCardTargetable} onCardClick={handleLeaderTargetClick} />
+          <CardLane cards={cardsOn("B", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
         </Region>
 
         <Region pos={{ top: "20%", left: "75.3%", width: "4%", height: "4%" }} label={rowTotal("B", "SIEGE").toString()} />
@@ -416,6 +665,103 @@ export function MatchTableV2Skeleton(props: Props) {
           </div>
         )}
 
+        {/* Banner de target da habilidade da carta */}
+        {targetMode !== "NONE" && (
+          <div
+            style={{
+              position: "absolute",
+              top: "73%",
+              left: "21.3%",
+              width: "59.3%",
+              background: "rgba(180, 83, 9, 0.92)",
+              border: "1px solid #fbbf24",
+              color: "#fef3c7",
+              padding: "6px 10px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              zIndex: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            }}
+          >
+            <span>Clique numa carta {targetMode === "ALLY" ? "aliada" : "inimiga"} no tabuleiro</span>
+            {chosenRow && (
+              <button
+                onClick={() => executePlayCard(chosenRow!, undefined)}
+                disabled={isPending}
+                style={{ ...leaderBtnStyle, background: "#525252" }}
+                title="A carta entra em campo mas a habilidade nao tera efeito"
+              >
+                Jogar sem efeito
+              </button>
+            )}
+            <button onClick={cancelPlay} style={{ ...leaderBtnStyle, background: "transparent", border: "none", textDecoration: "underline" }}>cancelar</button>
+          </div>
+        )}
+
+        {/* Banner de selecao de fileira para habilidades de fileira */}
+        {rowTargetMode !== "NONE" && (
+          <div
+            style={{
+              position: "absolute",
+              top: "73%",
+              left: "21.3%",
+              width: "59.3%",
+              background: "rgba(180, 83, 9, 0.92)",
+              border: "1px solid #fbbf24",
+              color: "#fef3c7",
+              padding: "6px 10px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              zIndex: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            }}
+          >
+            <span>Escolha a fileira {rowTargetMode === "ROW_ALLY" ? "aliada" : "inimiga"} alvo:</span>
+            <button onClick={() => handleSelectEffectRow("MELEE")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#b45309" }}>Vanguarda</button>
+            <button onClick={() => handleSelectEffectRow("RANGED")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#b45309" }}>Distancia</button>
+            <button onClick={() => handleSelectEffectRow("SIEGE")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#b45309" }}>Cerco</button>
+            <button onClick={cancelPlay} style={{ ...leaderBtnStyle, background: "transparent", border: "none", textDecoration: "underline" }}>cancelar</button>
+          </div>
+        )}
+
+        {/* Banner de WEATHER_RAIN - escolha fileira do clima */}
+        {weatherChoosingRow && (
+          <div
+            style={{
+              position: "absolute",
+              top: "73%",
+              left: "21.3%",
+              width: "59.3%",
+              background: "rgba(30, 58, 138, 0.92)",
+              border: "1px solid #60a5fa",
+              color: "#dbeafe",
+              padding: "6px 10px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              zIndex: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            }}
+          >
+            <span>Escolha onde a chuva cai:</span>
+            <button onClick={() => playWeatherOnRow("MELEE")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#1e40af" }}>Vanguarda</button>
+            <button onClick={() => playWeatherOnRow("RANGED")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#1e40af" }}>Distancia</button>
+            <button onClick={() => playWeatherOnRow("SIEGE")} disabled={isPending} style={{ ...leaderBtnStyle, background: "#1e40af" }}>Cerco</button>
+            <button onClick={cancelPlay} style={{ ...leaderBtnStyle, background: "transparent", border: "none", textDecoration: "underline" }}>cancelar</button>
+          </div>
+        )}
+
         {props.status === "REDRAW" && props.currentTurnSide && (
           <RedrawModal
             hand={props.hands[props.currentTurnSide]}
@@ -426,6 +772,30 @@ export function MatchTableV2Skeleton(props: Props) {
             onSkip={skipRedraw}
             disabled={isPending}
             playerName={props.players[props.currentTurnSide].username}
+          />
+        )}
+
+        {multiSelectMode && selectedHandCard && (
+          <MultiSelectModal
+            mode={multiSelectMode}
+            selectedIds={multiSelectIds}
+            onToggle={toggleMultiSelectId}
+            onConfirm={confirmMultiSelect}
+            onCancel={cancelMultiSelect}
+            disabled={isPending}
+            handCards={turnSide ? props.hands[turnSide].filter((c) => c.handId !== selectedHandCard.handId) : []}
+            boardCards={turnSide ? props.board.filter((c) => c.side === turnSide && !c.isElite) : []}
+          />
+        )}
+
+        {prophecyCards && (
+          <ProphecyModal
+            cards={prophecyCards}
+            routing={prophecyRouting}
+            onSetDest={setProphecyDest}
+            onConfirm={confirmProphecy}
+            onCancel={cancelProphecy}
+            disabled={isPending}
           />
         )}
         <Region pos={{ top: "8.5%", left: "83.2%", width: "14.8%", height: "41%" }}><HistoryPanel events={props.currentRoundEvents} playerNames={{ A: pA.username, B: pB.username }} currentRound={props.round} /></Region>
@@ -729,6 +1099,140 @@ const leaderBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+
+
+function ProphecyModal({ cards, routing, onSetDest, onConfirm, onCancel, disabled }: {
+  cards: { handId: string; name: string; power: number; cardType: string; imageUrl: string | null }[];
+  routing: Record<string, "HAND" | "TOP" | "BOTTOM">;
+  onSetDest: (handId: string, dest: "HAND" | "TOP" | "BOTTOM") => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ background: "#18181b", border: "2px solid #a78bfa", borderRadius: "10px", padding: "20px", maxWidth: "700px", width: "100%", maxHeight: "85vh", overflow: "auto", color: "#e9d9b6", fontFamily: "system-ui, sans-serif" }}>
+        <h2 style={{ fontSize: "18px", color: "#c4b5fd", margin: 0, marginBottom: "4px" }}>Profecia - Veja seu futuro</h2>
+        <p style={{ fontSize: "12px", color: "#a8a29e", margin: 0, marginBottom: "14px" }}>
+          Voce ve as proximas {cards.length} carta(s) do seu deck. Decida o destino de cada uma:
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px" }}>
+          {cards.map((c, idx) => (
+            <div key={c.handId} style={{ background: "#27272a", border: "1px solid #3f3f46", borderRadius: "6px", padding: "8px 10px", display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#a8a29e", width: "20px" }}>{idx + 1}</div>
+              {c.imageUrl && <img src={c.imageUrl} alt={c.name} style={{ width: "36px", height: "50px", objectFit: "cover", borderRadius: "3px" }} />}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "13px", fontWeight: "bold" }}>{c.name}</div>
+                <div style={{ fontSize: "10px", color: "#a8a29e" }}>{c.cardType} - Poder {c.power}</div>
+              </div>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <ProphecyButton onClick={() => onSetDest(c.handId, "HAND")} active={routing[c.handId] === "HAND"} color="#16a34a">Mao</ProphecyButton>
+                <ProphecyButton onClick={() => onSetDest(c.handId, "TOP")} active={routing[c.handId] === "TOP"} color="#d97706">Topo</ProphecyButton>
+                <ProphecyButton onClick={() => onSetDest(c.handId, "BOTTOM")} active={routing[c.handId] === "BOTTOM"} color="#dc2626">Fundo</ProphecyButton>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+          <button onClick={onCancel} disabled={disabled} style={{ background: "#3f3f46", color: "#e4e4e7", border: "1px solid rgba(212, 160, 74, 0.3)", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>Cancelar</button>
+          <button onClick={onConfirm} disabled={disabled} style={{ background: "#7c3aed", color: "#fafafa", border: "none", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", fontWeight: "bold", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>Confirmar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProphecyButton({ onClick, active, color, children }: { onClick: () => void; active: boolean; color: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "4px 8px",
+        fontSize: "10px",
+        fontWeight: "bold",
+        borderRadius: "3px",
+        border: "none",
+        background: active ? color : "#3f3f46",
+        color: active ? "#fafafa" : "#a8a29e",
+        cursor: "pointer",
+        transition: "all 0.15s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+function MultiSelectModal({ mode, selectedIds, onToggle, onConfirm, onCancel, disabled, handCards, boardCards }: {
+  mode: { max: number; source: "BOARD" | "HAND" };
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  disabled: boolean;
+  handCards: HandCard[];
+  boardCards: BoardCard[];
+}) {
+  const items = mode.source === "HAND" ? handCards.map((c) => ({ id: c.handId, name: c.name, power: c.power, faction: c.faction, imageUrl: c.imageUrl, frameUrl: c.frameUrl })) : boardCards.map((c) => ({ id: c.boardId, name: c.name, power: c.power, faction: c.faction, imageUrl: c.imageUrl, frameUrl: c.frameUrl }));
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ background: "#18181b", border: "2px solid #f59e0b", borderRadius: "10px", padding: "20px", maxWidth: "800px", width: "100%", maxHeight: "85vh", overflow: "auto", color: "#e9d9b6", fontFamily: "system-ui, sans-serif" }}>
+        <h2 style={{ fontSize: "18px", color: "#fcd34d", margin: 0, marginBottom: "8px" }}>
+          {mode.source === "HAND" ? "Escolha cartas da mao" : "Escolha as cartas aliadas"}
+        </h2>
+        <p style={{ fontSize: "12px", color: "#a8a29e", margin: 0, marginBottom: "14px" }}>
+          {mode.source === "HAND" ? "Selecione ate " + mode.max + " carta(s) da mao para devolver ao deck." : "Selecione ate " + mode.max + " carta(s) aliada(s) para receber o efeito."}
+          <span style={{ marginLeft: "6px", color: "#fcd34d", fontFamily: "monospace" }}>
+            {selectedIds.length}/{mode.max}
+          </span>
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "8px", marginBottom: "14px" }}>
+          {items.length === 0 && (
+            <p style={{ color: "#a8a29e", fontStyle: "italic", gridColumn: "1 / -1" }}>Nenhuma carta disponivel.</p>
+          )}
+          {items.map((c) => {
+            const selected = selectedIds.includes(c.id);
+            return (
+              <button
+                key={c.id}
+                onClick={() => onToggle(c.id)}
+                disabled={disabled}
+                style={{
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "6px",
+                  border: "2px solid " + (selected ? "#f59e0b" : "#3f3f46"),
+                  background: selected ? "rgba(180, 83, 9, 0.3)" : "#27272a",
+                  color: "#e9d9b6",
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                <div style={{ fontSize: "12px", fontWeight: "bold" }}>{c.name}</div>
+                <div style={{ fontSize: "10px", color: "#a8a29e" }}>Poder {c.power}</div>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+          <button
+            onClick={onCancel}
+            disabled={disabled}
+            style={{ background: "#3f3f46", color: "#e4e4e7", border: "1px solid rgba(212, 160, 74, 0.3)", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={disabled || selectedIds.length === 0}
+            style={{ background: "#d97706", color: "#1c1917", border: "none", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", fontWeight: "bold", cursor: (disabled || selectedIds.length === 0) ? "not-allowed" : "pointer", opacity: (disabled || selectedIds.length === 0) ? 0.5 : 1 }}
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function RedrawModal({ hand, redrawsLeft, selection, onToggle, onConfirm, onSkip, disabled, playerName }: {
   hand: HandCard[];
   redrawsLeft: number;

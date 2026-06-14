@@ -1,4 +1,4 @@
-// lib/match-actions.ts
+﻿// lib/match-actions.ts
 // Server actions de partida (HOTSEAT).
 
 "use server";
@@ -9,7 +9,7 @@ import { auth } from "@/auth";
 import {
   type Side, type Row, type BoardCardState, type WeatherState, type CardDef,
   shuffle, cardAllowsRow, recomputePower, decideRoundWinner,
-  redrawsForRound, nextStartingSide, matchWinner, otherSide, weatherToRow,
+  redrawsForRound, nextStartingSide, matchWinner, otherSide, weatherToRow, weatherToRows,
 } from "./match-engine";
 import { notifyMatchChange } from "./match-events";
 
@@ -457,23 +457,17 @@ export async function playCardAction(data: {
       if (engineKey === "CLEAR_WEATHER") {
         await tx.matchWeather.deleteMany({ where: { matchId: data.matchId } });
       } else {
-        // Determina fileira: WEATHER_RAIN usa targetRow; outros usam fixa
-        const fixedRow = weatherToRow(engineKey);
-        const affectedRow = fixedRow ?? data.targetRow;
-        if (!affectedRow) throw new Error("Selecione a fileira do clima.");
-
-        // Garante única instância dessa fileira+chave (substitui se já existe)
-        await tx.matchWeather.deleteMany({
-          where: { matchId: data.matchId, affectedRow },
-        });
-        await tx.matchWeather.create({
-          data: {
-            matchId: data.matchId,
-            weatherKey: engineKey,
-            affectedRow,
-            cardId: card.id,
-          },
-        });
+        // Mapeia engineKey -> lista de fileiras afetadas (STORM afeta 2)
+        const rows = weatherToRows(engineKey);
+        if (rows.length === 0) throw new Error("Habilidade de clima invalida.");
+        for (const affectedRow of rows) {
+          await tx.matchWeather.deleteMany({
+            where: { matchId: data.matchId, affectedRow },
+          });
+          await tx.matchWeather.create({
+            data: { matchId: data.matchId, weatherKey: engineKey, affectedRow, cardId: card.id },
+          });
+        }
       }
 
       // Carta de clima vai pro descarte
@@ -822,24 +816,27 @@ export async function playCardAction(data: {
           }
 } else if (ek === "WEATHER_FROST" || ek === "WEATHER_FOG" || ek === "WEATHER_RAIN" || ek === "WEATHER_STORM") {
           // Carta SPECIAL/UNIT com habilidade de clima: aplica o clima em uma fileira
-          const fixedRow = weatherToRow(ek);
-          const affectedRow = fixedRow ?? effTargetRow;
-          if (affectedRow) {
+          const rows = weatherToRows(ek);
+
+          for (const affectedRow of rows) {
+
             await tx.matchWeather.deleteMany({
+
               where: { matchId: data.matchId, affectedRow },
+
             });
+
             await tx.matchWeather.create({
-              data: {
-                matchId: data.matchId,
-                weatherKey: ek,
-                affectedRow,
-                cardId: card.id,
-              },
+
+              data: { matchId: data.matchId, weatherKey: ek, affectedRow, cardId: card.id },
+
             });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "WEATHER",
-              { engineKey: ek, affectedRow });
-            await persistRecomputedPower(tx, data.matchId);
+
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "WEATHER", { engineKey: ek, affectedRow });
+
           }
+
+          if (rows.length > 0) await persistRecomputedPower(tx, data.matchId);
         } else if (ek === "CLEAR_WEATHER") {
           await tx.matchWeather.deleteMany({ where: { matchId: data.matchId } });
           await logEvent(tx, data.matchId, match.currentRound, data.side, "CLEAR_WEATHER", {});
@@ -1196,24 +1193,27 @@ export async function activateLeaderAction(data: {
       }
     } else if (ek === "WEATHER_FROST" || ek === "WEATHER_FOG" || ek === "WEATHER_RAIN" || ek === "WEATHER_STORM") {
         // Lider com habilidade de clima: aplica em uma fileira
-        const fixedRow = weatherToRow(ek);
-        const affectedRow = fixedRow ?? data.targetRow;
-        if (affectedRow) {
+        const rows = weatherToRows(ek);
+
+        for (const affectedRow of rows) {
+
           await tx.matchWeather.deleteMany({
+
             where: { matchId: data.matchId, affectedRow },
+
           });
+
           await tx.matchWeather.create({
-            data: {
-              matchId: data.matchId,
-              weatherKey: ek,
-              affectedRow,
-              cardId: leaderCard.id,
-            },
+
+            data: { matchId: data.matchId, weatherKey: ek, affectedRow, cardId: leaderCard.id },
+
           });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "WEATHER",
-            { engineKey: ek, affectedRow });
-          await persistRecomputedPower(tx, data.matchId);
+
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "WEATHER", { engineKey: ek, affectedRow });
+
         }
+
+        if (rows.length > 0) await persistRecomputedPower(tx, data.matchId);
       } else if (ek === "CLEAR_WEATHER") {
         await tx.matchWeather.deleteMany({ where: { matchId: data.matchId } });
         await logEvent(tx, data.matchId, match.currentRound, data.side, "CLEAR_WEATHER", {});

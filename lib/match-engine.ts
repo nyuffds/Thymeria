@@ -1,4 +1,4 @@
-// lib/match-engine.ts
+﻿// lib/match-engine.ts
 // Lógica pura do motor de partida (sem I/O, sem Prisma).
 // Funções de cálculo, helpers e validações reutilizáveis.
 
@@ -72,12 +72,18 @@ export function cardAllowsRow(cardRows: string, row: Row): boolean {
 // ─────────────────────────────────────────────
 
 export function weatherToRow(weatherKey: string): Row | null {
+  // Compatibilidade: retorna a primeira fileira ou null.
+  const rows = weatherToRows(weatherKey);
+  return rows.length > 0 ? rows[0] : null;
+}
+
+export function weatherToRows(weatherKey: string): Row[] {
   switch (weatherKey) {
-    case "WEATHER_FROST": return "MELEE";
-    case "WEATHER_FOG":   return "RANGED";
-    case "WEATHER_STORM": return "SIEGE";
-    case "WEATHER_RAIN":  return null; // RAIN é genérica; requer affectedRow no banco
-    default: return null;
+    case "WEATHER_FROST": return ["MELEE"];
+    case "WEATHER_FOG":   return ["RANGED"];
+    case "WEATHER_STORM": return ["SIEGE", "RANGED"];
+    case "WEATHER_RAIN":  return ["SIEGE"];
+    default: return [];
   }
 }
 
