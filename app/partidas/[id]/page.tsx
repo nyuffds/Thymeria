@@ -75,7 +75,7 @@ export default async function PartidaPage({
   }
   
   return (
-    <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-4">
+    <main className="flex-1 w-full">
       <div className="flex items-center justify-between mb-4">
         <Link href="/partidas" className="text-sm text-zinc-500 hover:text-amber-200">
           ← Partidas

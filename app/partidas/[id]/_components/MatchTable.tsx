@@ -618,7 +618,7 @@ export function MatchTable(props: Props) {
         animation: v2-card-enter 0.45s cubic-bezier(0.2, 1, 0.4, 1);
       }
     `}</style>
-    <div style={{ display: "flex", justifyContent: "center", padding: "20px", background: "#0c0a08", minHeight: "100vh" }}>
+    <div style={{ display: "flex", justifyContent: "center", padding: "0", background: "#0c0a08", minHeight: "100vh" }}>
       <div
         style={{
           position: "relative",
