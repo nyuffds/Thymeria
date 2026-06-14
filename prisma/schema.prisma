@@ -36,6 +36,8 @@ model User {
   tradesCreated  TradeOffer[]    @relation("TradeCreator")
   tradesTargeted TradeOffer[]    @relation("TradeTarget")
   tradesAccepted TradeOffer[]    @relation("TradeAcceptor")
+  auctionBids    AuctionBid[]
+  auctionsWon    Auction[]      @relation("AuctionWinner")
 
 }
 
@@ -116,6 +118,7 @@ model Card {
   marketListings     MarketListing[]
   tradesOffered      TradeOfferCard[]
   tradesDemanded     TradeOfferDemand[]
+  auctions           Auction[]
   boosterFixedRules  BoosterRule[]    @relation("FixedPool")
   openingResults     BoosterOpeningResult[]
   inDecksAsLeader    DeckLeader[]
@@ -252,6 +255,48 @@ model TradeOfferDemand {
 
   @@index([offerId])
   @@index([cardId])
+}
+
+// ─────────────────────────────────────────────
+// LEILOES (somente admin)
+// ─────────────────────────────────────────────
+
+model Auction {
+  id              String   @id @default(cuid())
+  cardId          String
+  quantity        Int      @default(1)
+  minBid          Int      @default(0)
+  durationSeconds Int      // 60, 180 ou 300
+  startedAt       DateTime @default(now())
+  endsAt          DateTime
+  status          String   @default("ACTIVE") // ACTIVE | FINISHED | CANCELLED
+  winnerUserId    String?
+  winningBid      Int?
+  finishedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  card   Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  winner User? @relation("AuctionWinner", fields: [winnerUserId], references: [id])
+  bids   AuctionBid[]
+
+  @@index([status])
+  @@index([endsAt])
+}
+
+model AuctionBid {
+  id              String   @id @default(cuid())
+  auctionId       String
+  bidderUserId    String
+  amount          Int
+  createdAt       DateTime @default(now())
+
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidder  User    @relation(fields: [bidderUserId], references: [id], onDelete: Cascade)
+
+  @@unique([auctionId, bidderUserId])
+  @@index([auctionId])
+  @@index([bidderUserId])
 }
 
 // ─────────────────────────────────────────────

@@ -74,6 +74,12 @@ export function Header() {
               Mercado
             </Link>
           )}
+
+        {username && (
+            <Link href="/leiloes" className="text-zinc-300 hover:text-amber-200 transition">
+              Leiloes
+            </Link>
+          )}
         {username && (
             <Link href="/estante" className="text-zinc-300 hover:text-amber-200 transition">
               Estante
