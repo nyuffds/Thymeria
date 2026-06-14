@@ -1,4 +1,4 @@
-// app/components/Header.tsx
+﻿// app/components/Header.tsx
 
 "use client";
 
@@ -56,6 +56,9 @@ export function Header() {
         </Link>
 
         <nav className="flex items-center gap-4 text-sm">
+          <Link href="/regras" className="text-zinc-300 hover:text-amber-200 transition">
+            Como jogar
+          </Link>
           <Link href="/cartas" className="text-zinc-300 hover:text-amber-200 transition">
             Cartas
           </Link>
