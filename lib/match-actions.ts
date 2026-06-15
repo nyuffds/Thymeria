@@ -1051,6 +1051,50 @@ export async function playCardAction(data: {
                 { destroyedCardId: target.card.id, summonedCardId: pick.cardId });
             }
           }
+        } else if (ek === "PERMANENCE" && effTargetBoardCardId) {
+          const target = await tx.matchBoardCard.findUnique({ where: { id: effTargetBoardCardId } });
+          if (target && target.matchId === data.matchId && target.side === data.side) {
+            const rounds = ev > 0 ? ev : 1;
+            await tx.matchBoardCard.update({
+              where: { id: target.id },
+              data: { permanenceCounter: rounds },
+            });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "PERMANENCE",
+              { targetId: target.id, rounds });
+          }
+        } else if (ek === "PUNISHMENT") {
+          const allBoard = await tx.matchBoardCard.findMany({
+            where: { matchId: data.matchId },
+            include: { card: true },
+          });
+          if (allBoard.length > 0) {
+            const maxBase = Math.max(...allBoard.map((b) => b.basePower));
+            const victims = allBoard.filter((b) => b.basePower === maxBase && !b.card.isElite && b.permanenceCounter === 0);
+            for (const v of victims) {
+              if (v.shielded) {
+                await tx.matchBoardCard.update({ where: { id: v.id }, data: { shielded: false } });
+                await logEvent(tx, data.matchId, match.currentRound, data.side, "SHIELD_CONSUMED",
+                  { targetId: v.id, by: "PUNISHMENT" });
+              } else {
+                await triggerOnDeath(tx, data.matchId, v.id);
+                await tx.matchBoardCard.delete({ where: { id: v.id } });
+                await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+                  { targetId: v.id, by: "PUNISHMENT" });
+              }
+            }
+          }
+        } else if (ek === "BLOOD_MOON") {
+          const amount = ev > 0 ? ev : 1;
+          await tx.matchAura.create({
+            data: {
+              matchId: data.matchId,
+              side: data.side,
+              engineKey: "BLOOD_MOON",
+              amount,
+            },
+          });
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "BLOOD_MOON",
+            { amount });
         }
         }
         // SHIELD já foi tratado na criação (shielded: true)
