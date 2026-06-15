@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { createNotification } from "@/lib/notifications";
 
 const prisma = new PrismaClient();
 
@@ -87,6 +88,17 @@ export async function createTradeOfferAction(data: {
       },
     });
   });
+
+  // Notificar alvo (se direcionada)
+  if (data.targetUserId) {
+    await createNotification({
+      userId: data.targetUserId,
+      type: "TRADE_OFFER",
+      title: "Nova oferta de troca!",
+      message: `${session.user.name} enviou uma proposta de troca para voce.`,
+      linkUrl: "/mercado/trocas",
+    });
+  }
 
   revalidatePath("/mercado/trocas");
   revalidatePath("/mercado/trocas/minhas");

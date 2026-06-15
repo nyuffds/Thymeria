@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { createNotification, broadcastNotification } from "@/lib/notifications";
 
 const prisma = new PrismaClient();
 
@@ -52,7 +53,7 @@ export async function createAuctionAction(data: {
   const now = new Date();
   const endsAt = new Date(now.getTime() + data.durationSeconds * 1000);
 
-  await prisma.auction.create({
+  const created = await prisma.auction.create({
     data: {
       cardId: data.cardId,
       quantity: data.quantity,
@@ -62,6 +63,14 @@ export async function createAuctionAction(data: {
       endsAt,
       status: "ACTIVE",
     },
+  });
+
+  // Broadcast para todos
+  await broadcastNotification({
+    type: "AUCTION_NEW",
+    title: "Novo leilao iniciado!",
+    message: `${card.name} esta em leilao. Termina em ${Math.floor(data.durationSeconds / 60)}min.`,
+    linkUrl: `/leiloes`,
   });
 
   revalidatePath("/leiloes");
@@ -183,6 +192,32 @@ export async function finishAuctionAction(auctionId: string) {
       },
     });
   });
+
+  // Notificar vencedor + perdedores (fora da transacao)
+  const finalAuction = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    include: { card: { select: { name: true } }, bids: { select: { bidderUserId: true } } },
+  });
+  if (finalAuction && finalAuction.winnerUserId) {
+    await createNotification({
+      userId: finalAuction.winnerUserId,
+      type: "AUCTION_WON",
+      title: "Voce venceu o leilao!",
+      message: `Voce ganhou ${finalAuction.quantity}x ${finalAuction.card.name} por ${finalAuction.winningBid} moedas.`,
+      linkUrl: "/colecao",
+    });
+    for (const bid of finalAuction.bids) {
+      if (bid.bidderUserId !== finalAuction.winnerUserId) {
+        await createNotification({
+          userId: bid.bidderUserId,
+          type: "AUCTION_LOST",
+          title: "Leilao encerrado",
+          message: `O leilao de ${finalAuction.card.name} terminou. Voce nao venceu desta vez.`,
+          linkUrl: "/leiloes",
+        });
+      }
+    }
+  }
 
   revalidatePath("/leiloes");
   revalidatePath(`/leiloes/${auctionId}`);
