@@ -601,8 +601,9 @@ model MatchAura {
   id          String   @id @default(cuid())
   matchId     String
   side        String   // "A" ou "B" - o lado afetado
-  engineKey   String   // "BLOOD_MOON" etc
-  amount      Int      // valor do boost
+  engineKey   String   // "BLOOD_MOON" | "BOOST_ROW" | "MULTIPLY_ROW"
+  amount      Int      // valor do boost (BLOOD_MOON/BOOST_ROW) ou multiplicador (MULTIPLY_ROW)
+  row         String?  // null = afeta todas as fileiras; sen\u00e3o MELEE | RANGED | SIEGE
   createdAt   DateTime @default(now())
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)

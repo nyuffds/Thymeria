@@ -105,19 +105,51 @@ async function persistRecomputedPower(
     cardDefs,
     immunities.map((i) => ({ side: i.side as Side, row: i.row as Row, turnsLeft: i.turnsLeft })),
   );
-  // Aplica auras (BLOOD_MOON): boost adicional em todas as cartas aliadas do lado
+  // Aplica auras: BLOOD_MOON (todas fileiras), BOOST_ROW (fileira X), MULTIPLY_ROW (fileira X)
   const auras = await tx.matchAura.findMany({ where: { matchId } });
-  const bloodMoonBySide: Record<string, number> = { A: 0, B: 0 };
-  for (const a of auras) {
-    if (a.engineKey === "BLOOD_MOON") {
-      bloodMoonBySide[a.side] = (bloodMoonBySide[a.side] ?? 0) + a.amount;
+
+  // Funcao helper que retorna o poder final dada side + row + base
+  function applyAuras(side: string, row: string, basePower: number): number {
+    let bloodMoonBoost = 0;
+    let rowBoost = 0;
+    let multiplier = 1;
+    for (const a of auras) {
+      if (a.side !== side) continue;
+      if (a.engineKey === "BLOOD_MOON") {
+        bloodMoonBoost += a.amount;
+      } else if (a.engineKey === "BOOST_ROW" && a.row === row) {
+        rowBoost += a.amount;
+      } else if (a.engineKey === "MULTIPLY_ROW" && a.row === row) {
+        multiplier *= a.amount; // amount = 2
+      }
     }
+    return basePower * multiplier + bloodMoonBoost + rowBoost;
   }
+
+  const boardWithCards = await tx.matchBoardCard.findMany({ where: { matchId } });
+  const cardById = new Map(boardWithCards.map((b) => [b.id, b]));
+
   for (const c of recomputed) {
-    const auraBoost = bloodMoonBySide[c.side] ?? 0;
+    const original = cardById.get(c.id);
+    if (!original) continue;
+    // c.power ja contem ajustes do recomputePower base. As auras se aplicam a partir do basePower atual.
+    // Para BOOST_ROW (somar): adiciona ao c.power.
+    // Para MULTIPLY_ROW: nao adicionamos boost, mas modificamos basePower direto antes (ja foi tratado no caster)
+    // Para BLOOD_MOON: soma adicional.
+    let extra = 0;
+    for (const a of auras) {
+      if (a.side !== c.side) continue;
+      if (a.engineKey === "BLOOD_MOON") {
+        extra += a.amount;
+      } else if (a.engineKey === "BOOST_ROW" && a.row === c.row) {
+        extra += a.amount;
+      } else if (a.engineKey === "MULTIPLY_ROW" && a.row === c.row) {
+        extra += original.basePower; // dobra: somar basePower extra
+      }
+    }
     await tx.matchBoardCard.update({
       where: { id: c.id },
-      data:  { power: c.power + auraBoost },
+      data:  { power: c.power + extra },
     });
   }
 }
