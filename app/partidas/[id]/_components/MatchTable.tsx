@@ -185,7 +185,7 @@ export function MatchTable(props: Props) {
   const [multiSelectMode, setMultiSelectMode] = useState<{ max: number; source: "BOARD" | "HAND" } | null>(null);
   const [multiSelectIds, setMultiSelectIds] = useState<string[]>([]);
   const [prophecyCards, setProphecyCards] = useState<{ handId: string; name: string; power: number; cardType: string; imageUrl: string | null }[] | null>(null);
-  const [prophecyRouting, setProphecyRouting] = useState<Record<string, "HAND" | "TOP" | "BOTTOM">>({});
+  const [prophecyRouting, setProphecyRouting] = useState<Record<string, "HAND" | "TOP" | "BOTTOM" | null>>({});
   const [weatherChoosingRow, setWeatherChoosingRow] = useState(false);
   type CollectedTargets = {
     targetBoardCardId?: string;
@@ -313,8 +313,8 @@ export function MatchTable(props: Props) {
       const peekCount = selectedHandCard.ability?.engineValue ?? 3;
       peekDeckTopAction(props.matchId, turnSide!, peekCount).then((cards) => {
         setProphecyCards(cards);
-        const initialRouting: Record<string, "HAND" | "TOP" | "BOTTOM"> = {};
-        for (const c of cards) initialRouting[c.handId] = "TOP";
+        const initialRouting: Record<string, "HAND" | "TOP" | "BOTTOM" | null> = {};
+        for (const c of cards) initialRouting[c.handId] = null;
         setProphecyRouting(initialRouting);
       });
       return;
@@ -357,8 +357,8 @@ export function MatchTable(props: Props) {
         const peekCount = selectedHandCard.ability?.secondaryEngineValue ?? 3;
         peekDeckTopAction(props.matchId, turnSide!, peekCount).then((cards) => {
           setProphecyCards(cards);
-          const initialRouting: Record<string, "HAND" | "TOP" | "BOTTOM"> = {};
-          for (const c of cards) initialRouting[c.handId] = "TOP";
+          const initialRouting: Record<string, "HAND" | "TOP" | "BOTTOM" | null> = {};
+        for (const c of cards) initialRouting[c.handId] = null;
           setProphecyRouting(initialRouting);
         });
       } else {
@@ -459,12 +459,34 @@ export function MatchTable(props: Props) {
   }
 
   function setProphecyDest(handId: string, dest: "HAND" | "TOP" | "BOTTOM") {
-    setProphecyRouting((prev) => ({ ...prev, [handId]: dest }));
+    setProphecyRouting((prev) => {
+      const current = prev[handId];
+      // Se ja esta marcado nesse destino, desmarca (toggle)
+      if (current === dest) {
+        return { ...prev, [handId]: null };
+      }
+      // Limpa qualquer outra carta com o mesmo destino (1-por-destino)
+      const next: Record<string, "HAND" | "TOP" | "BOTTOM" | null> = { ...prev };
+      for (const id of Object.keys(next)) {
+        if (next[id] === dest) next[id] = null;
+      }
+      next[handId] = dest;
+      return next;
+    });
   }
 
   function confirmProphecy() {
     if (!selectedHandCard || !chosenRow || !prophecyCards) return;
-    const routing = prophecyCards.map((c) => ({ handId: c.handId, destination: (prophecyRouting[c.handId] ?? "TOP") as "HAND" | "TOP" | "BOTTOM" }));
+    const hasHand   = prophecyCards.some((c) => prophecyRouting[c.handId] === "HAND");
+    const hasTop    = prophecyCards.some((c) => prophecyRouting[c.handId] === "TOP");
+    const hasBottom = prophecyCards.some((c) => prophecyRouting[c.handId] === "BOTTOM");
+    if (!hasHand || !hasTop || !hasBottom) {
+      alert("Voce precisa escolher exatamente uma carta para Mao, Topo e Fundo.");
+      return;
+    }
+    const routing = prophecyCards
+      .filter((c) => prophecyRouting[c.handId] !== null && prophecyRouting[c.handId] !== undefined)
+      .map((c) => ({ handId: c.handId, destination: prophecyRouting[c.handId] as "HAND" | "TOP" | "BOTTOM" }));
     setProphecyCards(null);
     setProphecyRouting({});
     submitPlay(chosenRow, { prophecyRouting: routing });
@@ -1339,18 +1361,27 @@ const leaderBtnStyle: React.CSSProperties = {
 
 function ProphecyModal({ cards, routing, onSetDest, onConfirm, onCancel, disabled }: {
   cards: { handId: string; name: string; power: number; cardType: string; imageUrl: string | null }[];
-  routing: Record<string, "HAND" | "TOP" | "BOTTOM">;
+  routing: Record<string, "HAND" | "TOP" | "BOTTOM" | null>;
   onSetDest: (handId: string, dest: "HAND" | "TOP" | "BOTTOM") => void;
   onConfirm: () => void;
   onCancel: () => void;
   disabled: boolean;
 }) {
+  const handUsed   = Object.values(routing).filter((v) => v === "HAND").length;
+  const topUsed    = Object.values(routing).filter((v) => v === "TOP").length;
+  const bottomUsed = Object.values(routing).filter((v) => v === "BOTTOM").length;
+  const ready = handUsed === 1 && topUsed === 1 && bottomUsed === 1;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
       <div style={{ background: "#18181b", border: "2px solid #a78bfa", borderRadius: "10px", padding: "20px", maxWidth: "700px", width: "100%", maxHeight: "85vh", overflow: "auto", color: "#e9d9b6", fontFamily: "system-ui, sans-serif" }}>
         <h2 style={{ fontSize: "18px", color: "#c4b5fd", margin: 0, marginBottom: "4px" }}>Profecia - Veja seu futuro</h2>
-        <p style={{ fontSize: "12px", color: "#a8a29e", margin: 0, marginBottom: "14px" }}>
-          Voce ve as proximas {cards.length} carta(s) do seu deck. Decida o destino de cada uma:
+        <p style={{ fontSize: "12px", color: "#a8a29e", margin: 0, marginBottom: "4px" }}>
+          Voce ve as proximas {cards.length} cartas do topo do seu deck. Escolha 1 para a Mao, 1 para o Topo e 1 para o Fundo.
+        </p>
+        <p style={{ fontSize: "11px", margin: 0, marginBottom: "14px" }}>
+          <span style={{ color: handUsed   === 1 ? "#16a34a" : "#71717a", marginRight: "10px" }}>Mao: {handUsed}/1</span>
+          <span style={{ color: topUsed    === 1 ? "#d97706" : "#71717a", marginRight: "10px" }}>Topo: {topUsed}/1</span>
+          <span style={{ color: bottomUsed === 1 ? "#dc2626" : "#71717a" }}>Fundo: {bottomUsed}/1</span>
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px" }}>
           {cards.map((c, idx) => (
@@ -1371,7 +1402,7 @@ function ProphecyModal({ cards, routing, onSetDest, onConfirm, onCancel, disable
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
           <button onClick={onCancel} disabled={disabled} style={{ background: "#3f3f46", color: "#e4e4e7", border: "1px solid rgba(212, 160, 74, 0.3)", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>Cancelar</button>
-          <button onClick={onConfirm} disabled={disabled} style={{ background: "#7c3aed", color: "#fafafa", border: "none", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", fontWeight: "bold", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>Confirmar</button>
+          <button onClick={onConfirm} disabled={disabled || !ready} style={{ background: "#7c3aed", color: "#fafafa", border: "none", borderRadius: "4px", padding: "8px 16px", fontSize: "13px", fontWeight: "bold", cursor: (disabled || !ready) ? "not-allowed" : "pointer", opacity: (disabled || !ready) ? 0.5 : 1 }}>Confirmar</button>
         </div>
       </div>
     </div>
