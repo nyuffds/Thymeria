@@ -57,6 +57,9 @@ export const ENGINE_KEYS = [
   { key: "PERMANENCE",       label: "Permanencia",           desc: "Uma carta aliada nao pode ser destruida e sobrevive a passagem de rondas." },
   { key: "PUNISHMENT",       label: "Punicao",               desc: "Destroi todas as cartas com o maior poder base do campo." },
   { key: "BLOOD_MOON",       label: "Lua de Sangue",         desc: "Suas cartas em todas as fileiras ganham +X de poder." },
+  { key: "RETURN_TO_HAND",   label: "Efigie",                desc: "Escolha uma carta do campo; ela volta para a mao do dono." },
+  { key: "RESURRECT_FROM_DISCARD", label: "Ressurreicao",   desc: "Volta X cartas do seu cemiterio para o campo (apenas UNIT)." },
+  { key: "SUMMON_FROM_DECK", label: "Convocacao Ritual",     desc: "Puxa X cartas aleatorias do seu deck para o campo (apenas UNIT)." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },

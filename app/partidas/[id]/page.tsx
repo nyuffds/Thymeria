@@ -253,6 +253,26 @@ export default async function PartidaPage({
             return d ? { name: d.card.name, imageUrl: d.card.imageUrl, frameUrl: d.card.frameUrl } : null;
           })(),
         }}
+        discards={{
+          A: match.hands.filter((h) => h.side === "A" && h.zone === "DISCARD" && h.card.cardType === "UNIT").map((h) => ({
+            handId: h.id,
+            name: h.card.name,
+            power: h.card.power,
+            imageUrl: h.card.imageUrl,
+            frameUrl: h.card.frameUrl,
+            rarity: h.card.rarity,
+            faction: { name: h.card.faction.name, color: h.card.faction.color },
+          })),
+          B: match.hands.filter((h) => h.side === "B" && h.zone === "DISCARD" && h.card.cardType === "UNIT").map((h) => ({
+            handId: h.id,
+            name: h.card.name,
+            power: h.card.power,
+            imageUrl: h.card.imageUrl,
+            frameUrl: h.card.frameUrl,
+            rarity: h.card.rarity,
+            faction: { name: h.card.faction.name, color: h.card.faction.color },
+          })),
+        }}
         sideEffects={{
           A: {
             immunities: match.immunities.filter((i) => i.side === "A" && i.turnsLeft > 0).map((i) => ({ row: i.row as "MELEE" | "RANGED" | "SIEGE", turnsLeft: i.turnsLeft })),

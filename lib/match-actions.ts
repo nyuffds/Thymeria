@@ -895,6 +895,9 @@ export async function playCardAction(data: {
           }
           await logEvent(tx, data.matchId, match.currentRound, data.side, "BOOST_ROW",
             { row: targetRowEffect, amount: ev, count: allies.length });
+          await tx.matchAura.create({
+            data: { matchId: data.matchId, side: ownerSide, engineKey: "BOOST_ROW", amount: ev, row: targetRowEffect },
+          });
         } else if (ek === "MULTIPLY_ROW") {
           // Dadiva: dobra basePower de todos aliados da fileira
           const targetRowEffect = effEffectRow ?? effTargetRow;
@@ -908,6 +911,9 @@ export async function playCardAction(data: {
           }
           await logEvent(tx, data.matchId, match.currentRound, data.side, "MULTIPLY_ROW",
             { row: targetRowEffect, count: allies.length });
+          await tx.matchAura.create({
+            data: { matchId: data.matchId, side: ownerSide, engineKey: "MULTIPLY_ROW", amount: 2, row: targetRowEffect },
+          });
         } else if (ek === "DESTROY_ROW") {
           // Peste: destroi todas as cartas inimigas da fileira escolhida
           const enemyRow = effEffectRow ?? effTargetRow ?? "MELEE";
@@ -1127,6 +1133,88 @@ export async function playCardAction(data: {
           });
           await logEvent(tx, data.matchId, match.currentRound, data.side, "BLOOD_MOON",
             { amount });
+        } else if (ek === "RETURN_TO_HAND" && effTargetBoardCardId) {
+          // Efigie: devolve carta do campo (aliada ou inimiga) para a mao do dono original
+          const target = await tx.matchBoardCard.findUnique({
+            where: { id: effTargetBoardCardId },
+            include: { card: true },
+          });
+          if (target && target.matchId === data.matchId && !target.card.isElite && target.permanenceCounter === 0) {
+            // Remove do board
+            await tx.matchBoardCard.delete({ where: { id: target.id } });
+            // Devolve para mao via matchHand: marca o entry original como zone HAND novamente
+            if (target.handEntryId) {
+              await tx.matchHand.update({
+                where: { id: target.handEntryId },
+                data: { zone: "HAND" },
+              });
+            }
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "RETURN_TO_HAND",
+              { targetId: target.id, returnedTo: target.side });
+          }
+        } else if (ek === "RESURRECT_FROM_DISCARD" && effMultiTargetIds && effMultiTargetIds.length > 0) {
+          // Ressurreicao: seleciona X cartas UNIT do cemiterio e joga na 1a fileira permitida
+          const max = ev > 0 ? ev : effMultiTargetIds.length;
+          const chosen = effMultiTargetIds.slice(0, max);
+          const fromDiscard = await tx.matchHand.findMany({
+            where: { id: { in: chosen }, matchId: data.matchId, side: data.side, zone: "DISCARD" },
+            include: { card: true },
+          });
+          let resurrected = 0;
+          for (const entry of fromDiscard) {
+            if (entry.card.cardType !== "UNIT") continue;
+            const allowedRows = entry.card.rows.split(",").filter(Boolean);
+            const targetRow = (allowedRows[0] ?? "MELEE") as Row;
+            await tx.matchBoardCard.create({
+              data: {
+                matchId: data.matchId,
+                side: data.side,
+                cardId: entry.cardId,
+                row: targetRow,
+                basePower: entry.card.power,
+                power: entry.card.power,
+                shielded: false,
+                isToken: false,
+                handEntryId: entry.id,
+              },
+            });
+            await tx.matchHand.update({ where: { id: entry.id }, data: { zone: "BOARD" } });
+            resurrected++;
+          }
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "RESURRECT_FROM_DISCARD",
+            { count: resurrected });
+        } else if (ek === "SUMMON_FROM_DECK") {
+          // Convocacao Ritual: puxa X cartas aleatorias UNIT do deck e joga na 1a fileira permitida
+          const count = ev > 0 ? ev : 1;
+          const deckUnits = await tx.matchHand.findMany({
+            where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+            include: { card: true },
+          });
+          const units = deckUnits.filter((d) => d.card.cardType === "UNIT");
+          const shuffled = [...units].sort(() => Math.random() - 0.5);
+          const picked = shuffled.slice(0, count);
+          let summoned = 0;
+          for (const entry of picked) {
+            const allowedRows = entry.card.rows.split(",").filter(Boolean);
+            const targetRow = (allowedRows[0] ?? "MELEE") as Row;
+            await tx.matchBoardCard.create({
+              data: {
+                matchId: data.matchId,
+                side: data.side,
+                cardId: entry.cardId,
+                row: targetRow,
+                basePower: entry.card.power,
+                power: entry.card.power,
+                shielded: false,
+                isToken: false,
+                handEntryId: entry.id,
+              },
+            });
+            await tx.matchHand.update({ where: { id: entry.id }, data: { zone: "BOARD" } });
+            summoned++;
+          }
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "SUMMON_FROM_DECK",
+            { count: summoned });
         }
         }
         // SHIELD já foi tratado na criação (shielded: true)

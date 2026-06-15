@@ -103,9 +103,18 @@ interface Props {
     auras: Array<{ engineKey: string; amount: number }>;
     weathers: Array<{ weatherKey: string; affectedRow: "MELEE" | "RANGED" | "SIEGE" }>;
   }>;
+  discards: Record<Side, Array<{
+    handId: string;
+    name: string;
+    power: number;
+    imageUrl: string | null;
+    frameUrl: string | null;
+    rarity: string;
+    faction: { name: string; color: string };
+  }>>;
 }
 
-const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION", "PERMANENCE"]);
+const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION", "PERMANENCE", "RETURN_TO_HAND"]);
 const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW", "WEATHER_RAIN"]);
 
 export function MatchTable(props: Props) {
@@ -186,11 +195,11 @@ export function MatchTable(props: Props) {
 
   // Estado de ativacao do lider
   const [activatingLeader, setActivatingLeader] = useState<Side | null>(null);
-  const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
+  const [leaderTargetMode, setLeaderTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ROW_ALLY" | "ROW_ENEMY" | "ANY">("NONE");
   const [chosenRow, setChosenRow] = useState<Row | null>(null);
-  const [targetMode, setTargetMode] = useState<"NONE" | "ALLY" | "ENEMY">("NONE");
+  const [targetMode, setTargetMode] = useState<"NONE" | "ALLY" | "ENEMY" | "ANY">("NONE");
   const [rowTargetMode, setRowTargetMode] = useState<"NONE" | "ROW_ALLY" | "ROW_ENEMY">("NONE");
-  const [multiSelectMode, setMultiSelectMode] = useState<{ max: number; source: "BOARD" | "HAND" } | null>(null);
+  const [multiSelectMode, setMultiSelectMode] = useState<{ max: number; source: "BOARD" | "HAND" | "DISCARD" } | null>(null);
   const [multiSelectIds, setMultiSelectIds] = useState<string[]>([]);
   const [prophecyCards, setProphecyCards] = useState<{ handId: string; name: string; power: number; cardType: string; imageUrl: string | null }[] | null>(null);
   const [prophecyRouting, setProphecyRouting] = useState<Record<string, "HAND" | "TOP" | "BOTTOM" | null>>({});
@@ -241,7 +250,7 @@ export function MatchTable(props: Props) {
 
     if (ek && NEEDS_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
-      setLeaderTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE") ? "ALLY" : "ENEMY");
+      setLeaderTargetMode((ek === "RETURN_TO_HAND") ? "ANY" : ((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE") ? "ALLY" : "ENEMY"));
     } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
       setLeaderTargetMode((ek === "DESTROY_ROW") ? "ROW_ENEMY" : "ROW_ALLY");
@@ -296,7 +305,7 @@ export function MatchTable(props: Props) {
 
     // Habilidades com alvo simples
     if (ek && NEEDS_TARGET.has(ek)) {
-      setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE") ? "ALLY" : "ENEMY");
+      setTargetMode((ek === "RETURN_TO_HAND") ? "ANY" : ((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE") ? "ALLY" : "ENEMY"));
       return;
     }
 
@@ -312,6 +321,14 @@ export function MatchTable(props: Props) {
     if (ek === "SHUFFLE_AND_DRAW") {
       const max = selectedHandCard.ability?.engineValue ?? 3;
       setMultiSelectMode({ max, source: "HAND" });
+      setMultiSelectIds([]);
+      return;
+    }
+
+    // RESURRECT_FROM_DISCARD - selecionar N UNIT do cemiterio
+    if (ek === "RESURRECT_FROM_DISCARD") {
+      const max = selectedHandCard.ability?.engineValue ?? 1;
+      setMultiSelectMode({ max, source: "DISCARD" });
       setMultiSelectIds([]);
       return;
     }
@@ -352,7 +369,7 @@ export function MatchTable(props: Props) {
       setMultiSelectIds([]);
       const sek = selectedHandCard.ability?.secondaryEngineKey ?? null;
       if (sek && NEEDS_TARGET.has(sek)) {
-        setTargetMode((sek === "BOOST" || sek === "HEAL" || sek === "EVOLVE_FACTION" || sek === "PERMANENCE") ? "ALLY" : "ENEMY");
+        setTargetMode((sek === "RETURN_TO_HAND") ? "ANY" : ((sek === "BOOST" || sek === "HEAL" || sek === "EVOLVE_FACTION" || sek === "PERMANENCE") ? "ALLY" : "ENEMY"));
       } else if (sek && NEEDS_ROW_TARGET.has(sek)) {
         setRowTargetMode((sek === "DESTROY_ROW" || sek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
       } else if (sek === "BOOST_MANY") {
@@ -628,10 +645,12 @@ export function MatchTable(props: Props) {
     if (activatingLeader) {
       if (leaderTargetMode === "ALLY") return c.side === activatingLeader && !c.isElite;
       if (leaderTargetMode === "ENEMY") return c.side !== activatingLeader && !c.isElite;
+      if (leaderTargetMode === "ANY") return !c.isElite;
       return false;
     }
     if (targetMode === "ALLY") return c.side === turnSide && !c.isElite;
     if (targetMode === "ENEMY") return c.side !== turnSide && !c.isElite;
+    if (targetMode === "ANY") return !c.isElite;
     return false;
   }
 
@@ -816,7 +835,7 @@ export function MatchTable(props: Props) {
               boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
             }}
           >
-            <span>Clique numa carta {targetMode === "ALLY" ? "aliada" : "inimiga"} no tabuleiro</span>
+            <span>Clique numa carta {targetMode === "ALLY" ? "aliada" : targetMode === "ENEMY" ? "inimiga" : "do tabuleiro (qualquer)"} no tabuleiro</span>
             {chosenRow && (
               <button
                 onClick={() => executePlayCard(chosenRow!, undefined)}
@@ -914,6 +933,7 @@ export function MatchTable(props: Props) {
             disabled={isPending}
             handCards={turnSide ? props.hands[turnSide].filter((c) => c.handId !== selectedHandCard.handId) : []}
             boardCards={turnSide ? props.board.filter((c) => c.side === turnSide && !c.isElite) : []}
+            discardCards={turnSide ? props.discards[turnSide] : []}
           />
         )}
 
@@ -1482,8 +1502,8 @@ function ProphecyButton({ onClick, active, color, children }: { onClick: () => v
     </button>
   );
 }
-function MultiSelectModal({ mode, selectedIds, onToggle, onConfirm, onCancel, disabled, handCards, boardCards }: {
-  mode: { max: number; source: "BOARD" | "HAND" };
+function MultiSelectModal({ mode, selectedIds, onToggle, onConfirm, onCancel, disabled, handCards, boardCards, discardCards }: {
+  mode: { max: number; source: "BOARD" | "HAND" | "DISCARD" };
   selectedIds: string[];
   onToggle: (id: string) => void;
   onConfirm: () => void;
@@ -1491,16 +1511,21 @@ function MultiSelectModal({ mode, selectedIds, onToggle, onConfirm, onCancel, di
   disabled: boolean;
   handCards: HandCard[];
   boardCards: BoardCard[];
+  discardCards: Array<{ handId: string; name: string; power: number; imageUrl: string | null; frameUrl: string | null; faction: { name: string; color: string } }>;
 }) {
-  const items = mode.source === "HAND" ? handCards.map((c) => ({ id: c.handId, name: c.name, power: c.power, faction: c.faction, imageUrl: c.imageUrl, frameUrl: c.frameUrl })) : boardCards.map((c) => ({ id: c.boardId, name: c.name, power: c.power, faction: c.faction, imageUrl: c.imageUrl, frameUrl: c.frameUrl }));
+  const items = mode.source === "HAND"
+    ? handCards.map((c) => ({ id: c.handId, name: c.name, power: c.power, faction: c.faction, imageUrl: c.imageUrl, frameUrl: c.frameUrl }))
+    : mode.source === "DISCARD"
+      ? discardCards.map((c) => ({ id: c.handId, name: c.name, power: c.power, faction: c.faction, imageUrl: c.imageUrl, frameUrl: c.frameUrl }))
+      : boardCards.map((c) => ({ id: c.boardId, name: c.name, power: c.power, faction: c.faction, imageUrl: c.imageUrl, frameUrl: c.frameUrl }));
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
       <div style={{ background: "#18181b", border: "2px solid #f59e0b", borderRadius: "10px", padding: "20px", maxWidth: "800px", width: "100%", maxHeight: "85vh", overflow: "auto", color: "#e9d9b6", fontFamily: "system-ui, sans-serif" }}>
         <h2 style={{ fontSize: "18px", color: "#fcd34d", margin: 0, marginBottom: "8px" }}>
-          {mode.source === "HAND" ? "Escolha cartas da mao" : "Escolha as cartas aliadas"}
+          {mode.source === "HAND" ? "Escolha cartas da mao" : mode.source === "DISCARD" ? "Escolha cartas do cemiterio" : "Escolha as cartas aliadas"}
         </h2>
         <p style={{ fontSize: "12px", color: "#a8a29e", margin: 0, marginBottom: "14px" }}>
-          {mode.source === "HAND" ? "Selecione ate " + mode.max + " carta(s) da mao para devolver ao deck." : "Selecione ate " + mode.max + " carta(s) aliada(s) para receber o efeito."}
+          {mode.source === "HAND" ? "Selecione ate " + mode.max + " carta(s) da mao para devolver ao deck." : mode.source === "DISCARD" ? "Selecione ate " + mode.max + " unidade(s) do cemiterio para ressuscitar." : "Selecione ate " + mode.max + " carta(s) aliada(s) para receber o efeito."}
           <span style={{ marginLeft: "6px", color: "#fcd34d", fontFamily: "monospace" }}>
             {selectedIds.length}/{mode.max}
           </span>
