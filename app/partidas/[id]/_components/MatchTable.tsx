@@ -100,7 +100,7 @@ interface Props {
   lastDiscarded: Record<Side, { name: string; imageUrl: string | null; frameUrl: string | null } | null>;
 }
 
-const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION"]);
+const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION", "PERMANENCE"]);
 const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW", "WEATHER_RAIN"]);
 
 export function MatchTable(props: Props) {
@@ -236,7 +236,7 @@ export function MatchTable(props: Props) {
 
     if (ek && NEEDS_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
-      setLeaderTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
+      setLeaderTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE") ? "ALLY" : "ENEMY");
     } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
       setLeaderTargetMode((ek === "DESTROY_ROW") ? "ROW_ENEMY" : "ROW_ALLY");
@@ -291,7 +291,7 @@ export function MatchTable(props: Props) {
 
     // Habilidades com alvo simples
     if (ek && NEEDS_TARGET.has(ek)) {
-      setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
+      setTargetMode((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE") ? "ALLY" : "ENEMY");
       return;
     }
 
@@ -347,7 +347,7 @@ export function MatchTable(props: Props) {
       setMultiSelectIds([]);
       const sek = selectedHandCard.ability?.secondaryEngineKey ?? null;
       if (sek && NEEDS_TARGET.has(sek)) {
-        setTargetMode((sek === "BOOST" || sek === "HEAL" || sek === "EVOLVE_FACTION") ? "ALLY" : "ENEMY");
+        setTargetMode((sek === "BOOST" || sek === "HEAL" || sek === "EVOLVE_FACTION" || sek === "PERMANENCE") ? "ALLY" : "ENEMY");
       } else if (sek && NEEDS_ROW_TARGET.has(sek)) {
         setRowTargetMode((sek === "DESTROY_ROW" || sek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
       } else if (sek === "BOOST_MANY") {

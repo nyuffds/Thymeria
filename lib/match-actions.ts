@@ -105,10 +105,19 @@ async function persistRecomputedPower(
     cardDefs,
     immunities.map((i) => ({ side: i.side as Side, row: i.row as Row, turnsLeft: i.turnsLeft })),
   );
+  // Aplica auras (BLOOD_MOON): boost adicional em todas as cartas aliadas do lado
+  const auras = await tx.matchAura.findMany({ where: { matchId } });
+  const bloodMoonBySide: Record<string, number> = { A: 0, B: 0 };
+  for (const a of auras) {
+    if (a.engineKey === "BLOOD_MOON") {
+      bloodMoonBySide[a.side] = (bloodMoonBySide[a.side] ?? 0) + a.amount;
+    }
+  }
   for (const c of recomputed) {
+    const auraBoost = bloodMoonBySide[c.side] ?? 0;
     await tx.matchBoardCard.update({
       where: { id: c.id },
-      data:  { power: c.power },
+      data:  { power: c.power + auraBoost },
     });
   }
 }
@@ -1311,19 +1320,42 @@ async function finalizeRound(
     return;
   }
 
-  const persistentLeaders = await tx.matchBoardCard.findMany({
+const boardCards = await tx.matchBoardCard.findMany({
     where: { matchId },
     include: { card: true },
   });
-  const idsToDelete = persistentLeaders
-    .filter((b) => !(b.card.cardType === "LEADER" && b.card.leaderMode === "PERSISTENT"))
-    .map((b) => b.id);
+  const survivors = boardCards.filter((b) =>
+    (b.card.cardType === "LEADER" && b.card.leaderMode === "PERSISTENT") ||
+    b.permanenceCounter > 0
+  );
+  const survivorIds = new Set(survivors.map((s) => s.id));
+  const survivorHandIds = new Set(survivors.map((s) => s.handEntryId).filter((id): id is string => !!id));
+  const idsToDelete = boardCards.filter((b) => !survivorIds.has(b.id)).map((b) => b.id);
 
   await tx.matchBoardCard.deleteMany({ where: { id: { in: idsToDelete } } });
-  // Cartas que estavam no campo viram cemiterio
-  await tx.matchHand.updateMany({ where: { matchId, zone: "BOARD" }, data: { zone: "DISCARD" } });
+
+  // Decrementa permanenceCounter dos sobreviventes
+  for (const s of survivors) {
+    if (s.permanenceCounter > 0) {
+      await tx.matchBoardCard.update({
+        where: { id: s.id },
+        data: { permanenceCounter: s.permanenceCounter - 1 },
+      });
+    }
+  }
+
+  // Cartas no campo viram cemiterio, exceto sobreviventes
+  await tx.matchHand.updateMany({
+    where: {
+      matchId,
+      zone: "BOARD",
+      NOT: { id: { in: Array.from(survivorHandIds) } },
+    },
+    data: { zone: "DISCARD" },
+  });
   await tx.matchWeather.deleteMany({ where: { matchId } });
   await tx.matchRowImmunity.deleteMany({ where: { matchId } });
+  await tx.matchAura.deleteMany({ where: { matchId } });
 
   const nextRound = match.currentRound + 1;
   const newStarter = nextStartingSide(

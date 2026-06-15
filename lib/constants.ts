@@ -1,4 +1,4 @@
-// lib/constants.ts
+﻿// lib/constants.ts
 // Constantes globais do projeto.
 
 export const RARITIES = [
@@ -54,6 +54,9 @@ export const ENGINE_KEYS = [
   { key: "EVOLVE_FACTION",   label: "Evolucao",              desc: "Destroi um aliado e invoca outro da mesma faccao do deck." },
   { key: "IMMUNE_ROW",       label: "Bloqueio Temporal",     desc: "Cartas na fileira nao podem ser destruidas ou reduzidas." },
   { key: "ON_DEATH_SPAWN",   label: "Imperdoavel",           desc: "Ao morrer, gera uma carta especifica na sua mao." },
+  { key: "PERMANENCE",       label: "Permanencia",           desc: "Uma carta aliada nao pode ser destruida e sobrevive a passagem de rondas." },
+  { key: "PUNISHMENT",       label: "Punicao",               desc: "Destroi todas as cartas com o maior poder base do campo." },
+  { key: "BLOOD_MOON",       label: "Lua de Sangue",         desc: "Suas cartas em todas as fileiras ganham +X de poder." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },
