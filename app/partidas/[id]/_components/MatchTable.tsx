@@ -598,6 +598,61 @@ export function MatchTable(props: Props) {
       }
       // WEATHER_RAIN agora tem fileira fixa SIEGE - cai no branch fixed acima
     }
+
+    // Carta SPECIAL: nao ocupa fileira. Abre direto o modo de alvo da habilidade.
+    if (card.cardType === "SPECIAL") {
+      const ek = card.ability?.engineKey ?? null;
+      // Habilidades de fileira (BOOST_ROW, MULTIPLY_ROW, DESTROY_ROW, IMMUNE_ROW)
+      if (ek && NEEDS_ROW_TARGET.has(ek)) {
+        setRowTargetMode((ek === "DESTROY_ROW") ? "ROW_ENEMY" : "ROW_ALLY");
+        return;
+      }
+      // Habilidades com alvo simples
+      if (ek && NEEDS_TARGET.has(ek)) {
+        setTargetMode((ek === "RETURN_TO_HAND") ? "ANY" : ((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE") ? "ALLY" : "ENEMY"));
+        return;
+      }
+      // Multi-select fontes
+      if (ek === "BOOST_MANY") {
+        const max = (card.ability as any)?.targetCount ?? 3;
+        setMultiSelectMode({ max, source: "BOARD" });
+        setMultiSelectIds([]);
+        return;
+      }
+      if (ek === "SHUFFLE_AND_DRAW") {
+        const max = card.ability?.engineValue ?? 3;
+        setMultiSelectMode({ max, source: "HAND" });
+        setMultiSelectIds([]);
+        return;
+      }
+      if (ek === "RESURRECT_FROM_DISCARD") {
+        const max = card.ability?.engineValue ?? 1;
+        setMultiSelectMode({ max, source: "DISCARD" });
+        setMultiSelectIds([]);
+        return;
+      }
+      if (ek === "PROPHECY") {
+        const peekCount = card.ability?.engineValue ?? 3;
+        peekDeckTopAction(props.matchId, turnSide!, peekCount).then((cards) => {
+          setProphecyCards(cards);
+          const initialRouting: Record<string, "HAND" | "TOP" | "BOTTOM" | null> = {};
+          for (const c of cards) initialRouting[c.handId] = null;
+          setProphecyRouting(initialRouting);
+        });
+        return;
+      }
+      // Outras habilidades sem alvo: joga direto
+      guard(async () => {
+        await playCardAction({
+          matchId: props.matchId,
+          side: turnSide!,
+          handCardId: card.handId,
+          targetRow: "MELEE", // ignorado pra SPECIAL
+        });
+        setSelectedHandCard(null);
+      });
+      return;
+    }
   }
 
   function playWeatherOnRow(row: Row) {

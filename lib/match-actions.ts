@@ -545,7 +545,9 @@ export async function playCardAction(data: {
 
       // Coloca na mesa (UNIT/SPECIAL persistem; alguns SPECIAL puros poderiam só efeito,
       // mas por simplicidade tudo vai pra mesa exceto WEATHER)
-      const newBoardCard = await tx.matchBoardCard.create({
+      // SPECIAL nao ocupa fileira: vai direto pro descarte (igual WEATHER). UNIT vai pro board.
+      const goesToBoard = card.cardType === "UNIT";
+      const newBoardCard = goesToBoard ? await tx.matchBoardCard.create({
         data: {
           matchId: data.matchId,
           side: ownerSide,
@@ -555,13 +557,13 @@ export async function playCardAction(data: {
           power: card.power,
           isToken: false,
           shielded: card.ability?.engineKey === "SHIELD",
-            handEntryId: handEntry.id,
+          handEntryId: handEntry.id,
         },
-      });
+      }) : null;
 
       await tx.matchHand.update({
         where: { id: handEntry.id },
-        data:  { zone: "BOARD" },
+        data:  { zone: goesToBoard ? "BOARD" : "DISCARD" },
       });
 
       await logEvent(tx, data.matchId, match.currentRound, data.side, "PLAY_CARD",
@@ -886,13 +888,9 @@ export async function playCardAction(data: {
           // Inspiracao: +ev de basePower em todos aliados da fileira (effectRow OU targetRow)
           const targetRowEffect = effEffectRow ?? effTargetRow;
           const allies = await tx.matchBoardCard.findMany({
-            where: { matchId: data.matchId, side: ownerSide, row: targetRowEffect, id: { not: newBoardCard.id } },
+            where: { matchId: data.matchId, side: ownerSide, row: targetRowEffect, id: { not: newBoardCard?.id ?? "" } },
             include: { card: true },
           });
-          for (const a of allies) {
-            if (a.card.isElite) continue;
-            await tx.matchBoardCard.update({ where: { id: a.id }, data: { basePower: a.basePower + ev } });
-          }
           await logEvent(tx, data.matchId, match.currentRound, data.side, "BOOST_ROW",
             { row: targetRowEffect, amount: ev, count: allies.length });
           await tx.matchAura.create({
@@ -902,13 +900,9 @@ export async function playCardAction(data: {
           // Dadiva: dobra basePower de todos aliados da fileira
           const targetRowEffect = effEffectRow ?? effTargetRow;
           const allies = await tx.matchBoardCard.findMany({
-            where: { matchId: data.matchId, side: ownerSide, row: targetRowEffect, id: { not: newBoardCard.id } },
+            where: { matchId: data.matchId, side: ownerSide, row: targetRowEffect, id: { not: newBoardCard?.id ?? "" } },
             include: { card: true },
           });
-          for (const a of allies) {
-            if (a.card.isElite) continue;
-            await tx.matchBoardCard.update({ where: { id: a.id }, data: { basePower: a.basePower * 2 } });
-          }
           await logEvent(tx, data.matchId, match.currentRound, data.side, "MULTIPLY_ROW",
             { row: targetRowEffect, count: allies.length });
           await tx.matchAura.create({
