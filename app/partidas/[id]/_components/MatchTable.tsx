@@ -98,6 +98,11 @@ interface Props {
   drawOfferedBy: Side | null;
   winnerSide: Side | "DRAW" | null;
   lastDiscarded: Record<Side, { name: string; imageUrl: string | null; frameUrl: string | null } | null>;
+  sideEffects: Record<Side, {
+    immunities: Array<{ row: "MELEE" | "RANGED" | "SIEGE"; turnsLeft: number }>;
+    auras: Array<{ engineKey: string; amount: number }>;
+    weathers: Array<{ weatherKey: string; affectedRow: "MELEE" | "RANGED" | "SIEGE" }>;
+  }>;
 }
 
 const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION", "PERMANENCE"]);
@@ -944,8 +949,10 @@ export function MatchTable(props: Props) {
             events={props.currentRoundEvents}
           />
         )}
-        <Region pos={{ top: "8.5%", left: "83.2%", width: "14.8%", height: "41%" }}><HistoryPanel events={props.currentRoundEvents} playerNames={{ A: pA.username, B: pB.username }} currentRound={props.round} /></Region>
-        <Region pos={{ top: "59.5%", left: "83.2%", width: "14.8%", height: "36.5%" }}><WeatherPanel weather={props.weather} /></Region>
+        <Region pos={{ top: "8.5%", left: "84%", width: "14.8%", height: "41%" }}><HistoryPanel events={props.currentRoundEvents} playerNames={{ A: pA.username, B: pB.username }} currentRound={props.round} /></Region>
+        <Region pos={{ top: "59.5%", left: "83.5%", width: "14.8%", height: "17%" }}><WeatherPanel weather={props.weather} /></Region>
+        <Region pos={{ top: "77.5%", left: "83.5%", width: "7%", height: "19%" }}><SideEffectsPanel sideLabel="A" data={props.sideEffects.A} /></Region>
+        <Region pos={{ top: "77.5%", left: "91%", width: "7%", height: "19%" }}><SideEffectsPanel sideLabel="B" data={props.sideEffects.B} /></Region>
       </div>
     </div>
     </>
@@ -1348,6 +1355,49 @@ function WeatherPanel({ weather }: { weather: WeatherInfo[] }) {
   );
 }
 
+interface SideEffectsData {
+  immunities: Array<{ row: "MELEE" | "RANGED" | "SIEGE"; turnsLeft: number }>;
+  auras: Array<{ engineKey: string; amount: number }>;
+  weathers: Array<{ weatherKey: string; affectedRow: "MELEE" | "RANGED" | "SIEGE" }>;
+}
+
+function SideEffectsPanel({ sideLabel, data }: { sideLabel: string; data: SideEffectsData }) {
+  const rowAbbr: Record<string, string> = { MELEE: "M", RANGED: "D", SIEGE: "C" };
+  const weatherIcon: Record<string, string> = {
+    WEATHER_RAIN: "\ud83c\udf27\ufe0f",
+    WEATHER_FROST: "\u2744\ufe0f",
+    WEATHER_FOG: "\ud83c\udf2b\ufe0f",
+    WEATHER_STORM: "\u26a1",
+  };
+  const auraIcon: Record<string, string> = {
+    BLOOD_MOON: "\ud83c\udf15",
+  };
+  const totalEffects = data.immunities.length + data.auras.length + data.weathers.length;
+  return (
+    <div style={{ width: "100%", height: "100%", padding: "5px", background: "rgba(15, 12, 8, 0.78)", border: "1px solid rgba(196, 144, 76, 0.3)", borderRadius: "4px", fontFamily: "system-ui, sans-serif", color: "#e9d9b6", overflow: "auto" }}>
+      <div style={{ fontSize: "9px", color: "#c4904c", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px", fontWeight: "bold", textAlign: "center" }}>{sideLabel}</div>
+      {totalEffects === 0 && <div style={{ fontSize: "8px", color: "#71717a", textAlign: "center", marginTop: "8px", fontStyle: "italic" }}>vazio</div>}
+      {data.weathers.map((w, i) => (
+        <div key={"w" + i} style={{ fontSize: "9px", marginBottom: "2px", padding: "2px 4px", background: "rgba(56, 189, 248, 0.15)", border: "1px solid rgba(56, 189, 248, 0.4)", borderRadius: "3px", display: "flex", alignItems: "center", gap: "3px" }}>
+          <span style={{ fontSize: "11px" }}>{weatherIcon[w.weatherKey] ?? "\u26c5"}</span>
+          <span style={{ color: "#7dd3fc" }}>{rowAbbr[w.affectedRow]}</span>
+        </div>
+      ))}
+      {data.immunities.map((m, i) => (
+        <div key={"i" + i} style={{ fontSize: "9px", marginBottom: "2px", padding: "2px 4px", background: "rgba(168, 85, 247, 0.15)", border: "1px solid rgba(168, 85, 247, 0.4)", borderRadius: "3px", display: "flex", alignItems: "center", gap: "3px" }}>
+          <span style={{ fontSize: "11px" }}>{"\ud83d\udee1\ufe0f"}</span>
+          <span style={{ color: "#d8b4fe" }}>{rowAbbr[m.row]}/{m.turnsLeft}t</span>
+        </div>
+      ))}
+      {data.auras.map((a, i) => (
+        <div key={"a" + i} style={{ fontSize: "9px", marginBottom: "2px", padding: "2px 4px", background: "rgba(220, 38, 38, 0.15)", border: "1px solid rgba(220, 38, 38, 0.4)", borderRadius: "3px", display: "flex", alignItems: "center", gap: "3px" }}>
+          <span style={{ fontSize: "11px" }}>{auraIcon[a.engineKey] ?? "\u2728"}</span>
+          <span style={{ color: "#fca5a5" }}>+{a.amount}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const leaderBtnStyle: React.CSSProperties = {
   background: "#7c3aed",

@@ -44,6 +44,8 @@ export default async function PartidaPage({
       weather: {
         include: { card: { include: { faction: true, ability: true } } },
       },
+      immunities: true,
+      auras: true,
       events: {
         orderBy: { createdAt: "asc" },
       },
@@ -250,6 +252,18 @@ export default async function PartidaPage({
             const d = match.hands.find((h) => h.side === "B" && h.zone === "DISCARD");
             return d ? { name: d.card.name, imageUrl: d.card.imageUrl, frameUrl: d.card.frameUrl } : null;
           })(),
+        }}
+        sideEffects={{
+          A: {
+            immunities: match.immunities.filter((i) => i.side === "A" && i.turnsLeft > 0).map((i) => ({ row: i.row as "MELEE" | "RANGED" | "SIEGE", turnsLeft: i.turnsLeft })),
+            auras: match.auras.filter((a) => a.side === "A").map((a) => ({ engineKey: a.engineKey, amount: a.amount })),
+            weathers: match.weather.filter((w) => match.board.some((b) => b.side === "A" && b.row === w.affectedRow)).map((w) => ({ weatherKey: w.weatherKey, affectedRow: w.affectedRow as "MELEE" | "RANGED" | "SIEGE" })),
+          },
+          B: {
+            immunities: match.immunities.filter((i) => i.side === "B" && i.turnsLeft > 0).map((i) => ({ row: i.row as "MELEE" | "RANGED" | "SIEGE", turnsLeft: i.turnsLeft })),
+            auras: match.auras.filter((a) => a.side === "B").map((a) => ({ engineKey: a.engineKey, amount: a.amount })),
+            weathers: match.weather.filter((w) => match.board.some((b) => b.side === "B" && b.row === w.affectedRow)).map((w) => ({ weatherKey: w.weatherKey, affectedRow: w.affectedRow as "MELEE" | "RANGED" | "SIEGE" })),
+          },
         }}
       />
     </main>
