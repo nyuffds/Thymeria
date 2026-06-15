@@ -109,6 +109,9 @@ export default async function PartidaPage({
                 imageUrl: pA.deck.leader.card.imageUrl,
                 frameUrl: pA.deck.leader.card.frameUrl,
                 leaderMode: pA.deck.leader.card.leaderMode,
+                power: pA.deck.leader.card.power,
+                rarity: pA.deck.leader.card.rarity,
+                cardType: pA.deck.leader.card.cardType,
                 ability: pA.deck.leader.card.ability ? {
                   name: pA.deck.leader.card.ability.name,
                   description: pA.deck.leader.card.ability.description,
@@ -136,6 +139,9 @@ export default async function PartidaPage({
                 imageUrl: pB.deck.leader.card.imageUrl,
                 frameUrl: pB.deck.leader.card.frameUrl,
                 leaderMode: pB.deck.leader.card.leaderMode,
+                power: pB.deck.leader.card.power,
+                rarity: pB.deck.leader.card.rarity,
+                cardType: pB.deck.leader.card.cardType,
                 ability: pB.deck.leader.card.ability ? {
                   name: pB.deck.leader.card.ability.name,
                   description: pB.deck.leader.card.ability.description,

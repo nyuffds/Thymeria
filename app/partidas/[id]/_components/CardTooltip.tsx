@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect } from "react";
 
@@ -19,6 +19,7 @@ interface CardData {
 interface Props {
   card: CardData;
   children: React.ReactNode;
+  fillContainer?: boolean;
 }
 
 const RARITY_LABEL: Record<string, string> = {
@@ -42,7 +43,7 @@ const TYPE_LABEL: Record<string, string> = {
   LEADER: "Líder",
 };
 
-export function CardTooltip({ card, children }: Props) {
+export function CardTooltip({ card, children, fillContainer }: Props) {
   const [show, setShow] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const wrapperRef = useRef<HTMLSpanElement>(null);
@@ -68,7 +69,7 @@ export function CardTooltip({ card, children }: Props) {
       ref={wrapperRef}
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
-      className="relative inline-block"
+      className={fillContainer ? "relative block w-full h-full" : "relative inline-block"}
     >
       {children}
       {show && position && (

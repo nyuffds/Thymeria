@@ -26,6 +26,9 @@ interface PlayerInfo {
       imageUrl: string | null;
       frameUrl: string | null;
       leaderMode: string | null;
+      power: number;
+      rarity: string;
+      cardType: string;
       ability: { name: string; description: string; engineKey: string | null; targetCount?: number | null } | null;
     } | null;
   };
@@ -1754,6 +1757,16 @@ function LeaderTile({ p, side, turnSide, canAct, onActivate, disabled }: { p: Pl
   const canActivate = canAct && side === turnSide && leader.leaderMode === "ACTIVE" && !p.leaderUsed && !disabled;
   const isTurn = side === turnSide;
   return (
+    <CardTooltip fillContainer card={{
+      name: leader.name,
+      power: leader.power,
+      rarity: leader.rarity,
+      cardType: leader.cardType,
+      imageUrl: leader.imageUrl,
+      frameUrl: leader.frameUrl,
+      faction: p.deck.faction,
+      ability: leader.ability ? { name: leader.ability.name, description: leader.ability.description } : null,
+    }}>
     <div
       style={{
         width: "100%",
@@ -1817,6 +1830,7 @@ function LeaderTile({ p, side, turnSide, canAct, onActivate, disabled }: { p: Pl
         </div>
       )}
     </div>
+    </CardTooltip>
   );
 }
 
