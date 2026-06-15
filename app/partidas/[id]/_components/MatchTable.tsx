@@ -674,14 +674,14 @@ export function MatchTable(props: Props) {
           <LeaderTile p={pA} side="A" turnSide={turnSide} canAct={canAct} onActivate={handleActivateLeader} disabled={isPending} />
         </Region>
         <Region pos={{ top: "30.6%", left: "3.1%", width: "5.8%", height: "14.2%" }}><DeckBox count={pA.deckRealCount} factionColor={pA.deck.faction.color} /></Region>
-        <Region pos={{ top: "34%", left: "10.9%", width: "4%", height: "4.5%" }} label={pA.deckRealCount.toString()} />
+        <Region pos={{ top: "34%", left: "10.9%", width: "4%", height: "4.5%" }} label={pA.handCount.toString()} />
         <Region pos={{ top: "43.5%", left: "13%", width: "2%", height: "4.5%" }}><CemTile entry={props.lastDiscarded.A} count={pA.discardCount} /></Region>
 
         <Region pos={{ top: "58.6%", left: "6.1%", width: "9.7%", height: "17%" }}>
           <LeaderTile p={pB} side="B" turnSide={turnSide} canAct={canAct} onActivate={handleActivateLeader} disabled={isPending} />
         </Region>
         <Region pos={{ top: "80.2%", left: "3.1%", width: "5.7%", height: "13.8%" }}><DeckBox count={pB.deckRealCount} factionColor={pB.deck.faction.color} /></Region>
-        <Region pos={{ top: "83.5%", left: "10.9%", width: "4%", height: "4.5%" }} label={pB.deckRealCount.toString()} />
+        <Region pos={{ top: "83.5%", left: "10.9%", width: "4%", height: "4.5%" }} label={pB.handCount.toString()} />
         <Region pos={{ top: "93%", left: "13%", width: "1.8%", height: "4%" }}><CemTile entry={props.lastDiscarded.B} count={pB.discardCount} /></Region>
 
         <Region pos={{ top: "20%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "SIEGE").toString()} />
