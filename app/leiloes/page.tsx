@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
 import { AuctionCard } from "./_components/AuctionCard";
+import { LeiloesList } from "./_components/LeiloesList";
 
 const prisma = new PrismaClient();
 
@@ -63,27 +64,25 @@ export default async function LeiloesPage() {
           <p>Nenhum leilao ativo no momento.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {auctions.map((a) => (
-            <AuctionCard
-              key={a.id}
-              auctionId={a.id}
-              cardName={a.card.name}
-              cardImageUrl={a.card.imageUrl}
-              factionName={a.card.faction.name}
-              factionColor={a.card.faction.color}
-              rarity={a.card.rarity}
-              quantity={a.quantity}
-              minBid={a.minBid}
-              durationSeconds={a.durationSeconds}
-              endsAt={a.endsAt.toISOString()}
-              bidCount={a.bids.length}
-              myBid={myBidsMap.get(a.id) ?? null}
-              myCoins={me.coins}
-              isAdmin={isAdmin}
-            />
-          ))}
-        </div>
+        <LeiloesList
+          auctions={auctions.map((a) => ({
+            id: a.id,
+            cardName: a.card.name,
+            cardImageUrl: a.card.imageUrl,
+            factionName: a.card.faction.name,
+            factionColor: a.card.faction.color,
+            rarity: a.card.rarity,
+            quantity: a.quantity,
+            minBid: a.minBid,
+            durationSeconds: a.durationSeconds,
+            endsAt: a.endsAt.toISOString(),
+            bidCount: a.bids.length,
+            myBid: myBidsMap.get(a.id) ?? null,
+          }))}
+          factions={Array.from(new Set(auctions.map((a) => a.card.faction.name))).sort()}
+          myCoins={me.coins}
+          isAdmin={isAdmin}
+        />
       )}
     </main>
   );

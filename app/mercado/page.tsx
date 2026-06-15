@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
 import { BuyButton } from "./_components/BuyButton";
+import { MercadoList } from "./_components/MercadoList";
 
 const prisma = new PrismaClient();
 
@@ -73,62 +74,23 @@ export default async function MercadoPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {listings.map((l) => {
-            const totalPrice = l.pricePerUnit * l.quantity;
-            const isMine = l.sellerUserId === me.id;
-            return (
-              <article
-                key={l.id}
-                className="rounded-lg border-2 bg-zinc-900/60 p-4 flex gap-3"
-                style={{ borderColor: l.card.faction.color + "55" }}
-              >
-                {l.card.imageUrl && (
-                  <img
-                    src={l.card.imageUrl}
-                    alt={l.card.name}
-                    className="w-16 h-24 rounded object-cover flex-shrink-0"
-                    style={{ border: `1px solid ${l.card.faction.color}88` }}
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-sm font-bold font-heading text-amber-200 truncate">
-                    {l.card.name}
-                  </h2>
-                  <p className="text-xs" style={{ color: l.card.faction.color }}>
-                    {l.card.faction.name}
-                  </p>
-                  <p className="text-xs mt-1">
-                    <span style={{ color: RARITY_COLOR[l.card.rarity] ?? "#9ca3af" }}>
-                      {RARITY_LABEL[l.card.rarity] ?? l.card.rarity}
-                    </span>
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-1">
-                    Vendedor: <strong className="text-zinc-300">{l.seller.username}</strong>
-                  </p>
-                  <p className="text-xs text-zinc-400 mt-1">
-                    Quantidade: <strong className="text-zinc-200">{l.quantity}</strong>
-                  </p>
-                  <p className="text-sm text-amber-300 font-mono mt-2">
-                    {l.pricePerUnit === 0 ? "Gratis" : (
-                      <>
-                        ✨ {l.pricePerUnit} cada
-                        {l.quantity > 1 && <span className="text-zinc-500 ml-1">(total {totalPrice})</span>}
-                      </>
-                    )}
-                  </p>
-                  <div className="mt-3">
-                    {isMine ? (
-                      <span className="text-xs text-zinc-500 italic">Sua listagem</span>
-                    ) : (
-                      <BuyButton listingId={l.id} canAfford={me.coins >= totalPrice} totalPrice={totalPrice} />
-                    )}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        <MercadoList
+          listings={listings.map((l) => ({
+            id: l.id,
+            sellerUserId: l.sellerUserId,
+            sellerName: l.seller.username,
+            quantity: l.quantity,
+            pricePerUnit: l.pricePerUnit,
+            cardName: l.card.name,
+            cardImageUrl: l.card.imageUrl,
+            rarity: l.card.rarity,
+            factionName: l.card.faction.name,
+            factionColor: l.card.faction.color,
+          }))}
+          factions={Array.from(new Set(listings.map((l) => l.card.faction.name))).sort()}
+          meId={me.id}
+          meCoins={me.coins}
+        />
       )}
     </main>
   );

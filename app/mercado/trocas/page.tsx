@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
 import { AcceptTradeButton } from "./_components/AcceptTradeButton";
+import { TrocasList } from "./_components/TrocasList";
 
 const prisma = new PrismaClient();
 
@@ -69,59 +70,37 @@ export default async function TrocasPage() {
           <p>Nenhuma oferta de troca dispon\u00edvel para voce no momento.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {offers.map((o) => {
-            const isTargeted = o.targetUserId === me.id;
-            return (
-              <article
-                key={o.id}
-                className={
-                  "rounded-lg border-2 bg-zinc-900/60 p-4 " +
-                  (isTargeted ? "border-amber-700/60" : "border-zinc-800")
-                }
-              >
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-                  <div className="text-sm">
-                    <span className="text-zinc-500">De </span>
-                    <strong className="text-amber-200">{o.creator.username}</strong>
-                    {isTargeted && <span className="ml-2 text-xs px-2 py-0.5 rounded bg-amber-900/40 text-amber-300 border border-amber-700/50">Direcionada a voce</span>}
-                  </div>
-                  <span className="text-xs text-zinc-500">{new Date(o.createdAt).toLocaleString("pt-BR")}</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-center">
-                  {/* Oferece */}
-                  <div className="bg-emerald-950/30 border border-emerald-900/50 rounded p-3">
-                    <p className="text-xs text-emerald-400 uppercase tracking-wider mb-2">Oferece</p>
-                    <CardListView entries={o.offered} />
-                    {o.coinsOffered > 0 && (
-                      <p className="text-amber-300 font-mono text-sm mt-2">+ \u2728 {o.coinsOffered} moedas</p>
-                    )}
-                  </div>
-
-                  <div className="text-2xl text-zinc-600 text-center">{"\u2194"}</div>
-
-                  {/* Pede */}
-                  <div className="bg-rose-950/30 border border-rose-900/50 rounded p-3">
-                    <p className="text-xs text-rose-400 uppercase tracking-wider mb-2">Pede</p>
-                    <CardListView entries={o.demanded} />
-                    {o.coinsDemanded > 0 && (
-                      <p className="text-amber-300 font-mono text-sm mt-2">+ \u2728 {o.coinsDemanded} moedas</p>
-                    )}
-                  </div>
-                </div>
-
-                {o.note && (
-                  <p className="text-xs text-zinc-400 italic mt-3 px-2 py-1 bg-zinc-950/50 border-l-2 border-zinc-700">{o.note}</p>
-                )}
-
-                <div className="mt-4 flex justify-end">
-                  <AcceptTradeButton offerId={o.id} hasEnoughCoins={me.coins >= o.coinsDemanded} />
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        <TrocasList
+          offers={offers.map((o) => ({
+            id: o.id,
+            creatorName: o.creator.username,
+            isTargeted: o.targetUserId === me.id,
+            createdAt: o.createdAt.toISOString(),
+            offered: o.offered.map((e) => ({
+              quantity: e.quantity,
+              cardName: e.card.name,
+              cardImageUrl: e.card.imageUrl,
+              rarity: e.card.rarity,
+              factionName: e.card.faction.name,
+              factionColor: e.card.faction.color,
+            })),
+            demanded: o.demanded.map((e) => ({
+              quantity: e.quantity,
+              cardName: e.card.name,
+              cardImageUrl: e.card.imageUrl,
+              rarity: e.card.rarity,
+              factionName: e.card.faction.name,
+              factionColor: e.card.faction.color,
+            })),
+            coinsOffered: o.coinsOffered,
+            coinsDemanded: o.coinsDemanded,
+            note: o.note,
+          }))}
+          factions={Array.from(new Set(
+            offers.flatMap((o) => [...o.offered, ...o.demanded].map((e) => e.card.faction.name))
+          )).sort()}
+          myCoins={me.coins}
+        />
       )}
     </main>
   );
