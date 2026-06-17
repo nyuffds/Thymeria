@@ -84,7 +84,7 @@ export function MercadoList({ listings, factions, meId, meCoins }: Props) {
                   <p className="text-sm text-amber-300 font-mono mt-2">
                     {l.pricePerUnit === 0 ? "Gratis" : (
                       <>
-                        \u2728 {l.pricePerUnit} cada
+                        ✨ {l.pricePerUnit} cada
                         {l.quantity > 1 && <span className="text-zinc-500 ml-1">(total {totalPrice})</span>}
                       </>
                     )}

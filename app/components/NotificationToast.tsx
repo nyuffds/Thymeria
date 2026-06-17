@@ -14,7 +14,7 @@ interface Notification {
 }
 
 const TYPE_COLORS: Record<string, { border: string; bg: string; icon: string }> = {
-  AUCTION_NEW:  { border: "#d97706", bg: "rgba(146, 64, 14, 0.95)", icon: "\u2728" },
+  AUCTION_NEW:  { border: "#d97706", bg: "rgba(146, 64, 14, 0.95)", icon: "✨" },
   TRADE_OFFER:  { border: "#7c3aed", bg: "rgba(76, 29, 149, 0.95)", icon: "\u2194" },
   AUCTION_WON:  { border: "#10b981", bg: "rgba(6, 78, 59, 0.95)",   icon: "\u2605" },
   AUCTION_LOST: { border: "#71717a", bg: "rgba(39, 39, 42, 0.95)",  icon: "\u2716" },

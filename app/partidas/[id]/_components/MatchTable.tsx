@@ -1456,7 +1456,7 @@ function SideEffectsPanel({ sideLabel, data }: { sideLabel: string; data: SideEf
       ))}
       {data.auras.map((a, i) => (
         <div key={"a" + i} style={{ fontSize: "9px", marginBottom: "2px", padding: "2px 4px", background: "rgba(220, 38, 38, 0.15)", border: "1px solid rgba(220, 38, 38, 0.4)", borderRadius: "3px", display: "flex", alignItems: "center", gap: "3px" }}>
-          <span style={{ fontSize: "11px" }}>{auraIcon[a.engineKey] ?? "\u2728"}</span>
+          <span style={{ fontSize: "11px" }}>{auraIcon[a.engineKey] ?? "✨"}</span>
           <span style={{ color: "#fca5a5" }}>+{a.amount}</span>
         </div>
       ))}
@@ -1961,7 +1961,7 @@ function PlayerScore({ p, side, turnSide, hasPassed, total }: { p: PlayerInfo; s
       <div style={{ fontSize: "10px", color: p.deck.faction.color, fontWeight: "bold", textShadow: isTurn ? "0 0 6px rgba(253, 224, 71, 0.8)" : "none" }}>
         {isTurn && <span style={{ color: "#fde047" }}>{"\u25B6 "}</span>}
         {p.username} ({side})
-        {hasPassed && <span style={{ marginLeft: "4px", color: "#f87171" }}>{"\u00B7 passou"}</span>}
+        {hasPassed && <span style={{ marginLeft: "4px", color: "#f87171" }}>{"· passou"}</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "3px" }}>
         <div style={{ display: "flex", gap: "3px" }}>

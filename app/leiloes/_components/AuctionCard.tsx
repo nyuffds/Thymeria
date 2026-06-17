@@ -83,7 +83,7 @@ export function AuctionCard(props: Props) {
           </h2>
           <p className="text-xs" style={{ color: props.factionColor }}>{props.factionName}</p>
           <p className="text-xs text-zinc-500 mt-1">Qtd: {props.quantity}</p>
-          <p className="text-xs text-zinc-500">Lance minimo: \u2728 {props.minBid}</p>
+          <p className="text-xs text-zinc-500">Lance minimo: ✨ {props.minBid}</p>
         </div>
       </div>
 
@@ -100,7 +100,7 @@ export function AuctionCard(props: Props) {
 
       {alreadyBid ? (
         <div className="text-xs px-2 py-1 rounded bg-emerald-900/30 border border-emerald-700/50 text-emerald-300">
-          Seu lance: \u2728 {props.myBid}
+          Seu lance: ✨ {props.myBid}
           <p className="text-zinc-500 mt-1">Aguarde o encerramento.</p>
         </div>
       ) : expired ? (

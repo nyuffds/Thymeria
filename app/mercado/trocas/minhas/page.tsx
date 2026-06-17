@@ -99,7 +99,7 @@ export default async function MinhasOfertasPage() {
                   <p className="text-xs text-emerald-400 uppercase tracking-wider mb-2">Voce oferece</p>
                   <CardListView entries={o.offered} />
                   {o.coinsOffered > 0 && (
-                    <p className="text-amber-300 font-mono text-sm mt-2">+ \u2728 {o.coinsOffered} moedas</p>
+                    <p className="text-amber-300 font-mono text-sm mt-2">+ ✨ {o.coinsOffered} moedas</p>
                   )}
                 </div>
                 <div className="text-2xl text-zinc-600 text-center">{"\u2194"}</div>
@@ -107,7 +107,7 @@ export default async function MinhasOfertasPage() {
                   <p className="text-xs text-rose-400 uppercase tracking-wider mb-2">Voce pede</p>
                   <CardListView entries={o.demanded} />
                   {o.coinsDemanded > 0 && (
-                    <p className="text-amber-300 font-mono text-sm mt-2">+ \u2728 {o.coinsDemanded} moedas</p>
+                    <p className="text-amber-300 font-mono text-sm mt-2">+ ✨ {o.coinsDemanded} moedas</p>
                   )}
                 </div>
               </div>

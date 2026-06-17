@@ -88,7 +88,7 @@ export default async function AdminLeiloesPage() {
                     <span className="text-xs text-zinc-500">Qtd {a.quantity}</span>
                   </div>
                   <p className="text-xs text-zinc-500">
-                    Min: \u2728 {a.minBid} \u00b7 Dura\u00e7\u00e3o: {a.durationSeconds}s \u00b7 Termina:{" "}
+                    Min: ✨ {a.minBid} · Duração: {a.durationSeconds}s · Termina:{" "}
                     {new Date(a.endsAt).toLocaleString("pt-BR")}
                   </p>
 
@@ -102,7 +102,7 @@ export default async function AdminLeiloesPage() {
                               {i + 1}. {b.bidder.username}
                               {i === 0 && a.status === "ACTIVE" && <span className="ml-1 text-emerald-500">(maior atual)</span>}
                             </span>
-                            <span className="font-mono text-amber-300">\u2728 {b.amount}</span>
+                            <span className="font-mono text-amber-300">✨ {b.amount}</span>
                           </li>
                         ))}
                       </ul>
@@ -113,7 +113,7 @@ export default async function AdminLeiloesPage() {
 
                   {a.status === "FINISHED" && a.winner && (
                     <p className="text-xs text-emerald-400 mt-2">
-                      Vencedor: <strong>{a.winner.username}</strong> com \u2728 {a.winningBid}
+                      Vencedor: <strong>{a.winner.username}</strong> com ✨ {a.winningBid}
                     </p>
                   )}
                   {a.status === "FINISHED" && !a.winner && (

@@ -45,7 +45,7 @@ export default async function LeiloesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-amber-300 font-mono text-sm">\u2728 {me.coins}</span>
+          <span className="text-amber-300 font-mono text-sm">✨ {me.coins}</span>
           {isAdmin && (
             <>
               <Link href="/admin/leiloes" className="text-sm text-zinc-300 hover:text-amber-200 transition">
