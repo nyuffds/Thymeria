@@ -1146,14 +1146,16 @@ export async function playCardAction(data: {
             await logEvent(tx, data.matchId, match.currentRound, data.side, "RETURN_TO_HAND",
               { targetId: target.id, returnedTo: target.side });
           }
-        } else if (ek === "RESURRECT_FROM_DISCARD" && effMultiTargetIds && effMultiTargetIds.length > 0) {
-          // Ressurreicao: seleciona X cartas UNIT do cemiterio e joga na 1a fileira permitida
-          const max = ev > 0 ? ev : effMultiTargetIds.length;
-          const chosen = effMultiTargetIds.slice(0, max);
-          const fromDiscard = await tx.matchHand.findMany({
-            where: { id: { in: chosen }, matchId: data.matchId, side: data.side, zone: "DISCARD" },
+        } else if (ek === "RESURRECT_FROM_DISCARD") {
+          // Ressurreicao: X UNITs aleatorias do cemiterio voltam ao campo (1a fileira permitida)
+          const count = ev > 0 ? ev : 1;
+          const discardPool = await tx.matchHand.findMany({
+            where: { matchId: data.matchId, side: data.side, zone: "DISCARD" },
             include: { card: true },
           });
+          const units = discardPool.filter((d) => d.card.cardType === "UNIT");
+          const shuffled = [...units].sort(() => Math.random() - 0.5);
+          const fromDiscard = shuffled.slice(0, count);
           let resurrected = 0;
           for (const entry of fromDiscard) {
             if (entry.card.cardType !== "UNIT") continue;

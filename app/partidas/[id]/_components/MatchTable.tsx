@@ -325,14 +325,6 @@ export function MatchTable(props: Props) {
       return;
     }
 
-    // RESURRECT_FROM_DISCARD - selecionar N UNIT do cemiterio
-    if (ek === "RESURRECT_FROM_DISCARD") {
-      const max = selectedHandCard.ability?.engineValue ?? 1;
-      setMultiSelectMode({ max, source: "DISCARD" });
-      setMultiSelectIds([]);
-      return;
-    }
-
     // PROPHECY (Profecia) - revela N do topo e jogador roteia
     if (ek === "PROPHECY") {
       const peekCount = selectedHandCard.ability?.engineValue ?? 3;
@@ -624,12 +616,6 @@ export function MatchTable(props: Props) {
       if (ek === "SHUFFLE_AND_DRAW") {
         const max = card.ability?.engineValue ?? 3;
         setMultiSelectMode({ max, source: "HAND" });
-        setMultiSelectIds([]);
-        return;
-      }
-      if (ek === "RESURRECT_FROM_DISCARD") {
-        const max = card.ability?.engineValue ?? 1;
-        setMultiSelectMode({ max, source: "DISCARD" });
         setMultiSelectIds([]);
         return;
       }
