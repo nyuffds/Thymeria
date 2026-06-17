@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 // app/admin/page.tsx
 // Hub do painel admin.
@@ -63,6 +63,13 @@ export default async function AdminHomePage() {
       count: 0,
       desc: "Distribuir moedas e ver histórico de transações.",
       color: "border-yellow-700/40 hover:border-yellow-500",
+    },
+    {
+      href: "/admin/fichas",
+      title: "Fichas RPG",
+      count: 0,
+      desc: "Sobe e atribui fichas de personagem do Foundry aos jogadores.",
+      color: "border-red-700/40 hover:border-red-500",
     },
   ];
 

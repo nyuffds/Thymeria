@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 // app/conta/page.tsx
 // Página pessoal do jogador (e do admin também).
@@ -8,6 +8,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
+import { parseFoundryCharacter } from "@/lib/character-sheet";
+import { CharacterSheetView } from "./_components/CharacterSheetView";
 
 const prisma = new PrismaClient();
 
@@ -26,6 +28,7 @@ export default async function ContaPage() {
   const user = await prisma.user.findUnique({
     where: { username: session.user.name },
     include: {
+      characterSheet: true,
       transactions: {
         orderBy: { createdAt: "desc" },
         take: 5,
@@ -82,6 +85,35 @@ export default async function ContaPage() {
             ))}
           </ul>
         )}
+      </div>
+
+      {/* Minha Cronica - Ficha de personagem */}
+      <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-5 mt-6">
+        <h2 className="text-lg font-bold text-amber-200 mb-4 font-heading">Minha Cronica</h2>
+        {(() => {
+          if (!user.characterSheet) {
+            return (
+              <p className="text-sm text-zinc-500 italic">
+                Voce ainda nao tem uma ficha de personagem. Peca para o GM enviar uma.
+              </p>
+            );
+          }
+          const parsed = parseFoundryCharacter(user.characterSheet.data);
+          if (!parsed) {
+            return <p className="text-sm text-red-400">Erro ao ler a ficha. Contate o GM.</p>;
+          }
+          return (
+            <CharacterSheetView
+              sheet={parsed}
+              editable={{
+                hpCurrent: user.characterSheet.hpCurrent,
+                hpTemp: user.characterSheet.hpTemp,
+                exhaustion: user.characterSheet.exhaustion,
+                notes: user.characterSheet.notes,
+              }}
+            />
+          );
+        })()}
       </div>
 
       <p className="text-xs text-zinc-600 mt-4 text-center">

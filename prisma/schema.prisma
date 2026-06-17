@@ -39,7 +39,22 @@ model User {
   auctionBids    AuctionBid[]
   auctionsWon    Auction[]      @relation("AuctionWinner")
   notifications  Notification[]
+  characterSheet CharacterSheet?
 
+}
+
+model CharacterSheet {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  data        String   // JSON do Foundry (string)
+  hpCurrent   Int      @default(0)
+  hpTemp      Int      @default(0)
+  exhaustion  Int      @default(0)
+  notes       String   @default("") // notas livres do jogador
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ─────────────────────────────────────────────
