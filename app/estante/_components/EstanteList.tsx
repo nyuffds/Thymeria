@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -147,6 +147,38 @@ export function EstanteList({ groups }: { groups: Group[] }) {
               >
                 {currentRarity ? currentRarity.label : currentCard.rarity}
               </p>
+              <div className="mt-3 flex justify-center gap-4 text-xs">
+                <span className="text-zinc-500">
+                  <span className="text-zinc-300 font-bold">{currentCard.cardType}</span>
+                </span>
+                {currentCard.cardType === "UNIT" && (
+                  <>
+                    <span className="text-zinc-500">
+                      Poder: <span className="text-amber-300 font-bold">{currentCard.power}</span>
+                    </span>
+                    {currentCard.rows && (
+                      <span className="text-zinc-500">
+                        Fileiras: <span className="text-zinc-300">{currentCard.rows.split(",").join(", ")}</span>
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+              {currentCard.ability && (
+                <div className="mt-4 bg-zinc-900/80 border border-amber-700/40 rounded-lg p-3 text-left">
+                  <p className="text-xs uppercase tracking-wider text-amber-400 font-bold mb-1">
+                    {currentCard.ability.name}
+                  </p>
+                  <p className="text-sm text-zinc-300 leading-snug">
+                    {currentCard.ability.description}
+                  </p>
+                </div>
+              )}
+              {currentCard.loreText && (
+                <p className="mt-4 text-sm text-zinc-500 italic font-lore">
+                  &ldquo;{currentCard.loreText}&rdquo;
+                </p>
+              )}
               <p className="mt-4">
                 {currentCard.wasNew ? (
                   <span className="text-emerald-400 font-bold animate-pulse">
