@@ -469,11 +469,12 @@ export function MatchTable(props: Props) {
   }
 
   function confirmMultiSelect() {
-    if (!selectedHandCard || !chosenRow || multiSelectIds.length === 0) return;
+    if (!selectedHandCard || multiSelectIds.length === 0) return;
+    const rowForSubmit: Row = chosenRow ?? "MELEE";
     const ids = [...multiSelectIds];
     setMultiSelectMode(null);
     setMultiSelectIds([]);
-    submitPlay(chosenRow, { multiTargetIds: ids });
+    submitPlay(rowForSubmit, { multiTargetIds: ids });
   }
 
   function cancelMultiSelect() {
@@ -501,7 +502,8 @@ export function MatchTable(props: Props) {
   }
 
   function confirmProphecy() {
-    if (!selectedHandCard || !chosenRow || !prophecyCards) return;
+    if (!selectedHandCard || !prophecyCards) return;
+    const rowForSubmit: Row = chosenRow ?? "MELEE";
     const hasHand   = prophecyCards.some((c) => prophecyRouting[c.handId] === "HAND");
     const hasTop    = prophecyCards.some((c) => prophecyRouting[c.handId] === "TOP");
     const hasBottom = prophecyCards.some((c) => prophecyRouting[c.handId] === "BOTTOM");
@@ -514,7 +516,7 @@ export function MatchTable(props: Props) {
       .map((c) => ({ handId: c.handId, destination: prophecyRouting[c.handId] as "HAND" | "TOP" | "BOTTOM" }));
     setProphecyCards(null);
     setProphecyRouting({});
-    submitPlay(chosenRow, { prophecyRouting: routing });
+    submitPlay(rowForSubmit, { prophecyRouting: routing });
   }
 
   function cancelProphecy() {
