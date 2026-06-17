@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createUserAction, resetPasswordAction, setUserRoleAction, deleteUserAction } from "../_actions";
+import { createUserAction, resetPasswordAction, setUserRoleAction, deleteUserAction, renameUserAction } from "../_actions";
 
 interface UserItem {
   id: string;
@@ -65,6 +65,20 @@ export function UsersManager({ currentUserId, users }: Props) {
     startTransition(async () => {
       try {
         await setUserRoleAction({ userId: u.id, role: newRole });
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erro.");
+      }
+    });
+  }
+
+  function handleRename(u: UserItem) {
+    const newName = prompt(`Novo username para ${u.username}:`, u.username);
+    if (!newName || newName.trim() === u.username) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await renameUserAction({ userId: u.id, newUsername: newName });
         router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erro.");
@@ -186,6 +200,13 @@ export function UsersManager({ currentUserId, users }: Props) {
                         className="text-xs text-amber-400 hover:text-amber-200 transition"
                       >
                         Resetar senha
+                      </button>
+                      <button
+                        onClick={() => handleRename(u)}
+                        disabled={isPending}
+                        className="text-xs text-zinc-300 hover:text-amber-200 transition"
+                      >
+                        Renomear
                       </button>
                       {!isMe && (
                         <>

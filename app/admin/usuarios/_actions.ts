@@ -71,6 +71,18 @@ export async function setUserRoleAction(data: { userId: string; role: "PLAYER" |
   revalidatePath("/admin/usuarios");
 }
 
+export async function renameUserAction(data: { userId: string; newUsername: string }) {
+  await requireAdmin();
+  const trimmed = data.newUsername.trim();
+  if (!trimmed || trimmed.length < 3) throw new Error("Username deve ter pelo menos 3 caracteres.");
+
+  const existing = await prisma.user.findUnique({ where: { username: trimmed } });
+  if (existing && existing.id !== data.userId) throw new Error("Username ja existe.");
+
+  await prisma.user.update({ where: { id: data.userId }, data: { username: trimmed } });
+  revalidatePath("/admin/usuarios");
+}
+
 export async function deleteUserAction(userId: string) {
   const me = await requireAdmin();
   if (userId === me.id) throw new Error("Voce nao pode deletar a si mesmo.");
