@@ -1,4 +1,4 @@
-// prisma/seed.ts
+﻿// prisma/seed.ts
 // Popula o banco com dados iniciais:
 //   - 7 usuários (1 admin + 6 jogadores)
 //   - 8 facções de Thymeria
@@ -83,23 +83,31 @@ async function main() {
   }
 
   console.log("\n🏴 Facções:");
+  if (process.env.SEED_FACTIONS === "true") {
   for (const f of FACTIONS) {
     const r = await prisma.faction.upsert({
       where:  { name: f.name },
-      update: { color: f.color, description: f.description },
+      update: {}, // nao sobrescreve faccoes editadas pelo admin
       create: f,
     });
     console.log(`  ✓ ${r.color} → ${r.name}`);
   }
+  } else {
+    console.log("  (pulado, defina SEED_FACTIONS=true para popular faccoes)");
+  }
 
   console.log("\n⚡ Habilidades:");
+  if (process.env.SEED_ABILITIES === "true") {
   for (const a of ABILITIES) {
     const r = await prisma.ability.upsert({
       where:  { name: a.name },
-      update: { description: a.description, engineKey: a.engineKey, engineValue: a.engineValue },
+      update: {}, // nao sobrescreve habilidades editadas pelo admin
       create: a,
     });
     console.log(`  ✓ ${(r.engineKey ?? "—").padEnd(7)} → ${r.name}`);
+  }
+  } else {
+    console.log("  (pulado, defina SEED_ABILITIES=true para popular habilidades)");
   }
 
   console.log("\n⚙️  Configurações:");
