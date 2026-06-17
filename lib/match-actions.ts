@@ -126,12 +126,17 @@ async function persistRecomputedPower(
     return basePower * multiplier + bloodMoonBoost + rowBoost;
   }
 
-  const boardWithCards = await tx.matchBoardCard.findMany({ where: { matchId } });
+  const boardWithCards = await tx.matchBoardCard.findMany({ where: { matchId }, include: { card: true } });
   const cardById = new Map(boardWithCards.map((b) => [b.id, b]));
 
   for (const c of recomputed) {
     const original = cardById.get(c.id);
     if (!original) continue;
+    // Elite e imune a auras (boosts globais nao afetam)
+    if (original.card.isElite) {
+      await tx.matchBoardCard.update({ where: { id: c.id }, data: { power: c.power } });
+      continue;
+    }
     // c.power ja contem ajustes do recomputePower base. As auras se aplicam a partir do basePower atual.
     // Para BOOST_ROW (somar): adiciona ao c.power.
     // Para MULTIPLY_ROW: nao adicionamos boost, mas modificamos basePower direto antes (ja foi tratado no caster)
