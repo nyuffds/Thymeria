@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,12 @@ interface Props {
     maxDecksPerPlayer: number;
     minCardsPerDeck: number;
     maxCardsPerDeck: number;
+    gameName: string;
+    gameSubtitle: string;
+    landingTagline: string;
+    landingFooterLore: string;
+    landingBackgroundUrl: string | null;
+    themePrimaryColor: string;
   };
 }
 
@@ -169,6 +175,58 @@ export function SettingsForm({ initial }: Props) {
             </span>
           </span>
         </label>
+      </div>
+
+      <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-5">
+        <h2 className="text-lg font-bold text-amber-200 mb-1">Branding</h2>
+        <p className="text-xs text-zinc-500 mb-4">Aparencia da landing page e identidade visual.</p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Nome do jogo</label>
+            <input type="text" value={v.gameName} onChange={(e) => update("gameName", e.target.value)} disabled={isPending} className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Subtitulo / Era</label>
+            <input type="text" value={v.gameSubtitle} onChange={(e) => update("gameSubtitle", e.target.value)} disabled={isPending} className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Tagline (frase abaixo do nome)</label>
+            <input type="text" value={v.landingTagline} onChange={(e) => update("landingTagline", e.target.value)} disabled={isPending} className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Lore do rodape</label>
+            <textarea value={v.landingFooterLore} rows={4} onChange={(e) => update("landingFooterLore", e.target.value)} disabled={isPending} className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Wallpaper (URL ou upload)</label>
+            <input type="text" value={v.landingBackgroundUrl ?? ""} placeholder="https://... ou /uploads/wallpaper.jpg" onChange={(e) => update("landingBackgroundUrl", e.target.value || null)} disabled={isPending} className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:border-amber-500" />
+            <input type="file" accept="image/*" onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const fd = new FormData();
+                fd.append("file", file);
+                const res = await fetch("/api/upload", { method: "POST", body: fd });
+                if (res.ok) {
+                  const data = await res.json();
+                  update("landingBackgroundUrl", data.url);
+                }
+              }}
+              disabled={isPending}
+              className="mt-2 text-xs text-zinc-400 file:mr-2 file:px-3 file:py-1 file:rounded file:bg-amber-600 file:text-zinc-950 file:border-0 file:cursor-pointer" />
+            {v.landingBackgroundUrl && (
+              <div className="mt-2 relative aspect-video rounded overflow-hidden border border-zinc-700">
+                <img src={v.landingBackgroundUrl} alt="Wallpaper" className="w-full h-full object-cover" />
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Cor primaria</label>
+            <div className="flex gap-2 items-center">
+              <input type="color" value={v.themePrimaryColor} onChange={(e) => update("themePrimaryColor", e.target.value)} disabled={isPending} className="w-12 h-10 bg-zinc-800 border border-zinc-700 rounded cursor-pointer" />
+              <input type="text" value={v.themePrimaryColor} onChange={(e) => update("themePrimaryColor", e.target.value)} disabled={isPending} className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 font-mono text-sm focus:outline-none focus:border-amber-500" />
+            </div>
+          </div>
+        </div>
       </div>
 
       {error && (

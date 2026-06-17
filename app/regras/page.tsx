@@ -38,7 +38,7 @@ export default function RegrasHubPage() {
     <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
       <header className="mb-8 text-center">
         <p className="text-xs text-amber-500 uppercase tracking-[0.3em] mb-2">Manual do Jogador</p>
-        <h1 className="text-3xl font-bold font-heading text-amber-200 mb-2">Como jogar Thymeria Gwent</h1>
+        <h1 className="text-3xl font-bold font-heading text-amber-200 mb-2">Como jogar Thymeria</h1>
         <p className="text-sm text-zinc-400 max-w-xl mx-auto">
           Aprenda as regras, conheca suas cartas e domine as habilidades para vencer suas partidas.
         </p>

@@ -1,4 +1,4 @@
-// app/api/me/route.ts
+﻿// app/api/me/route.ts
 // Retorna informações do usuário logado, incluindo saldo.
 
 import { NextResponse } from "next/server";

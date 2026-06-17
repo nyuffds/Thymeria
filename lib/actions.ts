@@ -397,6 +397,12 @@ export async function updateGameSettingsAction(data: {
   maxDecksPerPlayer: number;
   minCardsPerDeck: number;
   maxCardsPerDeck: number;
+  gameName: string;
+  gameSubtitle: string;
+  landingTagline: string;
+  landingFooterLore: string;
+  landingBackgroundUrl: string | null;
+  themePrimaryColor: string;
 }) {
   const numericFields = [
     data.sellPriceCommon, data.sellPriceRare, data.sellPriceEpic, data.sellPriceLegendary,

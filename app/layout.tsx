@@ -29,7 +29,7 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Thymeria Gwent",
+  title: "Thymeria",
   description: "Card game de Thymeria — inspirado em Gwent",
 };
 

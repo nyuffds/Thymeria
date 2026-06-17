@@ -13,11 +13,17 @@ interface MeData {
   role: string;
   coins: number;
 }
+interface SettingsData {
+  gameName: string;
+  themePrimaryColor: string;
+}
+
 
 export function Header() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const [me, setMe] = useState<MeData | null>(null);
+  const [settings, setSettings] = useState<SettingsData | null>(null);
 
   // Busca dados completos do usuário (incluindo saldo) quando logado
   useEffect(() => {
@@ -39,7 +45,7 @@ export function Header() {
     return (
       <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center">
-          <span className="text-amber-200 font-bold font-heading">Thymeria Gwent</span>
+          <span className="text-amber-200 font-bold font-heading">{settings?.gameName ?? "Thymeria"}</span>
         </div>
       </header>
     );
@@ -52,7 +58,7 @@ export function Header() {
     <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-10">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/" className="text-amber-200 font-bold font-heading hover:text-amber-100 transition">
-          Thymeria Gwent
+          {settings?.gameName ?? "Thymeria"}
         </Link>
 
         <nav className="flex items-center gap-4 text-sm">

@@ -1,7 +1,7 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 // app/page.tsx
-// Landing page do Thymeria Gwent.
+// Landing page do Thymeria.
 // Mostra saudacao, saldo, links principais e divindades do panteao.
 
 import Link from "next/link";
@@ -14,12 +14,16 @@ const prisma = new PrismaClient();
 export default async function Home() {
   const session = await auth();
 
+  const settings = await prisma.gameSettings.upsert({
+    where: { id: "singleton" }, update: {}, create: { id: "singleton" },
+  });
+
   // Visitante nao logado: redireciona pro login (camada de seguranca extra)
   if (!session?.user?.name) {
     return (
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="text-center max-w-md">
-          <h1 className="font-heading text-5xl text-amber-200 mb-4">Thymeria Gwent</h1>
+          <h1 className="font-heading text-5xl text-amber-200 mb-4">{settings.gameName}</h1>
           <p className="text-zinc-400 mb-6 font-lore italic">
             Acesse sua conta pra entrar no salao de duelos.
           </p>
@@ -79,18 +83,30 @@ export default async function Home() {
 
   return (
     <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-8 relative overflow-hidden">
+      {/* Wallpaper de fundo (configuravel pelo admin) */}
+      {settings.landingBackgroundUrl && (
+        <div
+          className="fixed inset-0 -z-20 pointer-events-none opacity-40"
+          style={{
+            backgroundImage: "url(" + settings.landingBackgroundUrl + ")",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }}
+        />
+      )}
       {/* Glow decorativo no fundo */}
       <div
         className="absolute inset-0 pointer-events-none opacity-30 -z-10"
         style={{
-          background: "radial-gradient(circle at 50% 0%, rgba(212, 160, 74, 0.15) 0%, transparent 60%)",
+          background: "radial-gradient(circle at 50% 0%, " + settings.themePrimaryColor + "26 0%, transparent 60%)",
         }}
       />
 
       {/* ─────── HERO ─────── */}
       <section className="text-center mb-10 pt-6">
         <p className="text-xs uppercase tracking-[0.4em] text-amber-400/60 mb-3">
-          Era da Restauracao - Um seculo apos a Guerra do Fim
+          {settings.gameSubtitle}
         </p>
         <h1 className="font-heading text-6xl md:text-7xl font-bold mb-4"
             style={{
@@ -99,10 +115,10 @@ export default async function Home() {
               WebkitTextFillColor: "transparent",
               textShadow: "0 0 60px rgba(212, 160, 74, 0.3)",
             }}>
-          Thymeria Gwent
+          {settings.gameName}
         </h1>
         <p className="text-zinc-400 italic font-lore text-lg max-w-2xl mx-auto">
-          {welcomePhrase}
+          {settings.landingTagline}
         </p>
 
         {/* Boas-vindas + stats do jogador */}
@@ -224,9 +240,7 @@ export default async function Home() {
           <span className="relative inline-block px-3 bg-zinc-950 text-amber-400/40 text-xs">⚜</span>
         </div>
         <p className="text-xs text-zinc-500 font-lore italic mt-4 leading-relaxed">
-          Thymeria descansa sob a luz de Lugh e a vigilia de Morrigan.
-          Skanda venceu Eris na Guerra do Fim, mas suas centelhas ainda dancam pelos reinos.
-          Que sua jornada seja digna das cancoes que serao escritas em Lomerel.
+          {settings.landingFooterLore}
         </p>
       </section>
     </main>

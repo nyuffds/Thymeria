@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { PrismaClient } from "@prisma/client";
@@ -39,6 +39,12 @@ export default async function ConfiguracoesPage() {
           maxDecksPerPlayer: settings.maxDecksPerPlayer,
           minCardsPerDeck: settings.minCardsPerDeck,
           maxCardsPerDeck: settings.maxCardsPerDeck,
+          gameName: settings.gameName,
+          gameSubtitle: settings.gameSubtitle,
+          landingTagline: settings.landingTagline,
+          landingFooterLore: settings.landingFooterLore,
+          landingBackgroundUrl: settings.landingBackgroundUrl,
+          themePrimaryColor: settings.themePrimaryColor,
         }}
       />
     </main>

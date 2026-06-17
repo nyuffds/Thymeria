@@ -1,4 +1,4 @@
-// app/login/page.tsx
+﻿// app/login/page.tsx
 // Página de login. Fluxo em 2 etapas:
 //   1. Usuário digita o nome → verificamos status
 //   2a. Se ainda não tem senha → redireciona pra /definir-senha
@@ -72,7 +72,7 @@ export default function LoginPage() {
     <main className="flex-1 flex items-center justify-center px-4">
       <div className="w-full max-w-sm bg-zinc-900/60 border border-zinc-800 rounded-xl p-8 shadow-2xl">
         <h1 className="text-3xl font-bold text-center mb-2 text-amber-200">
-          Thymeria Gwent
+          Thymeria
         </h1>
         <p className="text-center text-zinc-400 text-sm mb-8">
           {step === "USERNAME" ? "Entre na sua conta" : `Olá, ${username}`}

@@ -158,6 +158,14 @@ model GameSettings {
 
   marketFeePercent    Float @default(0.05)
 
+  // Branding / Landing
+  gameName            String  @default("Thymeria")
+  gameSubtitle        String  @default("Era da Restauracao - Um seculo apos a Guerra do Fim")
+  landingTagline      String  @default("Os ventos de Thymeria sopram cantos de gl\u00f3ria e ru\u00edna.")
+  landingFooterLore   String  @default("Thymeria descansa sob a luz de Lugh e a vigilia de Morrigan. Skanda venceu Eris na Guerra do Fim, mas suas centelhas ainda dancam pelos reinos. Que sua jornada seja digna das cancoes que serao escritas em Lomerel.")
+  landingBackgroundUrl String? // URL da imagem de wallpaper da landing
+  themePrimaryColor   String  @default("#d4a04a")
+
   updatedAt DateTime @updatedAt
 }
 
