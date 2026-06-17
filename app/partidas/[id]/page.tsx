@@ -53,8 +53,51 @@ export default async function PartidaPage({
   });
 
   if (!match) notFound();
+
   if (match.status === "LOBBY") {
     return <LobbyWaitingRoom matchId={match.id} match={match} sessionUserName={session.user.name} />;
+  }
+  // Cartas SPECIAL/WEATHER jogadas na ronda atual (visual no painel)
+  const currentRound = match.currentRound;
+  const playedCardIds = new Set<string>();
+  const playedBySide: Record<"A" | "B", Array<{ cardId: string; side: "A" | "B" }>> = { A: [], B: [] };
+  for (const e of match.events) {
+    if (e.round !== currentRound) continue;
+    if (e.type !== "PLAY_CARD" && e.type !== "WEATHER") continue;
+    let payload: { cardId?: string } | null = null;
+    try {
+      payload = typeof e.payload === "string" ? JSON.parse(e.payload) : (e.payload as { cardId?: string });
+    } catch {
+      payload = null;
+    }
+    if (!payload?.cardId) continue;
+    const side = (e.side ?? "A") as "A" | "B";
+    playedBySide[side].push({ cardId: payload.cardId, side });
+    playedCardIds.add(payload.cardId);
+  }
+  // Busca dados das cartas SPECIAL/WEATHER jogadas
+  const playedCards = playedCardIds.size > 0
+    ? await prisma.card.findMany({
+        where: { id: { in: Array.from(playedCardIds) }, cardType: { in: ["SPECIAL", "WEATHER"] } },
+        include: { faction: true, ability: true },
+      })
+    : [];
+  const cardById = new Map(playedCards.map((c) => [c.id, c]));
+  function cardsForSide(side: "A" | "B") {
+    return playedBySide[side]
+      .map(({ cardId }) => cardById.get(cardId))
+      .filter((c): c is NonNullable<typeof c> => !!c)
+      .map((c) => ({
+        cardId: c.id,
+        name: c.name,
+        power: c.power,
+        rarity: c.rarity,
+        cardType: c.cardType,
+        imageUrl: c.imageUrl,
+        frameUrl: c.frameUrl,
+        faction: { name: c.faction.name, color: c.faction.color },
+        ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
+      }));
   }
   const pA = match.players.find((p) => p.side === "A");
   const pB = match.players.find((p) => p.side === "B");
@@ -272,6 +315,10 @@ export default async function PartidaPage({
             rarity: h.card.rarity,
             faction: { name: h.card.faction.name, color: h.card.faction.color },
           })),
+        }}
+        playedSpecials={{
+          A: cardsForSide("A"),
+          B: cardsForSide("B"),
         }}
         sideEffects={{
           A: {

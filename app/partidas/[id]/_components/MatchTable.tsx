@@ -112,6 +112,17 @@ interface Props {
     rarity: string;
     faction: { name: string; color: string };
   }>>;
+  playedSpecials: Record<Side, Array<{
+    cardId: string;
+    name: string;
+    power: number;
+    rarity: string;
+    cardType: string;
+    imageUrl: string | null;
+    frameUrl: string | null;
+    faction: { name: string; color: string };
+    ability: { name: string; description: string } | null;
+  }>>;
 }
 
 const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION", "PERMANENCE", "RETURN_TO_HAND"]);
@@ -1016,8 +1027,8 @@ export function MatchTable(props: Props) {
         )}
         <Region pos={{ top: "8.5%", left: "84%", width: "14.8%", height: "41%" }}><HistoryPanel events={props.currentRoundEvents} playerNames={{ A: pA.username, B: pB.username }} currentRound={props.round} /></Region>
         <Region pos={{ top: "59.5%", left: "83.5%", width: "14.8%", height: "17%" }}><WeatherPanel weather={props.weather} /></Region>
-        <Region pos={{ top: "77.5%", left: "83.5%", width: "7%", height: "19%" }}><SideEffectsPanel sideLabel="A" data={props.sideEffects.A} /></Region>
-        <Region pos={{ top: "77.5%", left: "91%", width: "7%", height: "19%" }}><SideEffectsPanel sideLabel="B" data={props.sideEffects.B} /></Region>
+        <Region pos={{ top: "77.5%", left: "83.5%", width: "7%", height: "19%" }}><SideEffectsPanel sideLabel="A" data={props.sideEffects.A} playedSpecials={props.playedSpecials.A} /></Region>
+        <Region pos={{ top: "77.5%", left: "91%", width: "7%", height: "19%" }}><SideEffectsPanel sideLabel="B" data={props.sideEffects.B} playedSpecials={props.playedSpecials.B} /></Region>
       </div>
     </div>
     </>
@@ -1426,7 +1437,19 @@ interface SideEffectsData {
   weathers: Array<{ weatherKey: string; affectedRow: "MELEE" | "RANGED" | "SIEGE" }>;
 }
 
-function SideEffectsPanel({ sideLabel, data }: { sideLabel: string; data: SideEffectsData }) {
+interface PlayedSpecial {
+  cardId: string;
+  name: string;
+  power: number;
+  rarity: string;
+  cardType: string;
+  imageUrl: string | null;
+  frameUrl: string | null;
+  faction: { name: string; color: string };
+  ability: { name: string; description: string } | null;
+}
+
+function SideEffectsPanel({ sideLabel, data, playedSpecials }: { sideLabel: string; data: SideEffectsData; playedSpecials: PlayedSpecial[] }) {
   const rowAbbr: Record<string, string> = { MELEE: "M", RANGED: "D", SIEGE: "C" };
   const weatherIcon: Record<string, string> = {
     WEATHER_RAIN: "\ud83c\udf27\ufe0f",
@@ -1437,7 +1460,7 @@ function SideEffectsPanel({ sideLabel, data }: { sideLabel: string; data: SideEf
   const auraIcon: Record<string, string> = {
     BLOOD_MOON: "\ud83c\udf15",
   };
-  const totalEffects = data.immunities.length + data.auras.length + data.weathers.length;
+  const totalEffects = data.immunities.length + data.auras.length + data.weathers.length + playedSpecials.length;
   return (
     <div style={{ width: "100%", height: "100%", padding: "5px", background: "rgba(15, 12, 8, 0.78)", border: "1px solid rgba(196, 144, 76, 0.3)", borderRadius: "4px", fontFamily: "system-ui, sans-serif", color: "#e9d9b6", overflow: "auto" }}>
       <div style={{ fontSize: "9px", color: "#c4904c", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px", fontWeight: "bold", textAlign: "center" }}>{sideLabel}</div>
@@ -1459,6 +1482,27 @@ function SideEffectsPanel({ sideLabel, data }: { sideLabel: string; data: SideEf
           <span style={{ fontSize: "11px" }}>{auraIcon[a.engineKey] ?? "✨"}</span>
           <span style={{ color: "#fca5a5" }}>+{a.amount}</span>
         </div>
+      ))}
+      {playedSpecials.map((p, i) => (
+        <CardTooltip key={"p" + i} card={{
+          name: p.name,
+          power: p.power,
+          rarity: p.rarity,
+          cardType: p.cardType,
+          imageUrl: p.imageUrl,
+          frameUrl: p.frameUrl,
+          faction: p.faction,
+          ability: p.ability,
+        }}>
+          <div style={{ fontSize: "9px", marginTop: "3px", padding: "3px 4px", background: "rgba(245, 158, 11, 0.10)", border: "1px solid rgba(245, 158, 11, 0.35)", borderRadius: "3px", display: "flex", alignItems: "center", gap: "4px", cursor: "help" }}>
+            {(p.frameUrl || p.imageUrl) ? (
+              <img src={(p.frameUrl ?? p.imageUrl) as string} alt={p.name} style={{ width: "18px", height: "24px", objectFit: "cover", borderRadius: "2px", flexShrink: 0 }} />
+            ) : (
+              <span style={{ fontSize: "11px", flexShrink: 0 }}>{p.cardType === "WEATHER" ? "⛅" : "✦"}</span>
+            )}
+            <span style={{ color: "#fcd34d", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "8px" }}>{p.name}</span>
+          </div>
+        </CardTooltip>
       ))}
     </div>
   );
