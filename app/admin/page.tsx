@@ -71,6 +71,13 @@ export default async function AdminHomePage() {
       desc: "Sobe e atribui fichas de personagem do Foundry aos jogadores.",
       color: "border-red-700/40 hover:border-red-500",
     },
+    {
+      href: "/admin/usuarios",
+      title: "Usuarios",
+      count: 0,
+      desc: "Criar contas, resetar senhas e gerenciar permissoes.",
+      color: "border-blue-700/40 hover:border-blue-500",
+    },
   ];
 
   return (

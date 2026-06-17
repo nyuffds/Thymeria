@@ -820,11 +820,12 @@ export async function playCardAction(data: {
                   power: ht.card.power,
                   isToken: false,
                   shielded: false,
+                  handEntryId: ht.id,
                 },
               });
               await tx.matchHand.update({
                 where: { id: ht.id },
-                data: { zone: "DISCARD" },
+                data: { zone: "BOARD" },
               });
             }
 
@@ -1105,8 +1106,10 @@ export async function playCardAction(data: {
             include: { card: true },
           });
           if (allBoard.length > 0) {
-            const maxBase = Math.max(...allBoard.map((b) => b.basePower));
-            const victims = allBoard.filter((b) => b.basePower === maxBase && !b.card.isElite && b.permanenceCounter === 0);
+            // Pega maior basePower entre elegiveis (nao-Elite e sem Permanencia)
+            const eligible = allBoard.filter((b) => !b.card.isElite && b.permanenceCounter === 0);
+            const maxBase = eligible.length > 0 ? Math.max(...eligible.map((b) => b.basePower)) : -1;
+            const victims = eligible.filter((b) => b.basePower === maxBase);
             for (const v of victims) {
               if (v.shielded) {
                 await tx.matchBoardCard.update({ where: { id: v.id }, data: { shielded: false } });
