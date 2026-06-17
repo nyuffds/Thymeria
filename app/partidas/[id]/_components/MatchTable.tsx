@@ -424,7 +424,8 @@ export function MatchTable(props: Props) {
   }
 
   function handleTargetClick(target: BoardCard) {
-    if (!canAct || !selectedHandCard || !chosenRow) return;
+    if (!canAct || !selectedHandCard) return;
+    const rowForSubmit: Row = chosenRow ?? "MELEE";
     // Na fase 2, usa engineKey do secundario. Na fase 1, do principal.
     const ek = phase === 2
       ? (selectedHandCard.ability?.secondaryEngineKey ?? null)
@@ -444,12 +445,13 @@ export function MatchTable(props: Props) {
       // Confirma elite com prompt simples por enquanto
       if (!confirm("Carta Elite e' imune. Continuar mesmo assim?")) return;
     }
-    executePlayCard(chosenRow, target.boardId);
+    executePlayCard(rowForSubmit, target.boardId);
   }
 
   function handleSelectEffectRow(effectRow: Row) {
-    if (!canAct || !selectedHandCard || !chosenRow) return;
-    submitPlay(chosenRow, { effectRow });
+    if (!canAct || !selectedHandCard) return;
+    const rowForSubmit: Row = chosenRow ?? "MELEE";
+    submitPlay(rowForSubmit, { effectRow });
   }
 
   function toggleMultiSelectId(id: string) {
