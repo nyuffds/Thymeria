@@ -50,6 +50,16 @@ export function EstanteList({ groups }: { groups: Group[] }) {
     }
   }
 
+  function prevCard() {
+    if (!opened) return;
+    if (revealedIdx > 0) setRevealedIdx(revealedIdx - 1);
+  }
+
+  function closeModal() {
+    setOpened(null);
+    router.refresh();
+  }
+
   function skipToEnd() {
     if (!opened) return;
     setRevealedIdx(opened.cards.length - 1);
@@ -115,98 +125,131 @@ export function EstanteList({ groups }: { groups: Group[] }) {
       </div>
 
       {opened && currentCard && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur z-50 flex items-center justify-center p-4">
-          <div className="max-w-md w-full text-center">
-            <p className="text-xs uppercase text-amber-400 tracking-widest mb-2">
-              {opened.name}
-            </p>
-            <p className="text-sm text-zinc-500 mb-6">
-              Carta {revealedIdx + 1} de {opened.cards.length}
-            </p>
+        <div className="fixed inset-0 bg-black/90 backdrop-blur z-50 flex items-center justify-center p-4">
+          <button
+            onClick={closeModal}
+            className="absolute top-4 right-4 text-zinc-400 hover:text-amber-200 text-3xl leading-none w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-900/80 transition"
+            title="Fechar"
+          >
+            &times;
+          </button>
 
-            <div
-              key={revealedIdx}
-              className="reveal-animation mx-auto bg-gradient-to-br from-zinc-900 to-zinc-950 border-4 rounded-2xl p-8 shadow-2xl"
-              style={{ borderColor: currentRarity ? currentRarity.color : "#aaa" }}
+          <div className="flex items-center gap-4 md:gap-8 max-w-6xl w-full">
+            {/* Seta esquerda */}
+            <button
+              onClick={prevCard}
+              disabled={revealedIdx === 0}
+              className="flex-shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-full bg-zinc-900/80 hover:bg-amber-700/80 disabled:opacity-20 disabled:hover:bg-zinc-900/80 text-amber-200 text-3xl md:text-4xl flex items-center justify-center transition border border-zinc-700 hover:border-amber-500"
+              title="Carta anterior"
             >
-                <div className="flex justify-center mb-6">
+              &#x2039;
+            </button>
+
+            {/* Conteudo central */}
+            <div className="flex-1 max-w-md mx-auto text-center">
+              <p className="text-xs uppercase text-amber-400 tracking-widest mb-1">{opened.name}</p>
+              <p className="text-sm text-zinc-500 mb-3">
+                Carta {revealedIdx + 1} de {opened.cards.length}
+              </p>
+
+              {/* Indicador de pontos */}
+              <div className="flex justify-center gap-1.5 mb-4">
+                {opened.cards.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setRevealedIdx(i)}
+                    className={`w-2 h-2 rounded-full transition ${i === revealedIdx ? "bg-amber-400 w-6" : i < revealedIdx ? "bg-zinc-500" : "bg-zinc-700"}`}
+                    title={`Carta ${i + 1}`}
+                  />
+                ))}
+              </div>
+
+              <div
+                key={revealedIdx}
+                className="reveal-animation mx-auto bg-gradient-to-br from-zinc-900 to-zinc-950 border-4 rounded-2xl p-5 shadow-2xl"
+                style={{ borderColor: currentRarity ? currentRarity.color : "#aaa" }}
+              >
+                <div className="flex justify-center mb-4">
                   <CardPreview card={currentCard} />
                 </div>
                 <p
-                className="font-heading text-3xl font-bold uppercase tracking-wider mb-2"
-                style={{ color: currentCard.faction.color }}
-              >
-                {currentCard.name}
-              </p>
-              <p className="text-sm text-zinc-400 font-lore italic">
-                {currentCard.faction.name}
-              </p>
-              <p
-                className="mt-4 text-xs uppercase tracking-wider font-bold"
-                style={{ color: currentRarity ? currentRarity.color : "#aaa" }}
-              >
-                {currentRarity ? currentRarity.label : currentCard.rarity}
-              </p>
-              <div className="mt-3 flex justify-center gap-4 text-xs">
-                <span className="text-zinc-500">
-                  <span className="text-zinc-300 font-bold">{currentCard.cardType}</span>
-                </span>
-                {currentCard.cardType === "UNIT" && (
-                  <>
-                    <span className="text-zinc-500">
-                      Poder: <span className="text-amber-300 font-bold">{currentCard.power}</span>
-                    </span>
-                    {currentCard.rows && (
+                  className="font-heading text-2xl font-bold uppercase tracking-wider mb-1"
+                  style={{ color: currentCard.faction.color }}
+                >
+                  {currentCard.name}
+                </p>
+                <p className="text-sm text-zinc-400 font-lore italic">{currentCard.faction.name}</p>
+                <p
+                  className="mt-2 text-xs uppercase tracking-wider font-bold"
+                  style={{ color: currentRarity ? currentRarity.color : "#aaa" }}
+                >
+                  {currentRarity ? currentRarity.label : currentCard.rarity}
+                </p>
+                <div className="mt-2 flex justify-center gap-3 text-xs">
+                  <span className="text-zinc-500">
+                    <span className="text-zinc-300 font-bold">{currentCard.cardType}</span>
+                  </span>
+                  {currentCard.cardType === "UNIT" && (
+                    <>
                       <span className="text-zinc-500">
-                        Fileiras: <span className="text-zinc-300">{currentCard.rows.split(",").join(", ")}</span>
+                        Poder: <span className="text-amber-300 font-bold">{currentCard.power}</span>
                       </span>
-                    )}
-                  </>
+                      {currentCard.rows && (
+                        <span className="text-zinc-500">
+                          Fileiras: <span className="text-zinc-300">{currentCard.rows.split(",").join(", ")}</span>
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+                {currentCard.ability && (
+                  <div className="mt-3 bg-zinc-900/80 border border-amber-700/40 rounded-lg p-3 text-left">
+                    <p className="text-xs uppercase tracking-wider text-amber-400 font-bold mb-1">
+                      {currentCard.ability.name}
+                    </p>
+                    <p className="text-sm text-zinc-300 leading-snug">{currentCard.ability.description}</p>
+                  </div>
+                )}
+                {currentCard.loreText && (
+                  <p className="mt-3 text-xs text-zinc-500 italic font-lore">&ldquo;{currentCard.loreText}&rdquo;</p>
+                )}
+                <p className="mt-3">
+                  {currentCard.wasNew ? (
+                    <span className="text-emerald-400 font-bold animate-pulse">&#10003; NOVA!</span>
+                  ) : (
+                    <span className="text-zinc-500 text-sm italic">Voce ja tinha esta carta</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="mt-4 flex justify-center">
+                {revealedIdx === opened.cards.length - 1 ? (
+                  <button
+                    onClick={closeModal}
+                    className="bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold px-8 py-2 rounded-lg transition"
+                  >
+                    Fechar
+                  </button>
+                ) : (
+                  <button
+                    onClick={skipToEnd}
+                    className="px-4 py-2 text-zinc-500 hover:text-amber-200 text-xs uppercase tracking-wider transition"
+                  >
+                    Ir para a ultima
+                  </button>
                 )}
               </div>
-              {currentCard.ability && (
-                <div className="mt-4 bg-zinc-900/80 border border-amber-700/40 rounded-lg p-3 text-left">
-                  <p className="text-xs uppercase tracking-wider text-amber-400 font-bold mb-1">
-                    {currentCard.ability.name}
-                  </p>
-                  <p className="text-sm text-zinc-300 leading-snug">
-                    {currentCard.ability.description}
-                  </p>
-                </div>
-              )}
-              {currentCard.loreText && (
-                <p className="mt-4 text-sm text-zinc-500 italic font-lore">
-                  &ldquo;{currentCard.loreText}&rdquo;
-                </p>
-              )}
-              <p className="mt-4">
-                {currentCard.wasNew ? (
-                  <span className="text-emerald-400 font-bold animate-pulse">
-                    ✓ NOVA!
-                  </span>
-                ) : (
-                  <span className="text-zinc-500 text-sm italic">
-                    Você já tinha esta carta
-                  </span>
-                )}
-              </p>
             </div>
 
-            <div className="mt-8 flex justify-center gap-2">
-              <button
-                onClick={skipToEnd}
-                disabled={revealedIdx === opened.cards.length - 1}
-                className="px-4 py-2 text-zinc-400 hover:text-amber-200 text-sm disabled:opacity-30"
-              >
-                Pular animação
-              </button>
-              <button
-                onClick={nextCard}
-                className="bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold px-6 py-2 rounded-lg transition"
-              >
-                {revealedIdx < opened.cards.length - 1 ? "Próxima" : "Fechar"}
-              </button>
-            </div>
+            {/* Seta direita */}
+            <button
+              onClick={nextCard}
+              disabled={revealedIdx >= opened.cards.length - 1}
+              className="flex-shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-full bg-zinc-900/80 hover:bg-amber-700/80 disabled:opacity-20 disabled:hover:bg-zinc-900/80 text-amber-200 text-3xl md:text-4xl flex items-center justify-center transition border border-zinc-700 hover:border-amber-500"
+              title="Proxima carta"
+            >
+              &#x203A;
+            </button>
           </div>
         </div>
       )}
