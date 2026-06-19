@@ -545,6 +545,7 @@ model Match {
   events   MatchEvent[]
   immunities MatchRowImmunity[]
   auras    MatchAura[]
+  pendingRevenges PendingRevenge[]
 
   @@index([status])
 }
@@ -620,6 +621,19 @@ model MatchBoardCard {
 
 // Auras passivas aplicadas em todas as cartas de um lado (ex: Lua de Sangue).
 // Persiste durante a ronda; limpa no inicio da nova ronda.
+model PendingRevenge {
+  id        String   @id @default(cuid())
+  matchId   String
+  side      String   // "A" ou "B" - lado da carta que morreu (que recebera o direito de vingar)
+  damage    Int      // X de dano que sera aplicado
+  sourceName String  // nome da carta que disparou pra mostrar ao jogador
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  @@index([matchId])
+  @@index([matchId, side])
+}
+
 model MatchAura {
   id          String   @id @default(cuid())
   matchId     String

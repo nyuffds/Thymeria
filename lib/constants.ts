@@ -60,6 +60,9 @@ export const ENGINE_KEYS = [
   { key: "RETURN_TO_HAND",   label: "Efigie",                desc: "Escolha uma carta do campo; ela volta para a mao do dono." },
   { key: "RESURRECT_FROM_DISCARD", label: "Ressurreicao",   desc: "Volta X cartas do seu cemiterio para o campo (apenas UNIT)." },
   { key: "SUMMON_FROM_DECK", label: "Convocacao Ritual",     desc: "Puxa X cartas aleatorias do seu deck para o campo (apenas UNIT)." },
+  { key: "REVENGE",          label: "Vinganca",              desc: "Ao ser destruida, causa X de dano a uma carta inimiga escolhida." },
+  { key: "CONSUME_ALLY",     label: "Consumir",              desc: "Ao entrar em campo, destroi uma aliada escolhida e absorve seu poder." },
+  { key: "SUMMON_TO_HAND_BY_NAME", label: "Recuperacao",     desc: "Ao entrar em campo, puxa uma carta especifica do universo para sua mao." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },

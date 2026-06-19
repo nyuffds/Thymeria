@@ -1,7 +1,7 @@
 ﻿"use client";
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { passRoundAction, abandonMatchAction, pauseMatchAction, resumeMatchAction, offerDrawAction, activateLeaderAction, redrawAction, skipRedrawAction, playCardAction, peekDeckTopAction, respondDrawOfferAction } from "@/lib/match-actions";
+import { passRoundAction, abandonMatchAction, pauseMatchAction, resumeMatchAction, offerDrawAction, activateLeaderAction, redrawAction, skipRedrawAction, playCardAction, peekDeckTopAction, respondDrawOfferAction, triggerRevengeAction } from "@/lib/match-actions";
 import { MatchEventLog } from "./MatchEventLog";
 import { CardTooltip } from "@/app/components/CardTooltip";
 import { CardModal } from "@/app/components/CardModal";
@@ -105,6 +105,7 @@ interface Props {
     auras: Array<{ engineKey: string; amount: number }>;
     weathers: Array<{ weatherKey: string; affectedRow: "MELEE" | "RANGED" | "SIEGE" }>;
   }>;
+  pendingRevenges: Record<Side, Array<{ id: string; damage: number; sourceName: string }>>;
   discards: Record<Side, Array<{
     handId: string;
     name: string;
@@ -127,7 +128,7 @@ interface Props {
   }>>;
 }
 
-const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION", "PERMANENCE", "RETURN_TO_HAND"]);
+const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION", "PERMANENCE", "RETURN_TO_HAND", "CONSUME_ALLY"]);
 const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW", "WEATHER_RAIN"]);
 
 export function MatchTable(props: Props) {
@@ -336,7 +337,7 @@ export function MatchTable(props: Props) {
 
     if (ek && NEEDS_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
-      setLeaderTargetMode((ek === "RETURN_TO_HAND") ? "ANY" : ((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE") ? "ALLY" : "ENEMY"));
+      setLeaderTargetMode((ek === "RETURN_TO_HAND") ? "ANY" : ((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE" || ek === "CONSUME_ALLY") ? "ALLY" : "ENEMY"));
     } else if (ek && NEEDS_ROW_TARGET.has(ek)) {
       setActivatingLeader(turnSide);
       setLeaderTargetMode((ek === "DESTROY_ROW") ? "ROW_ENEMY" : "ROW_ALLY");
@@ -391,7 +392,7 @@ export function MatchTable(props: Props) {
 
     // Habilidades com alvo simples
     if (ek && NEEDS_TARGET.has(ek)) {
-      setTargetMode((ek === "RETURN_TO_HAND") ? "ANY" : ((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE") ? "ALLY" : "ENEMY"));
+      setTargetMode((ek === "RETURN_TO_HAND") ? "ANY" : ((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE" || ek === "CONSUME_ALLY") ? "ALLY" : "ENEMY"));
       return;
     }
 
@@ -447,7 +448,7 @@ export function MatchTable(props: Props) {
       setMultiSelectIds([]);
       const sek = selectedHandCard.ability?.secondaryEngineKey ?? null;
       if (sek && NEEDS_TARGET.has(sek)) {
-        setTargetMode((sek === "RETURN_TO_HAND") ? "ANY" : ((sek === "BOOST" || sek === "HEAL" || sek === "EVOLVE_FACTION" || sek === "PERMANENCE") ? "ALLY" : "ENEMY"));
+        setTargetMode((sek === "RETURN_TO_HAND") ? "ANY" : ((sek === "BOOST" || sek === "HEAL" || sek === "EVOLVE_FACTION" || sek === "PERMANENCE" || sek === "CONSUME_ALLY") ? "ALLY" : "ENEMY"));
       } else if (sek && NEEDS_ROW_TARGET.has(sek)) {
         setRowTargetMode((sek === "DESTROY_ROW" || sek === "WEATHER_RAIN") ? "ROW_ENEMY" : "ROW_ALLY");
       } else if (sek === "BOOST_MANY") {
@@ -691,7 +692,7 @@ export function MatchTable(props: Props) {
       }
       // Habilidades com alvo simples
       if (ek && NEEDS_TARGET.has(ek)) {
-        setTargetMode((ek === "RETURN_TO_HAND") ? "ANY" : ((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE") ? "ALLY" : "ENEMY"));
+        setTargetMode((ek === "RETURN_TO_HAND") ? "ANY" : ((ek === "BOOST" || ek === "HEAL" || ek === "EVOLVE_FACTION" || ek === "PERMANENCE" || ek === "CONSUME_ALLY") ? "ALLY" : "ENEMY"));
         return;
       }
       // Multi-select fontes
@@ -785,7 +786,19 @@ export function MatchTable(props: Props) {
     return false;
   }
 
+  // Vingancas pendentes do jogador da vez
+  const myPendingRevenges = canAct && turnSide ? props.pendingRevenges[turnSide] : [];
+  const hasPendingRevenge = myPendingRevenges.length > 0;
+
+  function handleRevengeTargetClick(c: BoardCard) {
+    if (!turnSide || !canAct || c.side === turnSide || c.isElite) return;
+    guard(async () => {
+      await triggerRevengeAction({ matchId: props.matchId, side: turnSide, targetBoardCardId: c.boardId });
+    });
+  }
+
   function dispatchCardClick(c: BoardCard) {
+    if (hasPendingRevenge) return handleRevengeTargetClick(c);
     if (activatingLeader) return handleLeaderTargetClick(c);
     return handleTargetClick(c);
   }
@@ -941,6 +954,34 @@ export function MatchTable(props: Props) {
               <span>Lider: clique numa carta {leaderTargetMode === "ALLY" ? "aliada" : "inimiga"}</span>
             )}
             <button onClick={cancelLeaderActivation} style={{ ...leaderBtnStyle, background: "transparent", border: "none", textDecoration: "underline" }}>cancelar</button>
+          </div>
+        )}
+
+        {/* Banner de vinganca pendente */}
+        {hasPendingRevenge && (
+          <div
+            style={{
+              position: "absolute",
+              top: "73%",
+              left: "21.3%",
+              width: "59.3%",
+              background: "rgba(153, 27, 27, 0.95)",
+              border: "2px solid #ef4444",
+              color: "#fee2e2",
+              padding: "8px 12px",
+              borderRadius: "4px",
+              fontSize: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              zIndex: 9,
+              boxShadow: "0 4px 16px rgba(239, 68, 68, 0.6)",
+              fontWeight: "bold",
+            }}
+          >
+            <span style={{ fontSize: "16px" }}>{"\u2620"}</span>
+            <span>Vinganca pendente! {myPendingRevenges[0]?.sourceName} causara {myPendingRevenges[0]?.damage} de dano. Clique numa carta inimiga.</span>
           </div>
         )}
 

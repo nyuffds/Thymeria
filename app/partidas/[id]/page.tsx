@@ -46,6 +46,7 @@ export default async function PartidaPage({
       },
       immunities: true,
       auras: true,
+      pendingRevenges: true,
       events: {
         orderBy: { createdAt: "asc" },
       },
@@ -331,6 +332,10 @@ export default async function PartidaPage({
             auras: match.auras.filter((a) => a.side === "B").map((a) => ({ engineKey: a.engineKey, amount: a.amount })),
             weathers: match.weather.filter((w) => match.board.some((b) => b.side === "B" && b.row === w.affectedRow)).map((w) => ({ weatherKey: w.weatherKey, affectedRow: w.affectedRow as "MELEE" | "RANGED" | "SIEGE" })),
           },
+        }}
+        pendingRevenges={{
+          A: match.pendingRevenges.filter((r) => r.side === "A").map((r) => ({ id: r.id, damage: r.damage, sourceName: r.sourceName })),
+          B: match.pendingRevenges.filter((r) => r.side === "B").map((r) => ({ id: r.id, damage: r.damage, sourceName: r.sourceName })),
         }}
       />
     </main>

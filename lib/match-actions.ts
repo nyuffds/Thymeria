@@ -1219,6 +1219,47 @@ export async function playCardAction(data: {
           }
           await logEvent(tx, data.matchId, match.currentRound, data.side, "SUMMON_FROM_DECK",
             { count: summoned });
+        } else if (ek === "CONSUME_ALLY" && effTargetBoardCardId && newBoardCard) {
+          // Consumir: destroi uma aliada escolhida e absorve seu basePower
+          const target = await tx.matchBoardCard.findUnique({
+            where: { id: effTargetBoardCardId },
+            include: { card: true },
+          });
+          if (target && target.matchId === data.matchId && target.side === ownerSide && target.id !== newBoardCard.id && !target.card.isElite && target.permanenceCounter === 0) {
+            const absorbed = target.basePower;
+            await triggerOnDeath(tx, data.matchId, target.id);
+            await tx.matchBoardCard.delete({ where: { id: target.id } });
+            await tx.matchBoardCard.update({
+              where: { id: newBoardCard.id },
+              data: { basePower: newBoardCard.basePower + absorbed },
+            });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "CONSUME_ALLY",
+              { consumedId: target.id, absorbedPower: absorbed, consumerId: newBoardCard.id });
+          }
+        } else if (ek === "SUMMON_TO_HAND_BY_NAME") {
+          // Recuperacao: puxa carta especifica do universo para a mao
+          if (effTargetCardIdsCsv) {
+            const targetIds = effTargetCardIdsCsv.split(",").filter(Boolean);
+            for (const cardId of targetIds) {
+              const cardExists = await tx.card.findUnique({ where: { id: cardId } });
+              if (!cardExists) continue;
+              const maxOrder = await tx.matchHand.aggregate({
+                where: { matchId: data.matchId, side: ownerSide },
+                _max: { deckOrder: true },
+              });
+              await tx.matchHand.create({
+                data: {
+                  matchId: data.matchId,
+                  side: ownerSide,
+                  cardId,
+                  zone: "HAND",
+                  deckOrder: (maxOrder._max.deckOrder ?? 0) + 1,
+                },
+              });
+            }
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "SUMMON_TO_HAND_BY_NAME",
+              { count: targetIds.length });
+          }
         }
         }
         // SHIELD já foi tratado na criação (shielded: true)
@@ -1879,4 +1920,57 @@ export async function resumeMatchAction(matchId: string) {
 
   revalidatePath(`/partidas/${matchId}`);
   notifyMatchChange(matchId);
+}
+// Vinganca pendente: jogador clica numa carta inimiga para aplicar o dano
+export async function triggerRevengeAction(data: { matchId: string; side: Side; targetBoardCardId: string }) {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Voce precisa estar logado.");
+  const user = await prisma.user.findUnique({ where: { username: session.user.name } });
+  if (!user) throw new Error("Usuario nao encontrado.");
+
+  await prisma.$transaction(async (tx) => {
+    const match = await tx.match.findUnique({
+      where: { id: data.matchId },
+      include: { players: true },
+    });
+    if (!match) throw new Error("Partida nao encontrada.");
+    const player = match.players.find((p) => p.userId === user.id && p.side === data.side);
+    if (!player) throw new Error("Voce nao esta nessa partida.");
+
+    // Pega a primeira vinganca pendente desse lado (FIFO)
+    const pending = await tx.pendingRevenge.findFirst({
+      where: { matchId: data.matchId, side: data.side },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!pending) throw new Error("Nao ha vinganca pendente.");
+
+    const target = await tx.matchBoardCard.findUnique({
+      where: { id: data.targetBoardCardId },
+      include: { card: true },
+    });
+    if (!target || target.matchId !== data.matchId) throw new Error("Alvo invalido.");
+    if (target.side === data.side) throw new Error("Voce nao pode mirar uma aliada.");
+    if (target.card.isElite) throw new Error("Cartas Elite sao imunes.");
+    if (target.permanenceCounter > 0) throw new Error("Carta com Permanencia e imune.");
+
+    if (target.shielded) {
+      await tx.matchBoardCard.update({ where: { id: target.id }, data: { shielded: false } });
+      await logEvent(tx, data.matchId, match.currentRound, data.side, "SHIELD_CONSUMED", { targetId: target.id, by: "REVENGE" });
+    } else {
+      const newBase = target.basePower - pending.damage;
+      if (newBase <= 0) {
+        await triggerOnDeath(tx, data.matchId, target.id);
+        await tx.matchBoardCard.delete({ where: { id: target.id } });
+        await logEvent(tx, data.matchId, match.currentRound, data.side, "REVENGE_DESTROY",
+          { targetId: target.id, damage: pending.damage, source: pending.sourceName });
+      } else {
+        await tx.matchBoardCard.update({ where: { id: target.id }, data: { basePower: newBase } });
+        await logEvent(tx, data.matchId, match.currentRound, data.side, "REVENGE_DAMAGE",
+          { targetId: target.id, damage: pending.damage, source: pending.sourceName });
+      }
+    }
+
+    await tx.pendingRevenge.delete({ where: { id: pending.id } });
+    await persistRecomputedPower(tx, data.matchId);
+  });
 }
