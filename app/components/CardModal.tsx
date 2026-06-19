@@ -21,7 +21,7 @@ export function CardModal({ card, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-center mb-4">
-          <CardPreview card={card} />
+          <CardPreview card={card} size="large" />
         </div>
         <button
           onClick={onClose}

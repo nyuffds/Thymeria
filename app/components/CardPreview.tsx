@@ -1,4 +1,4 @@
-// app/components/CardPreview.tsx
+﻿// app/components/CardPreview.tsx
 // Visual ornamentado de uma carta.
 // Comportamento do frameUrl:
 //   - frameUrl + imageUrl: arte dentro da moldura padrao + frame customizado sobreposto
@@ -27,7 +27,7 @@ const ROW_ICON: Record<string, string> = {
   SIEGE:  "🏰",
 };
 
-export function CardPreview({ card }: { card: CardPreviewData }) {
+export function CardPreview({ card, size = "default" }: { card: CardPreviewData; size?: "default" | "large" }) {
   const rarity = RARITIES.find((r) => r.key === card.rarity);
   const rowList = card.rows.split(",").filter(Boolean);
 
@@ -36,8 +36,8 @@ export function CardPreview({ card }: { card: CardPreviewData }) {
 
   return (
     <div
-      className={"relative w-80 " + (card.rarity === "MYTHIC" ? "rarity-mythic" : "")}
-      style={{ aspectRatio: "5 / 7" }}
+      className={"relative " + (size === "large" ? "w-[min(85vh*0.665,90vw)] max-w-[600px]" : "w-80") + " " + (card.rarity === "MYTHIC" ? "rarity-mythic" : "")}
+      style={{ aspectRatio: "1023 / 1537" }}
     >
       {frameOnly ? (
         // Modo "carta completa" - so o PNG do frame

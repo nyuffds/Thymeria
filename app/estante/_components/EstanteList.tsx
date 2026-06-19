@@ -170,7 +170,7 @@ export function EstanteList({ groups }: { groups: Group[] }) {
                 style={{ borderColor: currentRarity ? currentRarity.color : "#aaa" }}
               >
                 <div className="flex justify-center mb-4">
-                  <CardPreview card={currentCard} />
+                  <CardPreview card={currentCard} size="large" />
                 </div>
                 <p
                   className="font-heading text-2xl font-bold uppercase tracking-wider mb-1"
