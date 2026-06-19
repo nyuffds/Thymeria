@@ -20,6 +20,7 @@ interface Props {
   card: CardData;
   children: React.ReactNode;
   fillContainer?: boolean;
+  placement?: "auto" | "right" | "left";
 }
 
 const RARITY_LABEL: Record<string, string> = {
@@ -43,7 +44,7 @@ const TYPE_LABEL: Record<string, string> = {
   LEADER: "Líder",
 };
 
-export function CardTooltip({ card, children, fillContainer }: Props) {
+export function CardTooltip({ card, children, fillContainer, placement = "auto" }: Props) {
   const [show, setShow] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [isCompactView, setIsCompactView] = useState(false);
@@ -68,12 +69,33 @@ export function CardTooltip({ card, children, fillContainer }: Props) {
     const margin = 8;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    let top = rect.top - tooltipHeight - margin;
-    let left = rect.left + rect.width / 2;
-    if (top < margin) top = rect.bottom + margin;
+    let top: number;
+    let left: number;
     const halfW = tooltipWidth / 2;
+    const halfH = tooltipHeight / 2;
+    if (placement === "right") {
+      // Posiciona a direita do elemento, centralizado verticalmente
+      top = rect.top + rect.height / 2 - halfH;
+      left = rect.right + margin + halfW;
+      // Se nao couber a direita, vai pra esquerda
+      if (left + halfW > vw - margin) {
+        left = rect.left - margin - halfW;
+      }
+    } else if (placement === "left") {
+      top = rect.top + rect.height / 2 - halfH;
+      left = rect.left - margin - halfW;
+      if (left - halfW < margin) {
+        left = rect.right + margin + halfW;
+      }
+    } else {
+      // Default: acima, centralizado horizontalmente
+      top = rect.top - tooltipHeight - margin;
+      left = rect.left + rect.width / 2;
+      if (top < margin) top = rect.bottom + margin;
+    }
     if (left - halfW < margin) left = halfW + margin;
     if (left + halfW > vw - margin) left = vw - halfW - margin;
+    if (top < margin) top = margin;
     if (top + tooltipHeight > vh - margin) top = Math.max(margin, vh - tooltipHeight - margin);
     setPosition({ top, left });
   }, [position, show]);

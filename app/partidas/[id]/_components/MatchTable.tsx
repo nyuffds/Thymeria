@@ -774,6 +774,9 @@ export function MatchTable(props: Props) {
   }
 
     function isCardTargetable(c: BoardCard): boolean {
+    if (hasPendingRevenge) {
+      return c.side !== turnSide && !c.isElite;
+    }
     if (activatingLeader) {
       if (leaderTargetMode === "ALLY") return c.side === activatingLeader && !c.isElite;
       if (leaderTargetMode === "ENEMY") return c.side !== activatingLeader && !c.isElite;
