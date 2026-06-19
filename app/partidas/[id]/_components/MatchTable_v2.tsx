@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -10,7 +10,7 @@ import {
 } from "@/lib/match-actions";
 import { RARITIES, ROWS } from "@/lib/constants";
 import { MatchEventLog } from "./MatchEventLog";
-import { CardTooltip } from "./CardTooltip";
+import { CardTooltip } from "@/app/components/CardTooltip";
 import { DeckPiles } from "./DeckPiles";
 import { AnimatedNumber } from "./AnimatedNumber";
 

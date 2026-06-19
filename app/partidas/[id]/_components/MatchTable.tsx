@@ -3,8 +3,8 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { passRoundAction, abandonMatchAction, pauseMatchAction, resumeMatchAction, offerDrawAction, activateLeaderAction, redrawAction, skipRedrawAction, playCardAction, peekDeckTopAction, respondDrawOfferAction } from "@/lib/match-actions";
 import { MatchEventLog } from "./MatchEventLog";
-import { CardTooltip } from "./CardTooltip";
-import { CardModal } from "./CardModal";
+import { CardTooltip } from "@/app/components/CardTooltip";
+import { CardModal } from "@/app/components/CardModal";
 import type { CardPreviewData } from "@/app/components/CardPreview";
 
 type Side = "A" | "B";
