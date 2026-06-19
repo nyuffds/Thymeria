@@ -1275,6 +1275,31 @@ export async function playCardAction(data: {
             await logEvent(tx, data.matchId, match.currentRound, data.side, "SUMMON_TO_HAND_BY_NAME",
               { count: targetIds.length });
           }
+        } else if (ek === "SUMMON_TO_BOARD_BY_NAME") {
+          // Invocacao Direta: invoca cartas especificas do universo direto no campo
+          if (effTargetCardIdsCsv) {
+            const targetIds = effTargetCardIdsCsv.split(",").filter(Boolean);
+            for (const cardId of targetIds) {
+              const cardDef = await tx.card.findUnique({ where: { id: cardId } });
+              if (!cardDef) continue;
+              const allowedRows = cardDef.rows.split(",").filter(Boolean);
+              const targetRow = (allowedRows[0] ?? "MELEE") as Row;
+              await tx.matchBoardCard.create({
+                data: {
+                  matchId: data.matchId,
+                  side: ownerSide,
+                  cardId: cardDef.id,
+                  row: targetRow,
+                  basePower: cardDef.power,
+                  power: cardDef.power,
+                  isToken: true,
+                  shielded: false,
+                },
+              });
+            }
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "SUMMON_TO_BOARD_BY_NAME",
+              { count: targetIds.length });
+          }
         }
         }
         // SHIELD já foi tratado na criação (shielded: true)

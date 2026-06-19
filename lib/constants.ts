@@ -63,6 +63,7 @@ export const ENGINE_KEYS = [
   { key: "REVENGE",          label: "Vinganca",              desc: "Ao ser destruida, causa X de dano a uma carta inimiga escolhida." },
   { key: "CONSUME_ALLY",     label: "Consumir",              desc: "Ao entrar em campo, destroi uma aliada escolhida e absorve seu poder." },
   { key: "SUMMON_TO_HAND_BY_NAME", label: "Recuperacao",     desc: "Ao entrar em campo, puxa uma carta especifica do universo para sua mao." },
+  { key: "SUMMON_TO_BOARD_BY_NAME", label: "Invocacao Direta", desc: "Ao entrar em campo, invoca uma carta especifica do universo direto no seu campo." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },
