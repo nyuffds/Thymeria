@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,9 @@ import {
   changeDeckLeaderAction,
 } from "@/lib/actions";
 import { RARITIES } from "@/lib/constants";
+import { CardTooltip } from "@/app/components/CardTooltip";
+import { CardModal } from "@/app/components/CardModal";
+import type { CardPreviewData } from "@/app/components/CardPreview";
 
 interface CardData {
   id: string;
@@ -92,6 +95,22 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
   const [query, setQuery] = useState("");
   const [rarityFilter, setRarityFilter] = useState("");
   const [hideMaxed, setHideMaxed] = useState(false);
+  const [viewingCard, setViewingCard] = useState<CardPreviewData | null>(null);
+
+  function openCard(c: CardData | DeckCardData) {
+    setViewingCard({
+      name: c.name,
+      power: c.power,
+      rows: c.rows,
+      rarity: c.rarity,
+      cardType: c.cardType,
+      loreText: c.loreText,
+      imageUrl: c.imageUrl,
+      frameUrl: null,
+      faction: c.faction,
+      ability: c.ability,
+    });
+  }
 
   // Cartas do deck agrupadas
   const deckGroups = useMemo(() => {
@@ -306,9 +325,11 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                 {deckGroups.map((g) => {
                   const rarity = RARITIES.find((r) => r.key === g.card.rarity);
                   return (
+                    <CardTooltip card={{ name: g.card.name, power: g.card.power, rarity: g.card.rarity, cardType: g.card.cardType, imageUrl: g.card.imageUrl, frameUrl: null, faction: g.card.faction, ability: g.card.ability }}>
                     <li
                       key={g.card.cardId}
-                      className="flex items-center gap-2 bg-zinc-800/40 hover:bg-zinc-800/70 rounded px-2 py-1.5 transition"
+                      onClick={(ev) => { if (ev.shiftKey) { ev.stopPropagation(); openCard(g.card); } }}
+                      className="flex items-center gap-2 bg-zinc-800/40 hover:bg-zinc-800/70 rounded px-2 py-1.5 transition cursor-pointer"
                     >
                       <span
                         className="w-1 h-8 rounded-full flex-shrink-0"
@@ -324,7 +345,7 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                         ×{g.count}
                       </span>
                       <button
-                        onClick={() => handleRemove(g.card.cardId)}
+                        onClick={(ev) => { ev.stopPropagation(); handleRemove(g.card.cardId); }}
                         disabled={isPending}
                         className="text-red-400 hover:text-red-300 text-xs px-1 disabled:opacity-30"
                         title="Remover 1 cópia"
@@ -332,6 +353,7 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                         −
                       </button>
                     </li>
+                    </CardTooltip>
                   );
                 })}
               </ul>
@@ -404,9 +426,11 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                   else if (eliteFull) cannotReason = `Máx ${MAX_ELITE} Elites no deck`;
 
                 return (
+                  <CardTooltip card={{ name: e.card.name, power: e.card.power, rarity: e.card.rarity, cardType: e.card.cardType, imageUrl: e.card.imageUrl, frameUrl: null, faction: e.card.faction, ability: e.card.ability }}>
                   <li
                     key={e.cardId}
-                    className="flex items-center gap-2 bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 rounded px-2 py-1.5 transition"
+                    onClick={(ev) => { if (ev.shiftKey) { ev.stopPropagation(); openCard(e.card); } }}
+                    className="flex items-center gap-2 bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 rounded px-2 py-1.5 transition cursor-pointer"
                   >
                     <span
                       className="w-1 h-10 rounded-full flex-shrink-0"
@@ -434,7 +458,7 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                       {e.quantityInDeck}/{e.quantityOwned}
                     </span>
                     <button
-                      onClick={() => handleAdd(e.cardId)}
+                      onClick={(ev) => { ev.stopPropagation(); handleAdd(e.cardId); }}
                       disabled={isPending || cannotAdd}
                       className="bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed
                                  text-zinc-950 font-bold w-7 h-7 rounded transition flex items-center justify-center"
@@ -443,12 +467,14 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                       +
                     </button>
                   </li>
+                  </CardTooltip>
                 );
               })}
             </ul>
           )}
         </div>
       </div>
+      <CardModal card={viewingCard} onClose={() => setViewingCard(null)} />
     </div>
   );
 }
