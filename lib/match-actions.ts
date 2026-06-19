@@ -400,6 +400,21 @@ async function triggerOnDeath(
     }
   }
   const ek = dying.card.ability?.engineKey;
+  // REVENGE: registra vinganca pendente (jogador escolhe alvo no proximo turno seu)
+  if (ek === "REVENGE") {
+    const ev = dying.card.ability?.engineValue ?? 0;
+    if (ev > 0) {
+      await tx.pendingRevenge.create({
+        data: {
+          matchId,
+          side: dying.side,
+          damage: ev,
+          sourceName: dying.card.name,
+        },
+      });
+    }
+    return;
+  }
   if (ek !== "ON_DEATH_SPAWN") return;
   const csv = dying.card.ability?.targetCardIdsCsv;
   if (!csv) return;
