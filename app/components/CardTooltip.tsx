@@ -46,21 +46,37 @@ const TYPE_LABEL: Record<string, string> = {
 export function CardTooltip({ card, children, fillContainer }: Props) {
   const [show, setShow] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [isCompactView, setIsCompactView] = useState(false);
   const wrapperRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!show || !wrapperRef.current) return;
-    const rect = wrapperRef.current.getBoundingClientRect();
-    // Posiciona acima do elemento por padrão; se não couber, joga abaixo
-    const tooltipHeight = (card.frameUrl || card.imageUrl) ? 560 : 220; // com imagem fica maior
-    const top = rect.top - tooltipHeight - 8;
-    const left = rect.left + rect.width / 2;
-    setPosition({
-      top: top < 10 ? rect.bottom + 8 : top,
-      left,
-    });
-  }, [show]);
+    const isCompact = window.innerHeight < 720;
+    setIsCompactView(isCompact);
+    // Reset position pra forcar re-medicao
+    setPosition({ top: -9999, left: -9999 });
+  }, [show, card.name]);
 
+  useEffect(() => {
+    if (!show || !wrapperRef.current || !tooltipRef.current) return;
+    if (!position || position.top !== -9999) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const tipRect = tooltipRef.current.getBoundingClientRect();
+    const tooltipWidth = tipRect.width;
+    const tooltipHeight = tipRect.height;
+    const margin = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let top = rect.top - tooltipHeight - margin;
+    let left = rect.left + rect.width / 2;
+    if (top < margin) top = rect.bottom + margin;
+    const halfW = tooltipWidth / 2;
+    if (left - halfW < margin) left = halfW + margin;
+    if (left + halfW > vw - margin) left = vw - halfW - margin;
+    if (top + tooltipHeight > vh - margin) top = Math.max(margin, vh - tooltipHeight - margin);
+    setPosition({ top, left });
+  }, [position, show]);
   const rarityColor = RARITY_COLOR[card.rarity] ?? "#9ca3af";
   const powerBoosted = card.basePower !== undefined && card.basePower !== card.power;
 
@@ -82,7 +98,8 @@ export function CardTooltip({ card, children, fillContainer }: Props) {
           }}
         >
           <div
-            className="bg-zinc-900 border-2 rounded-lg shadow-2xl p-3 w-96 text-left"
+            ref={tooltipRef}
+            className={(isCompactView ? "w-[280px] p-2" : "w-80 p-3") + " bg-zinc-900 border-2 rounded-lg shadow-2xl text-left"}
             style={{ borderColor: rarityColor }}
           >
             {/* Miniatura da carta */}

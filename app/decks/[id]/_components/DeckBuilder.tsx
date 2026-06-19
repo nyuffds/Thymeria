@@ -325,9 +325,8 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                 {deckGroups.map((g) => {
                   const rarity = RARITIES.find((r) => r.key === g.card.rarity);
                   return (
-                    <CardTooltip card={{ name: g.card.name, power: g.card.power, rarity: g.card.rarity, cardType: g.card.cardType, imageUrl: g.card.imageUrl, frameUrl: null, faction: g.card.faction, ability: g.card.ability }}>
+                    <CardTooltip key={g.card.cardId} card={{ name: g.card.name, power: g.card.power, rarity: g.card.rarity, cardType: g.card.cardType, imageUrl: g.card.imageUrl, frameUrl: null, faction: g.card.faction, ability: g.card.ability }}>
                     <li
-                      key={g.card.cardId}
                       onClick={(ev) => { if (ev.shiftKey) { ev.stopPropagation(); openCard(g.card); } }}
                       className="flex items-center gap-2 bg-zinc-800/40 hover:bg-zinc-800/70 rounded px-2 py-1.5 transition cursor-pointer"
                     >
@@ -426,9 +425,8 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
                   else if (eliteFull) cannotReason = `Máx ${MAX_ELITE} Elites no deck`;
 
                 return (
-                  <CardTooltip card={{ name: e.card.name, power: e.card.power, rarity: e.card.rarity, cardType: e.card.cardType, imageUrl: e.card.imageUrl, frameUrl: null, faction: e.card.faction, ability: e.card.ability }}>
+                  <CardTooltip key={e.cardId} card={{ name: e.card.name, power: e.card.power, rarity: e.card.rarity, cardType: e.card.cardType, imageUrl: e.card.imageUrl, frameUrl: null, faction: e.card.faction, ability: e.card.ability }}>
                   <li
-                    key={e.cardId}
                     onClick={(ev) => { if (ev.shiftKey) { ev.stopPropagation(); openCard(e.card); } }}
                     className="flex items-center gap-2 bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 rounded px-2 py-1.5 transition cursor-pointer"
                   >
