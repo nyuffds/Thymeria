@@ -52,7 +52,7 @@ export function CardTooltip({ card, children, fillContainer }: Props) {
     if (!show || !wrapperRef.current) return;
     const rect = wrapperRef.current.getBoundingClientRect();
     // Posiciona acima do elemento por padrão; se não couber, joga abaixo
-    const tooltipHeight = (card.frameUrl || card.imageUrl) ? 420 : 200; // com imagem fica maior
+    const tooltipHeight = (card.frameUrl || card.imageUrl) ? 560 : 220; // com imagem fica maior
     const top = rect.top - tooltipHeight - 8;
     const left = rect.left + rect.width / 2;
     setPosition({
@@ -82,7 +82,7 @@ export function CardTooltip({ card, children, fillContainer }: Props) {
           }}
         >
           <div
-            className="bg-zinc-900 border-2 rounded-lg shadow-2xl p-3 w-72 text-left"
+            className="bg-zinc-900 border-2 rounded-lg shadow-2xl p-3 w-96 text-left"
             style={{ borderColor: rarityColor }}
           >
             {/* Miniatura da carta */}

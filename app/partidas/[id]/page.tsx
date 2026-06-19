@@ -289,11 +289,11 @@ export default async function PartidaPage({
         lastDiscarded={{
           A: (() => {
             const d = match.hands.find((h) => h.side === "A" && h.zone === "DISCARD");
-            return d ? { name: d.card.name, imageUrl: d.card.imageUrl, frameUrl: d.card.frameUrl } : null;
+            return d ? { name: d.card.name, power: d.card.power, rarity: d.card.rarity, cardType: d.card.cardType, imageUrl: d.card.imageUrl, frameUrl: d.card.frameUrl, faction: { name: d.card.faction.name, color: d.card.faction.color }, ability: d.card.ability ? { name: d.card.ability.name, description: d.card.ability.description } : null } : null;
           })(),
           B: (() => {
             const d = match.hands.find((h) => h.side === "B" && h.zone === "DISCARD");
-            return d ? { name: d.card.name, imageUrl: d.card.imageUrl, frameUrl: d.card.frameUrl } : null;
+            return d ? { name: d.card.name, power: d.card.power, rarity: d.card.rarity, cardType: d.card.cardType, imageUrl: d.card.imageUrl, frameUrl: d.card.frameUrl, faction: { name: d.card.faction.name, color: d.card.faction.color }, ability: d.card.ability ? { name: d.card.ability.name, description: d.card.ability.description } : null } : null;
           })(),
         }}
         discards={{

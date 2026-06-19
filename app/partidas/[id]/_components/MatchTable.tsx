@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { passRoundAction, abandonMatchAction, pauseMatchAction, resumeMatchAction, offerDrawAction, activateLeaderAction, redrawAction, skipRedrawAction, playCardAction, peekDeckTopAction, respondDrawOfferAction } from "@/lib/match-actions";
 import { MatchEventLog } from "./MatchEventLog";
 import { CardTooltip } from "./CardTooltip";
+import { CardModal } from "./CardModal";
+import type { CardPreviewData } from "@/app/components/CardPreview";
 
 type Side = "A" | "B";
 type Row = "MELEE" | "RANGED" | "SIEGE";
@@ -97,7 +99,7 @@ interface Props {
   pausedBy: Side | null;
   drawOfferedBy: Side | null;
   winnerSide: Side | "DRAW" | null;
-  lastDiscarded: Record<Side, { name: string; imageUrl: string | null; frameUrl: string | null } | null>;
+  lastDiscarded: Record<Side, { name: string; power: number; rarity: string; cardType: string; imageUrl: string | null; frameUrl: string | null; faction: { name: string; color: string }; ability: { name: string; description: string } | null } | null>;
   sideEffects: Record<Side, {
     immunities: Array<{ row: "MELEE" | "RANGED" | "SIEGE"; turnsLeft: number }>;
     auras: Array<{ engineKey: string; amount: number }>;
@@ -133,6 +135,79 @@ export function MatchTable(props: Props) {
   const pB = props.players.B;
 
   const [selectedHandCard, setSelectedHandCard] = useState<HandCard | null>(null);
+  const [viewingCard, setViewingCard] = useState<CardPreviewData | null>(null);
+
+  function openBoardCard(c: BoardCard) {
+    setViewingCard({
+      name: c.name,
+      power: c.power,
+      rows: c.row,
+      rarity: c.rarity,
+      cardType: c.cardType,
+      imageUrl: c.imageUrl,
+      frameUrl: c.frameUrl,
+      faction: c.faction,
+      ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
+    });
+  }
+
+  function openHandCard(c: HandCard) {
+    setViewingCard({
+      name: c.name,
+      power: c.power,
+      rows: c.rows,
+      rarity: c.rarity,
+      cardType: c.cardType,
+      imageUrl: c.imageUrl,
+      frameUrl: c.frameUrl,
+      faction: c.faction,
+      ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
+    });
+  }
+
+  function openLastDiscarded(d: { name: string; power: number; rarity: string; cardType: string; imageUrl: string | null; frameUrl: string | null; faction: { name: string; color: string }; ability: { name: string; description: string } | null }) {
+    setViewingCard({
+      name: d.name,
+      power: d.power,
+      rows: "",
+      rarity: d.rarity,
+      cardType: d.cardType,
+      imageUrl: d.imageUrl,
+      frameUrl: d.frameUrl,
+      faction: d.faction,
+      ability: d.ability,
+    });
+  }
+
+  function openPlayedSpecial(s: { name: string; power: number; rarity: string; cardType: string; imageUrl: string | null; frameUrl: string | null; faction: { name: string; color: string }; ability: { name: string; description: string } | null }) {
+    setViewingCard({
+      name: s.name,
+      power: s.power,
+      rows: "",
+      rarity: s.rarity,
+      cardType: s.cardType,
+      imageUrl: s.imageUrl,
+      frameUrl: s.frameUrl,
+      faction: s.faction,
+      ability: s.ability,
+    });
+  }
+
+  function openLeader(p: PlayerInfo) {
+    if (!p.deck.leader) return;
+    const l = p.deck.leader;
+    setViewingCard({
+      name: l.name,
+      power: l.power,
+      rows: "",
+      rarity: l.rarity,
+      cardType: l.cardType,
+      imageUrl: l.imageUrl,
+      frameUrl: l.frameUrl,
+      faction: p.deck.faction,
+      ability: l.ability ? { name: l.ability.name, description: l.ability.description } : null,
+    });
+  }
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -754,40 +829,40 @@ export function MatchTable(props: Props) {
         </Region>
 
         <Region pos={{ top: "8.5%", left: "6.1%", width: "9.8%", height: "17%" }}>
-          <LeaderTile p={pA} side="A" turnSide={turnSide} canAct={canAct} onActivate={handleActivateLeader} disabled={isPending} />
+          <LeaderTile p={pA} side="A" turnSide={turnSide} canAct={canAct} onActivate={handleActivateLeader} onShiftClick={() => openLeader(pA)} disabled={isPending} />
         </Region>
         <Region pos={{ top: "30.6%", left: "3.1%", width: "5.8%", height: "14.2%" }}><DeckBox count={pA.deckRealCount} factionColor={pA.deck.faction.color} /></Region>
         <Region pos={{ top: "34%", left: "10.9%", width: "4%", height: "4.5%" }} label={pA.handCount.toString()} />
-        <Region pos={{ top: "43.5%", left: "13%", width: "2%", height: "4.5%" }}><CemTile entry={props.lastDiscarded.A} count={pA.discardCount} /></Region>
+        <Region pos={{ top: "43.5%", left: "13%", width: "2%", height: "4.5%" }}><CemTile entry={props.lastDiscarded.A} count={pA.discardCount} onClick={() => props.lastDiscarded.A && openLastDiscarded(props.lastDiscarded.A)} /></Region>
 
         <Region pos={{ top: "58.6%", left: "6.1%", width: "9.7%", height: "17%" }}>
-          <LeaderTile p={pB} side="B" turnSide={turnSide} canAct={canAct} onActivate={handleActivateLeader} disabled={isPending} />
+          <LeaderTile p={pB} side="B" turnSide={turnSide} canAct={canAct} onActivate={handleActivateLeader} onShiftClick={() => openLeader(pB)} disabled={isPending} />
         </Region>
         <Region pos={{ top: "80.2%", left: "3.1%", width: "5.7%", height: "13.8%" }}><DeckBox count={pB.deckRealCount} factionColor={pB.deck.faction.color} /></Region>
         <Region pos={{ top: "83.5%", left: "10.9%", width: "4%", height: "4.5%" }} label={pB.handCount.toString()} />
-        <Region pos={{ top: "93%", left: "13%", width: "1.8%", height: "4%" }}><CemTile entry={props.lastDiscarded.B} count={pB.discardCount} /></Region>
+        <Region pos={{ top: "93%", left: "13%", width: "1.8%", height: "4%" }}><CemTile entry={props.lastDiscarded.B} count={pB.discardCount} onClick={() => props.lastDiscarded.B && openLastDiscarded(props.lastDiscarded.B)} /></Region>
 
         <Region pos={{ top: "20%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "SIEGE").toString()} />
         <Region pos={{ top: "40.5%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "RANGED").toString()} />
         <Region pos={{ top: "61.5%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "MELEE").toString()} />
 
         <Region pos={{ top: "9.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "SIEGE")} weathered={!!weatherOnRow("SIEGE")} onClick={isRowAvailable("A", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
-          <CardLane cards={cardsOn("A", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+          <CardLane cards={cardsOn("A", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
         <Region pos={{ top: "9.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "SIEGE")} weathered={!!weatherOnRow("SIEGE")} onClick={isRowAvailable("B", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
-          <CardLane cards={cardsOn("B", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+          <CardLane cards={cardsOn("B", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
         <Region pos={{ top: "31%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "RANGED")} weathered={!!weatherOnRow("RANGED")} onClick={isRowAvailable("A", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
-          <CardLane cards={cardsOn("A", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+          <CardLane cards={cardsOn("A", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
         <Region pos={{ top: "31%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "RANGED")} weathered={!!weatherOnRow("RANGED")} onClick={isRowAvailable("B", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
-          <CardLane cards={cardsOn("B", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+          <CardLane cards={cardsOn("B", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
         <Region pos={{ top: "52.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "MELEE")} weathered={!!weatherOnRow("MELEE")} onClick={isRowAvailable("A", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
-          <CardLane cards={cardsOn("A", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+          <CardLane cards={cardsOn("A", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
         <Region pos={{ top: "52.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "MELEE")} weathered={!!weatherOnRow("MELEE")} onClick={isRowAvailable("B", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
-          <CardLane cards={cardsOn("B", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} />
+          <CardLane cards={cardsOn("B", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
 
         <Region pos={{ top: "20%", left: "75.3%", width: "4%", height: "4%" }} label={rowTotal("B", "SIEGE").toString()} />
@@ -795,7 +870,7 @@ export function MatchTable(props: Props) {
         <Region pos={{ top: "61.5%", left: "75.3%", width: "4%", height: "4%" }} label={rowTotal("B", "MELEE").toString()} />
 
         <Region pos={{ top: "77.2%", left: "21.3%", width: "59.3%", height: "19.5%" }}>
-          <HandLane cards={hand} selectedHandId={selectedHandCard?.handId ?? null} onSelect={handleSelectHandCard} />
+          <HandLane cards={hand} selectedHandId={selectedHandCard?.handId ?? null} onSelect={handleSelectHandCard} onShiftSelect={openHandCard} />
         </Region>
 
         {/* Barra de controles flutuante sobre a Mao */}
@@ -1027,10 +1102,11 @@ export function MatchTable(props: Props) {
         )}
         <Region pos={{ top: "8.5%", left: "84%", width: "14.8%", height: "41%" }}><HistoryPanel events={props.currentRoundEvents} playerNames={{ A: pA.username, B: pB.username }} currentRound={props.round} /></Region>
         <Region pos={{ top: "59.5%", left: "83.5%", width: "14.8%", height: "17%" }}><WeatherPanel weather={props.weather} /></Region>
-        <Region pos={{ top: "77.5%", left: "83.5%", width: "7%", height: "19%" }}><SideEffectsPanel sideLabel="A" data={props.sideEffects.A} playedSpecials={props.playedSpecials.A} /></Region>
-        <Region pos={{ top: "77.5%", left: "91%", width: "7%", height: "19%" }}><SideEffectsPanel sideLabel="B" data={props.sideEffects.B} playedSpecials={props.playedSpecials.B} /></Region>
+        <Region pos={{ top: "77.5%", left: "83.5%", width: "7%", height: "19%" }}><SideEffectsPanel sideLabel="A" data={props.sideEffects.A} playedSpecials={props.playedSpecials.A} onCardClick={openPlayedSpecial} /></Region>
+        <Region pos={{ top: "77.5%", left: "91%", width: "7%", height: "19%" }}><SideEffectsPanel sideLabel="B" data={props.sideEffects.B} playedSpecials={props.playedSpecials.B} onCardClick={openPlayedSpecial} /></Region>
       </div>
     </div>
+      <CardModal card={viewingCard} onClose={() => setViewingCard(null)} />
     </>
   );
 }
@@ -1183,7 +1259,7 @@ function Region({
   );
 }
 
-function CardLane({ cards, isTargetable, onCardClick }: { cards: BoardCard[]; isTargetable: (c: BoardCard) => boolean; onCardClick: (c: BoardCard) => void }) {
+function CardLane({ cards, isTargetable, onCardClick, onCardShiftClick }: { cards: BoardCard[]; isTargetable: (c: BoardCard) => boolean; onCardClick: (c: BoardCard) => void; onCardShiftClick: (c: BoardCard) => void }) {
   if (cards.length === 0) {
     return <span style={{ color: "#444", fontSize: "9px", fontStyle: "italic" }}>vazia</span>;
   }
@@ -1201,13 +1277,13 @@ function CardLane({ cards, isTargetable, onCardClick }: { cards: BoardCard[]; is
       }}
     >
       {cards.map((c) => (
-        <MiniCard key={c.boardId} c={c} targetable={isTargetable(c)} onClick={() => onCardClick(c)} />
+        <MiniCard key={c.boardId} c={c} targetable={isTargetable(c)} onClick={() => onCardClick(c)} onShiftClick={() => onCardShiftClick(c)} />
       ))}
     </div>
   );
 }
 
-function HandLane({ cards, selectedHandId, onSelect }: { cards: HandCard[]; selectedHandId: string | null; onSelect: (c: HandCard) => void }) {
+function HandLane({ cards, selectedHandId, onSelect, onShiftSelect }: { cards: HandCard[]; selectedHandId: string | null; onSelect: (c: HandCard) => void; onShiftSelect: (c: HandCard) => void }) {
   if (cards.length === 0) {
     return <span style={{ color: "#666", fontSize: "10px", fontStyle: "italic" }}>Mao vazia</span>;
   }
@@ -1226,17 +1302,17 @@ function HandLane({ cards, selectedHandId, onSelect }: { cards: HandCard[]; sele
       }}
     >
       {cards.map((c) => (
-        <HandCardTile key={c.handId} c={c} isSelected={selectedHandId === c.handId} onClick={() => onSelect(c)} />
+        <HandCardTile key={c.handId} c={c} isSelected={selectedHandId === c.handId} onClick={() => onSelect(c)} onShiftClick={() => onShiftSelect(c)} />
       ))}
     </div>
   );
 }
 
-function HandCardTile({ c, isSelected, onClick }: { c: HandCard; isSelected: boolean; onClick: () => void }) {
+function HandCardTile({ c, isSelected, onClick, onShiftClick }: { c: HandCard; isSelected: boolean; onClick: () => void; onShiftClick: () => void }) {
   return (
     <CardTooltip card={{ name: c.name, power: c.power, rarity: c.rarity, cardType: c.cardType, imageUrl: c.imageUrl, frameUrl: c.frameUrl, faction: c.faction, ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null }}>
     <div
-      onClick={onClick}
+      onClick={(e) => { if (e.shiftKey) { e.stopPropagation(); onShiftClick(); return; } onClick(); }}
       style={{
         flexShrink: 0,
         width: "62px",
@@ -1303,19 +1379,19 @@ function HandCardTile({ c, isSelected, onClick }: { c: HandCard; isSelected: boo
   );
 }
 
-function MiniCard({ c, targetable, onClick }: { c: BoardCard; targetable: boolean; onClick: () => void }) {
+function MiniCard({ c, targetable, onClick, onShiftClick }: { c: BoardCard; targetable: boolean; onClick: () => void; onShiftClick: () => void }) {
   return (
     <CardTooltip card={{ name: c.name, power: c.power, basePower: c.basePower, rarity: c.rarity, cardType: c.cardType, imageUrl: c.imageUrl, frameUrl: c.frameUrl, faction: c.faction, ability: c.ability, shielded: c.shielded, isToken: c.isToken }}>
     <div
       className="v2-card-enter"
-      onClick={targetable ? onClick : undefined}
+      onClick={(e) => { if (e.shiftKey) { e.stopPropagation(); onShiftClick(); return; } if (targetable) onClick(); }}
       style={{
         flexShrink: 0,
         width: "44px",
         height: "66px",
         borderRadius: "3px",
         border: "1.5px solid " + (targetable ? "#fde047" : (c.isElite ? "#fbbf24" : c.faction.color)),
-        cursor: targetable ? "pointer" : "default",
+        cursor: "pointer",
         backgroundImage: c.frameUrl
           ? "url(" + c.frameUrl + ")"
           : c.imageUrl
@@ -1449,7 +1525,7 @@ interface PlayedSpecial {
   ability: { name: string; description: string } | null;
 }
 
-function SideEffectsPanel({ sideLabel, data, playedSpecials }: { sideLabel: string; data: SideEffectsData; playedSpecials: PlayedSpecial[] }) {
+function SideEffectsPanel({ sideLabel, data, playedSpecials, onCardClick }: { sideLabel: string; data: SideEffectsData; playedSpecials: PlayedSpecial[]; onCardClick: (p: PlayedSpecial) => void }) {
   const rowAbbr: Record<string, string> = { MELEE: "M", RANGED: "D", SIEGE: "C" };
   const weatherIcon: Record<string, string> = {
     WEATHER_RAIN: "\ud83c\udf27\ufe0f",
@@ -1494,7 +1570,7 @@ function SideEffectsPanel({ sideLabel, data, playedSpecials }: { sideLabel: stri
           faction: p.faction,
           ability: p.ability,
         }}>
-          <div style={{ fontSize: "9px", marginTop: "3px", padding: "3px 4px", background: "rgba(245, 158, 11, 0.10)", border: "1px solid rgba(245, 158, 11, 0.35)", borderRadius: "3px", display: "flex", alignItems: "center", gap: "4px", cursor: "help" }}>
+          <div onClick={() => onCardClick(p)} style={{ fontSize: "9px", marginTop: "3px", padding: "3px 4px", background: "rgba(245, 158, 11, 0.10)", border: "1px solid rgba(245, 158, 11, 0.35)", borderRadius: "3px", display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
             {(p.frameUrl || p.imageUrl) ? (
               <img src={(p.frameUrl ?? p.imageUrl) as string} alt={p.name} style={{ width: "18px", height: "24px", objectFit: "cover", borderRadius: "2px", flexShrink: 0 }} />
             ) : (
@@ -1846,7 +1922,7 @@ function ControlButton({ onClick, disabled, color, children }: { onClick: () => 
   );
 }
 
-function CemTile({ entry, count }: { entry: { name: string; imageUrl: string | null; frameUrl: string | null } | null; count: number }) {
+function CemTile({ entry, count, onClick }: { entry: { name: string; power: number; rarity: string; cardType: string; imageUrl: string | null; frameUrl: string | null; faction: { name: string; color: string }; ability: { name: string; description: string } | null } | null; count: number; onClick: () => void }) {
   if (!entry) {
     return <span style={{ color: "#52525b", fontSize: "10px", fontFamily: "monospace" }}>{count}</span>;
   }
@@ -1913,7 +1989,7 @@ function DeckBox({ count, factionColor }: { count: number; factionColor: string 
     </div>
   );
 }
-function LeaderTile({ p, side, turnSide, canAct, onActivate, disabled }: { p: PlayerInfo; side: Side; turnSide: Side | null; canAct: boolean; onActivate: () => void; disabled: boolean }) {
+function LeaderTile({ p, side, turnSide, canAct, onActivate, onShiftClick, disabled }: { p: PlayerInfo; side: Side; turnSide: Side | null; canAct: boolean; onActivate: () => void; onShiftClick: () => void; disabled: boolean }) {
   const leader = p.deck.leader;
   if (!leader) {
     return <div style={{ color: "#888", fontSize: "10px" }}>Sem lider</div>;
@@ -1932,6 +2008,7 @@ function LeaderTile({ p, side, turnSide, canAct, onActivate, disabled }: { p: Pl
       ability: leader.ability ? { name: leader.ability.name, description: leader.ability.description } : null,
     }}>
     <div
+      onClick={(e) => { if (e.shiftKey) { e.stopPropagation(); onShiftClick(); } }}
       style={{
         width: "100%",
         height: "100%",
