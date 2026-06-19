@@ -1092,6 +1092,7 @@ export function MatchTable(props: Props) {
             onSkip={skipRedraw}
             disabled={isPending}
             playerName={props.players[mySide].username}
+            onShiftClick={openHandCard}
           />
         )}
 
@@ -1784,7 +1785,7 @@ function MultiSelectModal({ mode, selectedIds, onToggle, onConfirm, onCancel, di
     </div>
   );
 }
-function RedrawModal({ hand, redrawsLeft, selection, onToggle, onConfirm, onSkip, disabled, playerName }: {
+function RedrawModal({ hand, redrawsLeft, selection, onToggle, onConfirm, onSkip, disabled, playerName, onShiftClick }: {
   hand: HandCard[];
   redrawsLeft: number;
   selection: Set<string>;
@@ -1793,6 +1794,7 @@ function RedrawModal({ hand, redrawsLeft, selection, onToggle, onConfirm, onSkip
   onSkip: () => void;
   disabled: boolean;
   playerName: string;
+  onShiftClick: (c: HandCard) => void;
 }) {
   return (
     <div
@@ -1842,13 +1844,14 @@ function RedrawModal({ hand, redrawsLeft, selection, onToggle, onConfirm, onSkip
           {hand.map((c) => {
             const selected = selection.has(c.handId);
             return (
+              <div key={c.handId} style={{ aspectRatio: "2/3" }}>
+                <CardTooltip fillContainer card={{ name: c.name, power: c.power, rarity: c.rarity, cardType: c.cardType, imageUrl: c.imageUrl, frameUrl: c.frameUrl, faction: c.faction, ability: c.ability }}>
               <button
-                key={c.handId}
-                onClick={() => onToggle(c.handId)}
+                onClick={(e) => { if (e.shiftKey) { e.stopPropagation(); onShiftClick(c); return; } onToggle(c.handId); }}
                 disabled={disabled}
                 title={c.name + " - Poder " + c.power}
                 style={{
-                  aspectRatio: "2/3",
+                  width: "100%", height: "100%",
                   border: "2px solid " + (selected ? "#f59e0b" : c.faction.color + "88"),
                   borderRadius: "4px",
                   backgroundImage: c.frameUrl ? "url(" + c.frameUrl + ")" : c.imageUrl ? "url(" + c.imageUrl + ")" : undefined,
@@ -1897,6 +1900,8 @@ function RedrawModal({ hand, redrawsLeft, selection, onToggle, onConfirm, onSkip
                   {c.name}
                 </span>
               </button>
+              </CardTooltip>
+              </div>
             );
           })}
         </div>

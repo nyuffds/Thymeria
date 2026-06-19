@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
@@ -21,16 +21,18 @@ export function ColecaoCatalog({ entries, factions }: Props) {
   const [factionFilter, setFactionFilter] = useState("");
   const [rarityFilter, setRarityFilter] = useState("");
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
+  const [cardTypeFilter, setCardTypeFilter] = useState("");
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
       if (factionFilter && e.card.faction.name !== factionFilter) return false;
       if (rarityFilter && e.card.rarity !== rarityFilter) return false;
+      if (cardTypeFilter && e.card.cardType !== cardTypeFilter) return false;
       if (onlyDuplicates && e.quantity < 2) return false;
       if (query && !e.card.name.toLowerCase().includes(query.toLowerCase())) return false;
       return true;
     });
-  }, [entries, query, factionFilter, rarityFilter, onlyDuplicates]);
+  }, [entries, query, factionFilter, rarityFilter, onlyDuplicates, cardTypeFilter]);
 
   return (
     <>
@@ -74,6 +76,22 @@ export function ColecaoCatalog({ entries, factions }: Props) {
             {RARITIES.map((r) => (
               <option key={r.key} value={r.key}>{r.label}</option>
             ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs uppercase text-zinc-500 mb-1">Tipo</label>
+          <select
+            value={cardTypeFilter}
+            onChange={(e) => setCardTypeFilter(e.target.value)}
+            className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg
+                       text-zinc-100 text-sm focus:outline-none focus:border-amber-500"
+          >
+            <option value="">Todos</option>
+            <option value="UNIT">Unidade</option>
+            <option value="SPECIAL">Especial</option>
+            <option value="WEATHER">Clima</option>
+            <option value="LEADER">Lider</option>
           </select>
         </div>
 

@@ -1,4 +1,4 @@
-// app/cartas/_components/CardsCatalog.tsx
+﻿// app/cartas/_components/CardsCatalog.tsx
 // Grade filtrada de cartas para visualização pública.
 
 "use client";
@@ -21,15 +21,17 @@ export function CardsCatalog({ cards, factions }: Props) {
   const [query, setQuery] = useState("");
   const [factionFilter, setFactionFilter] = useState<string>("");
   const [rarityFilter, setRarityFilter] = useState<string>("");
+  const [cardTypeFilter, setCardTypeFilter] = useState<string>("");
 
   const filtered = useMemo(() => {
     return cards.filter((c) => {
       if (factionFilter && c.faction.name !== factionFilter) return false;
       if (rarityFilter && c.rarity !== rarityFilter) return false;
+      if (cardTypeFilter && c.cardType !== cardTypeFilter) return false;
       if (query && !c.name.toLowerCase().includes(query.toLowerCase())) return false;
       return true;
     });
-  }, [cards, query, factionFilter, rarityFilter]);
+  }, [cards, query, factionFilter, rarityFilter, cardTypeFilter]);
 
   return (
     <>
@@ -77,9 +79,25 @@ export function CardsCatalog({ cards, factions }: Props) {
           </select>
         </div>
 
-        {(query || factionFilter || rarityFilter) && (
+        <div>
+          <label className="block text-xs uppercase text-zinc-500 mb-1">Tipo</label>
+          <select
+            value={cardTypeFilter}
+            onChange={(e) => setCardTypeFilter(e.target.value)}
+            className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg
+                       text-zinc-100 text-sm focus:outline-none focus:border-amber-500"
+          >
+            <option value="">Todos</option>
+            <option value="UNIT">Unidade</option>
+            <option value="SPECIAL">Especial</option>
+            <option value="WEATHER">Clima</option>
+            <option value="LEADER">Lider</option>
+          </select>
+        </div>
+
+        {(query || factionFilter || rarityFilter || cardTypeFilter) && (
           <button
-            onClick={() => { setQuery(""); setFactionFilter(""); setRarityFilter(""); }}
+            onClick={() => { setQuery(""); setFactionFilter(""); setRarityFilter(""); setCardTypeFilter(""); }}
             className="px-3 py-2 text-sm text-zinc-400 hover:text-amber-200"
           >
             Limpar filtros
