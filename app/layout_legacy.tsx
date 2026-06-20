@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Geist, Geist_Mono, Cinzel, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { Sidebar } from "./components/Sidebar";
+import { Header } from "./components/Header";
 import { NotificationToast } from "./components/NotificationToast";
 
 const geistSans = Geist({
@@ -43,12 +43,10 @@ export default function RootLayout({
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} ${cinzel.variable} ${cormorant.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-zinc-950 text-zinc-100" style={{ display: "flex" }}>
+      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
         <Providers>
-          <Sidebar />
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-            {children}
-          </div>
+          <Header />
+          {children}
           <NotificationToast />
         </Providers>
       </body>
