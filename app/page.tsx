@@ -1,13 +1,12 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
 // app/page.tsx
-// Landing page do Thymeria.
-// Mostra saudacao, saldo, links principais e divindades do panteao.
+// Landing nova: hero cinematico + lore expandido + sidebar de atividades.
 
 import Link from "next/link";
 import { PrismaClient } from "@prisma/client";
 import { auth } from "@/auth";
-import { LANDING_LINKS, DEITIES, randomWelcomePhrase } from "@/lib/landing/landing-config";
+import { randomWelcomePhrase } from "@/lib/landing/landing-config";
 
 const prisma = new PrismaClient();
 
@@ -15,253 +14,521 @@ export default async function Home() {
   const session = await auth();
 
   const settings = await prisma.gameSettings.upsert({
-    where: { id: "singleton" }, update: {}, create: { id: "singleton" },
+    where: { id: "singleton" },
+    update: {},
+    create: { id: "singleton" },
   });
 
-  // Visitante nao logado: redireciona pro login (camada de seguranca extra)
   if (!session?.user?.name) {
     return (
-      <main className="flex-1 flex items-center justify-center px-4">
-        <div className="text-center max-w-md">
-          <h1 className="font-heading text-5xl text-amber-200 mb-4">{settings.gameName}</h1>
-          <p className="text-zinc-400 mb-6 font-lore italic">
+      <main
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "0 16px",
+          position: "relative",
+          minHeight: "calc(100vh - 64px)",
+        }}
+      >
+        {settings.landingBackgroundUrl && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundImage: `url(${settings.landingBackgroundUrl})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              opacity: 0.35,
+              zIndex: -1,
+            }}
+          />
+        )}
+        <div style={{ textAlign: "center", maxWidth: 460 }}>
+          <h1
+            style={{
+              fontFamily: "var(--font-cinzel), Georgia, serif",
+              fontSize: 60,
+              color: "#c9a961",
+              margin: 0,
+              letterSpacing: "0.2em",
+            }}
+          >
+            {settings.gameName}
+          </h1>
+          <p
+            style={{
+              fontFamily: "var(--font-cormorant), Georgia, serif",
+              fontStyle: "italic",
+              color: "#d3c89a",
+              fontSize: 16,
+              margin: "16px 0 24px",
+            }}
+          >
             Acesse sua conta pra entrar no salao de duelos.
           </p>
           <Link
             href="/login"
-            className="inline-block bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold px-6 py-2 rounded-lg transition"
+            style={{
+              display: "inline-block",
+              padding: "10px 28px",
+              background: "linear-gradient(180deg, #c9a961, #8b6f3a)",
+              color: "#1a0f05",
+              fontFamily: "var(--font-cinzel), Georgia, serif",
+              fontWeight: 700,
+              fontSize: 13,
+              letterSpacing: "0.2em",
+              textDecoration: "none",
+              borderRadius: 4,
+              boxShadow: "0 4px 16px rgba(201,169,97,0.4)",
+            }}
           >
-            Entrar
+            ENTRAR
           </Link>
         </div>
       </main>
     );
   }
 
-  // Logado: carrega dados do jogador
   const user = await prisma.user.findUnique({
     where: { username: session.user.name },
-    select: {
-      id: true,
-      username: true,
-      role: true,
-      coins: true,
-    },
+    select: { id: true, username: true, role: true, coins: true },
   });
 
   if (!user) {
     return (
-      <main className="flex-1 flex items-center justify-center px-4">
-        <p className="text-zinc-400">Usuario nao encontrado.</p>
+      <main style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ color: "#8b6f3a" }}>Usuario nao encontrado.</p>
       </main>
     );
   }
 
   const isAdmin = user.role === "ADMIN";
 
-  // Saldo de boosters nao abertos
-  const unopenedCount = await prisma.unopenedBooster.count({
-    where: { userId: user.id },
-  });
-
-  // Quantidade de cartas na colecao
-  const collectionCount = await prisma.userCollection.count({
-    where: { userId: user.id },
-  });
-
-  // Quantidade de decks
-  const deckCount = await prisma.deck.count({
-    where: { userId: user.id },
-  });
-
-  // Filtra links pelo papel do usuario
-  const visibleLinks = LANDING_LINKS.filter(
-    (l) => l.showFor === "ALL" || (l.showFor === "ADMIN" && isAdmin) || (l.showFor === "PLAYER" && !isAdmin),
-  );
+  const [unopenedCount, collectionCount, deckCount, runningMatch] = await Promise.all([
+    prisma.unopenedBooster.count({ where: { userId: user.id } }),
+    prisma.userCollection.count({ where: { userId: user.id } }),
+    prisma.deck.count({ where: { userId: user.id } }),
+    prisma.matchPlayer
+      .findFirst({
+        where: { userId: user.id, match: { status: { in: ["IN_PROGRESS", "REDRAW"] } } },
+        include: { match: true },
+        orderBy: { match: { updatedAt: "desc" } },
+      })
+      .catch(() => null),
+  ]);
 
   const welcomePhrase = randomWelcomePhrase();
 
   return (
-    <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-8 relative overflow-hidden">
-      {/* Wallpaper de fundo (configuravel pelo admin) */}
+    <main
+      style={{
+        flex: 1,
+        display: "grid",
+        gridTemplateColumns: "1fr 300px",
+        minHeight: "100vh",
+        position: "relative",
+        color: "#e9d9b6",
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
       {settings.landingBackgroundUrl && (
         <div
-          className="fixed inset-0 -z-20 pointer-events-none opacity-40"
           style={{
-            backgroundImage: "url(" + settings.landingBackgroundUrl + ")",
+            position: "fixed",
+            inset: 0,
+            backgroundImage: `url(${settings.landingBackgroundUrl})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
+            opacity: 0.35,
+            zIndex: 0,
+            pointerEvents: "none",
           }}
         />
       )}
-      {/* Glow decorativo no fundo */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-30 -z-10"
         style={{
-          background: "radial-gradient(circle at 50% 0%, " + settings.themePrimaryColor + "26 0%, transparent 60%)",
+          position: "fixed",
+          inset: 0,
+          background: "linear-gradient(180deg, rgba(10,8,5,0.65) 0%, rgba(10,8,5,0.85) 70%, rgba(10,8,5,0.95) 100%)",
+          zIndex: 0,
+          pointerEvents: "none",
+        }}
+      />
+      <div
+        style={{
+          position: "fixed",
+          top: -200,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: 900,
+          height: 500,
+          background: `radial-gradient(ellipse at top, ${settings.themePrimaryColor}30, transparent 60%)`,
+          zIndex: 0,
+          pointerEvents: "none",
         }}
       />
 
-      {/* ─────── HERO ─────── */}
-      <section className="text-center mb-10 pt-6">
-        <p className="text-xs uppercase tracking-[0.4em] text-amber-400/60 mb-3">
-          {settings.gameSubtitle}
-        </p>
-        <h1 className="font-heading text-6xl md:text-7xl font-bold mb-4"
+      {/* ============ CENTRO ============ */}
+      <div style={{ position: "relative", zIndex: 1, padding: "32px 48px 60px", display: "flex", flexDirection: "column" }}>
+
+        {/* Selo do jogador */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 32 }}>
+          <div
             style={{
-              background: "linear-gradient(180deg, #f3c969 0%, #8b6019 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              textShadow: "0 0 60px rgba(212, 160, 74, 0.3)",
-            }}>
-          {settings.gameName}
-        </h1>
-        <p className="text-zinc-400 italic font-lore text-lg max-w-2xl mx-auto">
-          {settings.landingTagline}
-        </p>
-
-        {/* Boas-vindas + stats do jogador */}
-        <div className="mt-6 inline-flex flex-wrap items-center justify-center gap-3 text-sm">
-          <span className="text-zinc-500">Salve,</span>
-          <span className="text-amber-200 font-heading text-lg">
-            {user.username}
-            {isAdmin && <span className="ml-2 text-xs text-red-400 uppercase tracking-wider">conselho</span>}
-          </span>
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-          <StatBadge icon="✨" label="Moedas" value={user.coins.toLocaleString("pt-BR")} color="#d4a04a" />
-          <StatBadge icon="📦" label="Boosters" value={String(unopenedCount)} color="#b76e5f" />
-          <StatBadge icon="💎" label="Cartas" value={String(collectionCount)} color="#5dade2" />
-          <StatBadge icon="📜" label="Decks" value={String(deckCount)} color="#8e44ad" />
-        </div>
-      </section>
-
-      {/* ─────── DIVINDADES (faixa decorativa) ─────── */}
-      <section className="mb-10">
-        <div className="relative">
-          <div className="absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-amber-700/40 to-transparent" />
-          <p className="relative inline-block px-4 bg-zinc-950 text-amber-400/60 text-[10px] uppercase tracking-[0.3em] left-1/2 -translate-x-1/2">
-            Panteao de Thymeria
-          </p>
-        </div>
-        <div className="mt-4 flex flex-wrap justify-center gap-2 md:gap-3">
-          {DEITIES.map((d) => (
-            <div
-              key={d.name}
-              title={d.name + " - " + d.domain}
-              className="group relative px-3 py-2 rounded-lg border transition cursor-help hover:scale-110"
-              style={{
-                borderColor:
-                  d.alignment === "ORDER" ? "#d4a04a55" :
-                  d.alignment === "CHAOS" ? "#c0392b55" :
-                  "#52525b55",
-                background:
-                  d.alignment === "ORDER" ? "rgba(212, 160, 74, 0.05)" :
-                  d.alignment === "CHAOS" ? "rgba(192, 57, 43, 0.05)" :
-                  "rgba(82, 82, 91, 0.05)",
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xl"
-                      style={{
-                        color: d.alignment === "ORDER" ? "#d4a04a" :
-                               d.alignment === "CHAOS" ? "#c0392b" : "#a1a1aa",
-                        filter: "drop-shadow(0 0 4px currentColor)",
-                      }}>
-                  {d.symbol}
-                </span>
-                <span className="text-xs text-zinc-300 font-heading">{d.name}</span>
-              </div>
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2 py-1 bg-zinc-900 border border-zinc-800 rounded text-[10px] text-zinc-400 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition z-20">
-                {d.domain}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ─────── GRID DE ROTAS ─────── */}
-      <section className="mb-10">
-        <h2 className="text-center text-xs uppercase tracking-[0.3em] text-amber-400/60 mb-6">
-          Rotas do Reino
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {visibleLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="group relative block rounded-xl border-2 p-5 transition-all hover:scale-[1.03] hover:shadow-2xl overflow-hidden"
-              style={{
-                borderColor: link.color + "40",
-                background:
-                  "linear-gradient(135deg, rgba(20, 12, 4, 0.9) 0%, rgba(40, 25, 10, 0.6) 100%)",
-              }}
-            >
-              {/* Glow no hover */}
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              padding: "8px 20px 8px 8px",
+              background: "linear-gradient(90deg, rgba(40,25,10,0.9), rgba(20,12,4,0.7))",
+              border: "1px solid #5a3f1a",
+              borderRadius: 4,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(201,169,97,0.2)",
+            }}
+          >
+            <div style={{ position: "relative", width: 52, height: 52 }}>
               <div
-                className="absolute inset-0 opacity-0 group-hover:opacity-30 transition-opacity pointer-events-none"
                 style={{
-                  background: "radial-gradient(circle at 50% 0%, " + link.color + " 0%, transparent 70%)",
+                  position: "absolute",
+                  inset: 0,
+                  background: "linear-gradient(135deg, #c9a961, #8b6f3a)",
+                  borderRadius: "50%",
+                  boxShadow: "0 0 12px rgba(201,169,97,0.4)",
                 }}
               />
-
-              <div className="relative">
-                <div
-                  className="text-4xl mb-3"
-                  style={{
-                    color: link.color,
-                    filter: "drop-shadow(0 0 8px " + link.color + "66)",
-                  }}
-                >
-                  {link.icon}
-                </div>
-                <h3 className="font-heading text-lg text-amber-100 mb-1 group-hover:text-amber-200 transition">
-                  {link.label}
-                </h3>
-                <p className="text-xs text-zinc-400 mb-3">
-                  {link.description}
-                </p>
-                <p className="text-[11px] italic text-zinc-500 font-lore leading-snug border-t pt-2"
-                   style={{ borderColor: link.color + "20" }}>
-                  &ldquo;{link.lore}&rdquo;
-                </p>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 2,
+                  background: "#1a0f05",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontFamily: "var(--font-cinzel), Georgia, serif",
+                  color: "#c9a961",
+                  fontSize: 22,
+                  fontWeight: 700,
+                }}
+              >
+                {user.username[0]?.toUpperCase() ?? "?"}
               </div>
-            </Link>
-          ))}
+            </div>
+            <div>
+              <p style={{ margin: 0, fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 13, color: "#fef3c7", letterSpacing: "0.1em" }}>
+                {user.username.toUpperCase()}
+              </p>
+              <p style={{ margin: "2px 0 0", fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", fontSize: 11, color: "#8b6f3a" }}>
+                {isAdmin ? "do Conselho" : "Aventureiro"} &middot; ano 101
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 16, paddingLeft: 16, borderLeft: "1px solid #3d3022" }}>
+              <Stat value={user.coins.toLocaleString("pt-BR")} label="moedas" color="#fcd34d" />
+              <Stat value={String(unopenedCount)} label="boosters" color="#b76e5f" />
+              <Stat value={String(collectionCount)} label="cartas" color="#5dade2" />
+              <Stat value={String(deckCount)} label="decks" color="#8e44ad" />
+            </div>
+          </div>
         </div>
-      </section>
 
-      {/* ─────── RODAPE LORE ─────── */}
-      <section className="text-center max-w-2xl mx-auto mt-12 pb-6">
-        <div className="relative">
-          <div className="absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-amber-700/30 to-transparent" />
-          <span className="relative inline-block px-3 bg-zinc-950 text-amber-400/40 text-xs">⚜</span>
+        {/* HERO */}
+        <div style={{ textAlign: "center", marginBottom: 60 }}>
+          <p
+            style={{
+              margin: "0 0 14px",
+              fontFamily: "var(--font-cinzel), Georgia, serif",
+              fontSize: 10,
+              color: "#8b6f3a",
+              textTransform: "uppercase",
+              letterSpacing: "0.5em",
+            }}
+          >
+            &mdash; {settings.gameSubtitle ?? "Cronica I · Idade do Pacto"} &mdash;
+          </p>
+
+          <h1
+            style={{
+              fontFamily: "var(--font-cinzel), Georgia, serif",
+              fontSize: 96,
+              fontWeight: 700,
+              margin: 0,
+              letterSpacing: "0.25em",
+              textIndent: "0.25em",
+              lineHeight: 1,
+              background: "linear-gradient(180deg, #fef3c7 0%, #c9a961 40%, #6a4a20 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              filter: "drop-shadow(0 6px 24px rgba(201,169,97,0.5))",
+            }}
+          >
+            {settings.gameName.toUpperCase()}
+          </h1>
+
+          <div
+            style={{
+              margin: "20px auto",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 14,
+              maxWidth: 540,
+            }}
+          >
+            <span style={{ flex: 1, height: 1, background: "linear-gradient(to right, transparent, #c9a961 60%)" }} />
+            <span style={{ color: "#c9a961", fontSize: 14 }}>✦</span>
+            <span style={{ flex: 1, height: 1, background: "linear-gradient(to left, transparent, #c9a961 60%)" }} />
+          </div>
+
+          <p
+            style={{
+              margin: "20px auto 0",
+              fontFamily: "var(--font-cormorant), Georgia, serif",
+              fontStyle: "italic",
+              color: "#d3c89a",
+              fontSize: 19,
+              maxWidth: 580,
+              lineHeight: 1.6,
+              textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+            }}
+          >
+            &ldquo;{settings.landingTagline ?? welcomePhrase}&rdquo;
+          </p>
         </div>
-        <p className="text-xs text-zinc-500 font-lore italic mt-4 leading-relaxed">
-          {settings.landingFooterLore}
+
+        {/* LORE EXPANDIDO */}
+        <div style={{ maxWidth: 780, margin: "0 auto", width: "100%" }}>
+
+          {/* A Cronica */}
+          <section style={{ marginBottom: 40 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+              <span style={{ flex: 1, height: 1, background: "linear-gradient(to right, transparent, #8b6f3a)" }} />
+              <span style={{ fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 11, color: "#c9a961", textTransform: "uppercase", letterSpacing: "0.4em" }}>
+                A Cronica
+              </span>
+              <span style={{ flex: 1, height: 1, background: "linear-gradient(to left, transparent, #8b6f3a)" }} />
+            </div>
+
+            <p style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: 17, color: "#d3c89a", lineHeight: 1.8, textAlign: "justify", margin: "0 0 18px" }}>
+              <span style={{ fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 56, color: "#c9a961", float: "left", lineHeight: 0.85, paddingRight: 10, marginTop: 4 }}>
+                T
+              </span>
+              hymeria era nova, e os pactos antigos. Quando o Vermelho irrompeu pelas Tres Irmas e Skanda ergueu sua lanca, ninguem imaginou que um seculo se passaria antes que as laminas voltassem a sussurrar.
+            </p>
+
+            <p style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: 16, color: "#b8a980", lineHeight: 1.7, textAlign: "justify", margin: 0 }}>
+              Agora as tres faces do panteao vigiam: a <span style={{ color: "#5dade2" }}>Ordem</span> que sustenta, o <span style={{ color: "#c0392b" }}>Caos</span> que dissolve, e o <span style={{ color: "#a89070" }}>Neutro</span> que pesa. Os baralhos sao forjados em Valtres, as estrategias nascem em Lomerel, e os pactos selam-se em A&apos;Ralith.
+            </p>
+          </section>
+
+          {/* Marcos */}
+          <section style={{ marginBottom: 40 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+              <span style={{ flex: 1, height: 1, background: "linear-gradient(to right, transparent, #8b6f3a)" }} />
+              <span style={{ fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 11, color: "#c9a961", textTransform: "uppercase", letterSpacing: "0.4em" }}>
+                Marcos da Era
+              </span>
+              <span style={{ flex: 1, height: 1, background: "linear-gradient(to left, transparent, #8b6f3a)" }} />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+              <Marco
+                year="Ano 0"
+                title="Guerra do Fim"
+                lore="Skanda e Eris se enfrentam. As Tres Irmas se separam."
+                color="#c0392b"
+              />
+              <Marco
+                year="Ano 47"
+                title="O Pacto Cinzento"
+                lore="Os reinos juram silencio em troca da reconstrucao."
+                color="#a89070"
+              />
+              <Marco
+                year="Ano 101"
+                title="As Laminas Sussurram"
+                lore="Voce esta aqui. Algo se move sob as Tres Irmas."
+                color="#c9a961"
+              />
+            </div>
+          </section>
+
+          {/* Os Reinos */}
+          <section>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+              <span style={{ flex: 1, height: 1, background: "linear-gradient(to right, transparent, #8b6f3a)" }} />
+              <span style={{ fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 11, color: "#c9a961", textTransform: "uppercase", letterSpacing: "0.4em" }}>
+                Os Reinos
+              </span>
+              <span style={{ flex: 1, height: 1, background: "linear-gradient(to left, transparent, #8b6f3a)" }} />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+              <Reino name="Valtres" lore="onde os cavaleiros se erguem" color="#c9a961" />
+              <Reino name="Tres Irmas" lore="Solkaran, Qadesh e Velquar" color="#b76e5f" />
+              <Reino name="Kaldaey" lore="picos do norte gelado" color="#5dade2" />
+              <Reino name="A'Ralith" lore="cidades-baluartes do leste" color="#27ae60" />
+              <Reino name="Lomerel" lore="academia dos feiticos" color="#8e44ad" />
+              <Reino name="Sahnveret" lore="montanhas que se calam" color="#a89070" />
+            </div>
+          </section>
+
+        </div>
+      </div>
+
+      {/* ============ SIDEBAR DIREITA: PERGAMINHOS ============ */}
+      <aside
+        style={{
+          position: "relative",
+          zIndex: 1,
+          background: "linear-gradient(180deg, rgba(20,16,10,0.85) 0%, rgba(10,8,5,0.95) 100%)",
+          borderLeft: "1px solid #3d3022",
+          boxShadow: "-4px 0 16px rgba(0,0,0,0.6)",
+          padding: "32px 20px",
+          overflowY: "auto",
+        }}
+      >
+        <p style={{ margin: "0 0 16px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 10, color: "#c9a961", textTransform: "uppercase", letterSpacing: "0.4em" }}>
+          ✦ Pergaminhos
         </p>
-      </section>
+
+        {runningMatch && (
+          <Link
+            href={`/partidas/${runningMatch.matchId}`}
+            style={{
+              display: "block",
+              background: "rgba(192,57,43,0.15)",
+              border: "1px solid #5a1818",
+              borderLeft: "3px solid #c0392b",
+              borderRadius: 4,
+              padding: "10px 12px",
+              marginBottom: 10,
+              textDecoration: "none",
+            }}
+          >
+            <p style={{ margin: "0 0 4px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 11, color: "#fca5a5", letterSpacing: "0.1em" }}>
+              PARTIDA EM ANDAMENTO
+            </p>
+            <p style={{ margin: 0, fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", fontSize: 13, color: "#e9d9b6" }}>
+              Retomar &raquo;
+            </p>
+          </Link>
+        )}
+
+        {unopenedCount > 0 && (
+          <Link
+            href="/estante"
+            style={{
+              display: "block",
+              background: "rgba(183,110,95,0.1)",
+              border: "1px solid #5a2818",
+              borderLeft: "3px solid #b76e5f",
+              borderRadius: 4,
+              padding: "10px 12px",
+              marginBottom: 10,
+              textDecoration: "none",
+            }}
+          >
+            <p style={{ margin: "0 0 4px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 11, color: "#b76e5f", letterSpacing: "0.1em" }}>
+              {unopenedCount} BOOSTER{unopenedCount > 1 ? "S" : ""} SELADO{unopenedCount > 1 ? "S" : ""}
+            </p>
+            <p style={{ margin: 0, fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", fontSize: 12, color: "#8b6f3a", lineHeight: 1.4 }}>
+              &ldquo;Cada pacote guarda destinos nao escritos.&rdquo;
+            </p>
+          </Link>
+        )}
+
+        {!runningMatch && unopenedCount === 0 && (
+          <p style={{ fontSize: 12, color: "#5f5340", fontStyle: "italic", fontFamily: "var(--font-cormorant), Georgia, serif", padding: "20px 0", textAlign: "center" }}>
+            Nenhum pergaminho aguarda.
+          </p>
+        )}
+
+        {/* Atalhos rapidos */}
+        <p style={{ margin: "24px 0 10px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 10, color: "#c9a961", textTransform: "uppercase", letterSpacing: "0.4em" }}>
+          ✦ Atalhos
+        </p>
+
+        <Atalho href="/lobby" icon="⚔" label="Salao de Duelos" color="#fcd34d" />
+        <Atalho href="/decks" icon="📜" label="Forjar Deck" color="#8e44ad" />
+        <Atalho href="/colecao" icon="💎" label="Tesouraria" color="#5dade2" />
+        <Atalho href="/loja" icon="🏪" label="Mercado do Eitri" color="#e67e22" />
+        <Atalho href="/panteao" icon="✦" label="O Panteao" color="#c9a961" />
+
+        {/* Rodape lore */}
+        <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid #3d3022", textAlign: "center" }}>
+          <span style={{ color: "#5a4838", fontSize: 14 }}>✦</span>
+          <p style={{ margin: "10px 0 0", fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", fontSize: 12, color: "#5f5340", lineHeight: 1.6 }}>
+            {settings.landingFooterLore ?? "Os deuses observam. Cada carta jogada ecoa nos saloes do destino."}
+          </p>
+        </div>
+      </aside>
     </main>
   );
 }
 
-// ─────── Componente auxiliar: badge de stat ───────
-function StatBadge({
-  icon, label, value, color,
-}: { icon: string; label: string; value: string; color: string }) {
+function Stat({ value, label, color }: { value: string; label: string; color: string }) {
   return (
-    <div
-      className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm"
+    <div style={{ textAlign: "center" }}>
+      <div style={{ fontFamily: "monospace", fontSize: 15, color, fontWeight: 700, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 9, color: "#8b6f3a", textTransform: "uppercase", letterSpacing: "0.15em", marginTop: 2 }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function Marco({ year, title, lore, color }: { year: string; title: string; lore: string; color: string }) {
+  return (
+    <div style={{ position: "relative", padding: "16px 14px", background: "rgba(20,12,4,0.5)", border: `1px solid ${color}55`, borderLeft: `3px solid ${color}`, borderRadius: 4 }}>
+      <p style={{ margin: 0, fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 9, color, letterSpacing: "0.3em", textTransform: "uppercase" }}>
+        {year}
+      </p>
+      <p style={{ margin: "4px 0 6px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 13, color: "#fef3c7", letterSpacing: "0.05em" }}>
+        {title}
+      </p>
+      <p style={{ margin: 0, fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", fontSize: 12, color: "#8b6f3a", lineHeight: 1.5 }}>
+        {lore}
+      </p>
+    </div>
+  );
+}
+
+function Reino({ name, lore, color }: { name: string; lore: string; color: string }) {
+  return (
+    <div style={{ padding: "10px 12px", background: "rgba(20,12,4,0.4)", border: "1px solid #3d3022", borderRadius: 4 }}>
+      <p style={{ margin: 0, fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 13, color, letterSpacing: "0.05em" }}>
+        {name}
+      </p>
+      <p style={{ margin: "2px 0 0", fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", fontSize: 11, color: "#8b6f3a" }}>
+        {lore}
+      </p>
+    </div>
+  );
+}
+
+function Atalho({ href, icon, label, color }: { href: string; icon: string; label: string; color: string }) {
+  return (
+    <Link
+      href={href}
       style={{
-        borderColor: color + "55",
-        background: color + "11",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "8px 10px",
+        background: "transparent",
+        border: "1px solid #3d3022",
+        borderRadius: 4,
+        marginBottom: 4,
+        textDecoration: "none",
+        transition: "all 0.15s",
       }}
     >
-      <span className="text-base" style={{ color }}>{icon}</span>
-      <span className="text-zinc-400 text-xs">{label}</span>
-      <span className="font-mono font-bold" style={{ color }}>{value}</span>
-    </div>
+      <span style={{ fontSize: 16, color, flexShrink: 0 }}>{icon}</span>
+      <span style={{ fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 12, color: "#d3c89a", letterSpacing: "0.05em" }}>
+        {label}
+      </span>
+    </Link>
   );
 }

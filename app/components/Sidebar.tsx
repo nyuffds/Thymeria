@@ -1,4 +1,5 @@
 // app/components/Sidebar.tsx
+// Sidebar lateral expansivel. Colapsada mostra so icones; expandida (hover) mostra icone + label.
 
 "use client";
 
@@ -43,11 +44,14 @@ const NAV_BOTTOM: NavItem[] = [
   { href: "/admin",     label: "Conselho",        icon: "👑", color: "#c0392b", adminOnly: true },
 ];
 
+const COLLAPSED_W = 64;
+const EXPANDED_W = 220;
+
 export function Sidebar() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const [me, setMe] = useState<MeData | null>(null);
-  const [gameName, setGameName] = useState("Thymeria");
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -56,10 +60,7 @@ export function Sidebar() {
     }
     fetch("/api/me")
       .then((r) => r.json())
-      .then((data) => {
-        setMe(data.user);
-        if (data.settings?.gameName) setGameName(data.settings.gameName);
-      })
+      .then((data) => setMe(data.user))
       .catch(() => setMe(null));
   }, [status, pathname]);
 
@@ -67,9 +68,10 @@ export function Sidebar() {
     return null;
   }
 
-  const isAdmin = session?.user?.role === "ADMIN";
-  const username = session?.user?.name;
-  const isAuth = status === "authenticated";
+  // role pode vir do session (rapido) ou do /api/me (confiavel)
+  const isAdmin = me?.role === "ADMIN" || (session?.user as { role?: string } | undefined)?.role === "ADMIN";
+  const username = me?.username ?? session?.user?.name;
+  const isAuth = status === "authenticated" || !!me;
 
   function visible(item: NavItem) {
     if (item.adminOnly) return isAdmin;
@@ -84,39 +86,41 @@ export function Sidebar() {
 
   return (
     <aside
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
       style={{
-        width: 64,
+        width: expanded ? EXPANDED_W : COLLAPSED_W,
         background: "linear-gradient(180deg, #14100a 0%, #0a0805 100%)",
         borderRight: "1px solid #3d3022",
         boxShadow: "4px 0 16px rgba(0,0,0,0.6)",
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
-        padding: "16px 0",
+        alignItems: "stretch",
+        padding: "16px 8px",
         gap: 4,
         flexShrink: 0,
         position: "sticky",
         top: 0,
         height: "100vh",
         overflowY: "auto",
+        overflowX: "hidden",
         zIndex: 40,
+        transition: "width 0.22s cubic-bezier(0.4, 0, 0.2, 1)",
       }}
     >
-      {/* Brasao topo */}
       <Link
         href="/"
-        title={gameName}
+        title="Inicio"
         style={{
-          width: 44,
-          height: 44,
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
+          gap: 10,
+          padding: "8px 6px",
           marginBottom: 12,
           textDecoration: "none",
         }}
       >
-        <svg width="36" height="36" viewBox="0 0 36 36">
+        <svg width="36" height="36" viewBox="0 0 36 36" style={{ flexShrink: 0 }}>
           <circle cx="18" cy="18" r="16" stroke="#c9a961" strokeWidth="1" fill="none" />
           <path
             d="M18 6 L22 14 L31 16 L24 22 L26 30 L18 25 L10 30 L12 22 L5 16 L14 14 Z"
@@ -126,98 +130,125 @@ export function Sidebar() {
             strokeWidth="0.8"
           />
         </svg>
+        {expanded && (
+          <span
+            style={{
+              fontFamily: "var(--font-cinzel), Georgia, serif",
+              fontSize: 16,
+              color: "#c9a961",
+              letterSpacing: "0.2em",
+              whiteSpace: "nowrap",
+            }}
+          >
+            THYMERIA
+          </span>
+        )}
       </Link>
 
-      {/* Saldo (so logado) */}
       {isAuth && me && (
         <div
           title={`Saldo: ${me.coins} moedas`}
           style={{
-            width: 44,
-            padding: "4px 0",
-            textAlign: "center",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: expanded ? "6px 10px" : "6px",
             background: "#1c150d",
             border: "1px solid #5a3f1a",
             borderRadius: 4,
             marginBottom: 8,
+            justifyContent: expanded ? "flex-start" : "center",
           }}
         >
-          <div style={{ fontSize: 14, color: "#fcd34d", lineHeight: 1 }}>✨</div>
-          <div style={{ fontFamily: "monospace", fontSize: 10, color: "#fcd34d", fontWeight: 700, marginTop: 2 }}>
-            {me.coins > 999 ? Math.floor(me.coins / 1000) + "k" : me.coins}
-          </div>
+          <span style={{ fontSize: 16, color: "#fcd34d", flexShrink: 0 }}>✨</span>
+          {expanded ? (
+            <span style={{ fontFamily: "monospace", fontSize: 13, color: "#fcd34d", fontWeight: 700, whiteSpace: "nowrap" }}>
+              {me.coins.toLocaleString("pt-BR")}
+            </span>
+          ) : (
+            <span style={{ fontFamily: "monospace", fontSize: 9, color: "#fcd34d", fontWeight: 700 }}>
+              {me.coins > 999 ? Math.floor(me.coins / 1000) + "k" : me.coins}
+            </span>
+          )}
         </div>
       )}
 
-      {/* Items topo */}
-      {NAV_TOP.filter(visible).map((item) => {
-        const active = isActive(item.href);
-        return (
-          <SidebarLink key={item.href} item={item} active={active} />
-        );
-      })}
+      {NAV_TOP.filter(visible).map((item) => (
+        <SidebarLink key={item.href} item={item} active={isActive(item.href)} expanded={expanded} />
+      ))}
 
       <div style={{ flex: 1 }} />
 
-      {/* Items bottom */}
-      {NAV_BOTTOM.filter(visible).map((item) => {
-        const active = isActive(item.href);
-        return (
-          <SidebarLink key={item.href} item={item} active={active} />
-        );
-      })}
+      {NAV_BOTTOM.filter(visible).map((item) => (
+        <SidebarLink key={item.href} item={item} active={isActive(item.href)} expanded={expanded} />
+      ))}
 
-      {/* Logout */}
       {isAuth && (
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           title={`Sair (${username})`}
           style={{
-            width: 44,
-            height: 44,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: expanded ? "10px 14px" : "10px",
             background: "transparent",
             border: "1px solid #3d3022",
             borderRadius: 4,
             cursor: "pointer",
             color: "#8b6f3a",
-            fontSize: 18,
+            fontSize: 16,
             marginTop: 4,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            justifyContent: expanded ? "flex-start" : "center",
+            fontFamily: "inherit",
           }}
         >
-          ⎋
+          <span style={{ flexShrink: 0 }}>⎋</span>
+          {expanded && (
+            <span style={{ fontSize: 13, color: "#8b6f3a", whiteSpace: "nowrap" }}>Sair</span>
+          )}
         </button>
       )}
     </aside>
   );
 }
 
-function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
+function SidebarLink({ item, active, expanded }: { item: NavItem; active: boolean; expanded: boolean }) {
   const color = item.color ?? "#c9a961";
   return (
     <Link
       href={item.href}
       title={item.label}
       style={{
-        width: 44,
-        height: 44,
-        background: active ? color + "22" : "transparent",
-        border: "1px solid " + (active ? color : "#3d3022"),
-        borderRadius: 4,
-        cursor: "pointer",
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
+        gap: 12,
+        padding: expanded ? "10px 14px" : "10px",
+        background: active ? color + "22" : "transparent",
+        border: "1px solid " + (active ? color : "transparent"),
+        borderRadius: 4,
+        cursor: "pointer",
         color: active ? color : "#8b6f3a",
-        fontSize: 20,
         textDecoration: "none",
         boxShadow: active ? `inset 0 0 8px ${color}33` : "none",
         transition: "all 0.15s",
+        justifyContent: expanded ? "flex-start" : "center",
       }}
     >
-      {item.icon}
+      <span style={{ fontSize: 20, flexShrink: 0, lineHeight: 1 }}>{item.icon}</span>
+      {expanded && (
+        <span
+          style={{
+            fontFamily: "var(--font-cinzel), Georgia, serif",
+            fontSize: 12,
+            color: active ? "#fef3c7" : "#d3c89a",
+            letterSpacing: "0.08em",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {item.label}
+        </span>
+      )}
     </Link>
   );
 }
