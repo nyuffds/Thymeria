@@ -170,6 +170,13 @@ model GameSettings {
   maxDecksPerPlayer   Int @default(5)
   minCardsPerDeck     Int @default(20)
   maxCardsPerDeck     Int @default(30)
+  minUnitsPerDeck     Int @default(15)
+  maxUnitsPerDeck     Int @default(30)
+  minSpecialsPerDeck  Int @default(0)
+  maxSpecialsPerDeck  Int @default(10)
+  minWeathersPerDeck  Int @default(0)
+  maxWeathersPerDeck  Int @default(5)
+  maxElitesPerDeck    Int @default(4)
 
   marketFeePercent    Float @default(0.05)
 

@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -169,6 +169,13 @@ export default async function EditarDeckPage({
             EPIC:      settings.maxPerDeckEpic,
             LEGENDARY: settings.maxPerDeckLegendary,
           },
+          minUnits: settings.minUnitsPerDeck,
+          maxUnits: settings.maxUnitsPerDeck,
+          minSpecials: settings.minSpecialsPerDeck,
+          maxSpecials: settings.maxSpecialsPerDeck,
+          minWeathers: settings.minWeathersPerDeck,
+          maxWeathers: settings.maxWeathersPerDeck,
+          maxElites: settings.maxElitesPerDeck,
         }}
       />
     </main>

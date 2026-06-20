@@ -1252,53 +1252,63 @@ export async function playCardAction(data: {
               { consumedId: target.id, absorbedPower: absorbed, consumerId: newBoardCard.id });
           }
         } else if (ek === "SUMMON_TO_HAND_BY_NAME") {
-          // Recuperacao: puxa carta especifica do universo para a mao
+          // Recuperacao: puxa N copias de cartas especificas do universo para a mao
           if (effTargetCardIdsCsv) {
             const targetIds = effTargetCardIdsCsv.split(",").filter(Boolean);
+            const copies = ev > 0 ? ev : 1;
+            let totalCreated = 0;
             for (const cardId of targetIds) {
               const cardExists = await tx.card.findUnique({ where: { id: cardId } });
               if (!cardExists) continue;
-              const maxOrder = await tx.matchHand.aggregate({
-                where: { matchId: data.matchId, side: ownerSide },
-                _max: { deckOrder: true },
-              });
-              await tx.matchHand.create({
-                data: {
-                  matchId: data.matchId,
-                  side: ownerSide,
-                  cardId,
-                  zone: "HAND",
-                  deckOrder: (maxOrder._max.deckOrder ?? 0) + 1,
-                },
-              });
+              for (let n = 0; n < copies; n++) {
+                const maxOrder = await tx.matchHand.aggregate({
+                  where: { matchId: data.matchId, side: ownerSide },
+                  _max: { deckOrder: true },
+                });
+                await tx.matchHand.create({
+                  data: {
+                    matchId: data.matchId,
+                    side: ownerSide,
+                    cardId,
+                    zone: "HAND",
+                    deckOrder: (maxOrder._max.deckOrder ?? 0) + 1,
+                  },
+                });
+                totalCreated++;
+              }
             }
             await logEvent(tx, data.matchId, match.currentRound, data.side, "SUMMON_TO_HAND_BY_NAME",
-              { count: targetIds.length });
+              { count: totalCreated });
           }
         } else if (ek === "SUMMON_TO_BOARD_BY_NAME") {
-          // Invocacao Direta: invoca cartas especificas do universo direto no campo
+          // Invocacao Direta: invoca N copias de cartas especificas direto no campo
           if (effTargetCardIdsCsv) {
             const targetIds = effTargetCardIdsCsv.split(",").filter(Boolean);
+            const copies = ev > 0 ? ev : 1;
+            let totalCreated = 0;
             for (const cardId of targetIds) {
               const cardDef = await tx.card.findUnique({ where: { id: cardId } });
               if (!cardDef) continue;
               const allowedRows = cardDef.rows.split(",").filter(Boolean);
               const targetRow = (allowedRows[0] ?? "MELEE") as Row;
-              await tx.matchBoardCard.create({
-                data: {
-                  matchId: data.matchId,
-                  side: ownerSide,
-                  cardId: cardDef.id,
-                  row: targetRow,
-                  basePower: cardDef.power,
-                  power: cardDef.power,
-                  isToken: true,
-                  shielded: false,
-                },
-              });
+              for (let n = 0; n < copies; n++) {
+                await tx.matchBoardCard.create({
+                  data: {
+                    matchId: data.matchId,
+                    side: ownerSide,
+                    cardId: cardDef.id,
+                    row: targetRow,
+                    basePower: cardDef.power,
+                    power: cardDef.power,
+                    isToken: true,
+                    shielded: false,
+                  },
+                });
+                totalCreated++;
+              }
             }
             await logEvent(tx, data.matchId, match.currentRound, data.side, "SUMMON_TO_BOARD_BY_NAME",
-              { count: targetIds.length });
+              { count: totalCreated });
           }
         }
         }

@@ -23,6 +23,13 @@ interface Props {
     maxDecksPerPlayer: number;
     minCardsPerDeck: number;
     maxCardsPerDeck: number;
+    minUnitsPerDeck: number;
+    maxUnitsPerDeck: number;
+    minSpecialsPerDeck: number;
+    maxSpecialsPerDeck: number;
+    minWeathersPerDeck: number;
+    maxWeathersPerDeck: number;
+    maxElitesPerDeck: number;
     gameName: string;
     gameSubtitle: string;
     landingTagline: string;
@@ -154,6 +161,55 @@ export function SettingsForm({ initial }: Props) {
               disabled={isPending}
               className="w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded
                          text-zinc-100 text-center focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Min. Unidades</label>
+            <input type="number" min={0} value={v.minUnitsPerDeck}
+              onChange={(e) => update("minUnitsPerDeck", parseInt(e.target.value, 10) || 0)}
+              disabled={isPending}
+              className="w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-center focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Max. Unidades</label>
+            <input type="number" min={0} value={v.maxUnitsPerDeck}
+              onChange={(e) => update("maxUnitsPerDeck", parseInt(e.target.value, 10) || 0)}
+              disabled={isPending}
+              className="w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-center focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Min. Especiais</label>
+            <input type="number" min={0} value={v.minSpecialsPerDeck}
+              onChange={(e) => update("minSpecialsPerDeck", parseInt(e.target.value, 10) || 0)}
+              disabled={isPending}
+              className="w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-center focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Max. Especiais</label>
+            <input type="number" min={0} value={v.maxSpecialsPerDeck}
+              onChange={(e) => update("maxSpecialsPerDeck", parseInt(e.target.value, 10) || 0)}
+              disabled={isPending}
+              className="w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-center focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Min. Climas</label>
+            <input type="number" min={0} value={v.minWeathersPerDeck}
+              onChange={(e) => update("minWeathersPerDeck", parseInt(e.target.value, 10) || 0)}
+              disabled={isPending}
+              className="w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-center focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Max. Climas</label>
+            <input type="number" min={0} value={v.maxWeathersPerDeck}
+              onChange={(e) => update("maxWeathersPerDeck", parseInt(e.target.value, 10) || 0)}
+              disabled={isPending}
+              className="w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-center focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase text-zinc-500 mb-1">Max. Elites</label>
+            <input type="number" min={0} value={v.maxElitesPerDeck}
+              onChange={(e) => update("maxElitesPerDeck", parseInt(e.target.value, 10) || 0)}
+              disabled={isPending}
+              className="w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 text-center focus:outline-none focus:border-amber-500" />
           </div>
         </div>
         <p className="text-xs text-zinc-500 mt-2">

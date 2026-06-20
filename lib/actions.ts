@@ -397,6 +397,13 @@ export async function updateGameSettingsAction(data: {
   maxDecksPerPlayer: number;
   minCardsPerDeck: number;
   maxCardsPerDeck: number;
+  minUnitsPerDeck: number;
+  maxUnitsPerDeck: number;
+  minSpecialsPerDeck: number;
+  maxSpecialsPerDeck: number;
+  minWeathersPerDeck: number;
+  maxWeathersPerDeck: number;
+  maxElitesPerDeck: number;
   gameName: string;
   gameSubtitle: string;
   landingTagline: string;
@@ -409,6 +416,8 @@ export async function updateGameSettingsAction(data: {
     data.maxPerDeckCommon, data.maxPerDeckRare, data.maxPerDeckEpic, data.maxPerDeckLegendary,
     data.pityThresholdCommon, data.pityThresholdRare, data.pityThresholdEpic, data.pityThresholdLegendary,
     data.maxDecksPerPlayer, data.minCardsPerDeck, data.maxCardsPerDeck,
+    data.minUnitsPerDeck, data.maxUnitsPerDeck, data.minSpecialsPerDeck, data.maxSpecialsPerDeck,
+    data.minWeathersPerDeck, data.maxWeathersPerDeck, data.maxElitesPerDeck,
   ];
   if (numericFields.some((n) => Number.isNaN(n) || n < 0)) {
     throw new Error("Todos os valores numéricos devem ser positivos.");

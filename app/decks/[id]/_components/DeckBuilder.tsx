@@ -76,6 +76,13 @@ interface Props {
     minCards: number;
     maxCards: number;
     maxPerRarity: Record<string, number>;
+    minUnits: number;
+    maxUnits: number;
+    minSpecials: number;
+    maxSpecials: number;
+    minWeathers: number;
+    maxWeathers: number;
+    maxElites: number;
   };
 }
 
@@ -129,9 +136,15 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
   }, [deck.cards]);
 
   const totalCards = deck.cards.length;
-  const MAX_ELITE = 4;
+  const MAX_ELITE = settings.maxElites;
+  const unitCount = deck.cards.filter((c) => c.cardType === "UNIT").length;
+  const specialCount = deck.cards.filter((c) => c.cardType === "SPECIAL").length;
+  const weatherCount = deck.cards.filter((c) => c.cardType === "WEATHER").length;
+  const unitsOk = unitCount >= settings.minUnits && unitCount <= settings.maxUnits;
+  const specialsOk = specialCount >= settings.minSpecials && specialCount <= settings.maxSpecials;
+  const weathersOk = weatherCount >= settings.minWeathers && weatherCount <= settings.maxWeathers;
   const eliteCount = deck.cards.filter((c) => c.isElite).length;
-  const isValid = totalCards >= settings.minCards && totalCards <= settings.maxCards;
+  const isValid = totalCards >= settings.minCards && totalCards <= settings.maxCards && unitsOk && specialsOk && weathersOk;
 
   // Coleção filtrada
   const filteredCollection = useMemo(() => {
@@ -228,6 +241,15 @@ export function DeckBuilder({ deck, collection, availableLeaders, settings }: Pr
             </p>
             <p className={"text-xs " + (eliteCount > MAX_ELITE ? "text-red-400 font-bold" : "text-amber-400")}>
               👑 Elites: {eliteCount} / {MAX_ELITE}
+            </p>
+            <p className={"text-xs " + (unitsOk ? "text-zinc-400" : "text-red-400 font-bold")}>
+              Unidades: {unitCount} ({settings.minUnits}-{settings.maxUnits})
+            </p>
+            <p className={"text-xs " + (specialsOk ? "text-zinc-400" : "text-red-400 font-bold")}>
+              Especiais: {specialCount} ({settings.minSpecials}-{settings.maxSpecials})
+            </p>
+            <p className={"text-xs " + (weathersOk ? "text-zinc-400" : "text-red-400 font-bold")}>
+              Climas: {weatherCount} ({settings.minWeathers}-{settings.maxWeathers})
             </p>
         </div>
       </div>
