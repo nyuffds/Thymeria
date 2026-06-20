@@ -30,7 +30,7 @@ export default function LoginPage() {
 
   // Carrega lista de usuarios e settings
   useEffect(() => {
-    fetch("/api/users/list")
+    fetch("/api/users/list", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         setUsers(data.users ?? []);
@@ -38,7 +38,7 @@ export default function LoginPage() {
       })
       .catch(() => setLoadingUsers(false));
 
-    fetch("/api/settings/public")
+    fetch("/api/settings/public", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => setSettings(data.settings))
       .catch(() => null);
