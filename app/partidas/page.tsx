@@ -98,7 +98,6 @@ export default async function PartidasHubPage() {
 
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1100, margin: "0 auto", padding: "40px 32px 60px", width: "100%" }}>
 
-        {/* Header */}
         <div style={{ marginBottom: 32, textAlign: "center" }}>
           <p style={{ margin: "0 0 10px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 10, color: "#8b6f3a", textTransform: "uppercase", letterSpacing: "0.5em" }}>
             &mdash; Cronica I &middot; Idade do Pacto &mdash;
@@ -126,7 +125,6 @@ export default async function PartidasHubPage() {
           </p>
         </div>
 
-        {/* CTA */}
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
           <Link
             href="/partidas/nova"
@@ -148,7 +146,6 @@ export default async function PartidasHubPage() {
           </Link>
         </div>
 
-        {/* Em andamento */}
         <Section title="Em Andamento">
           {matches.length === 0 ? (
             <EmptyState text="Nenhuma partida em andamento." />
@@ -194,7 +191,6 @@ export default async function PartidasHubPage() {
           )}
         </Section>
 
-        {/* Historico */}
         <Section
           title="Seu Historico"
           right={
