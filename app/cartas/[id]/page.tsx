@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 // app/cartas/[id]/page.tsx
-// Página de detalhe de uma carta: arte ampliada + lore expandida.
+// Detalhe de uma carta no Bestiario: arte ampliada + lore expandida.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -24,69 +24,189 @@ export default async function CartaDetailPage({
 
   if (!card || !card.isReleased) notFound();
 
+  const settings = await prisma.gameSettings.upsert({
+    where: { id: "singleton" },
+    update: {},
+    create: { id: "singleton" },
+  });
+
   const rarity = RARITIES.find((r) => r.key === card.rarity);
   const cardType = CARD_TYPES.find((t) => t.key === card.cardType);
   const rowList = card.rows.split(",").filter(Boolean)
     .map((r) => ROWS.find((x) => x.key === r)?.label ?? r);
 
   return (
-    <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
-      <Link href="/cartas" className="text-sm text-zinc-500 hover:text-amber-200">
-        ← Catálogo
-      </Link>
+    <main
+      style={{
+        flex: 1,
+        position: "relative",
+        minHeight: "100vh",
+        color: "#e9d9b6",
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
+      {settings.landingBackgroundUrl && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundImage: `url(${settings.landingBackgroundUrl})`,
+            backgroundSize: "contain",
+            backgroundPosition: "center center",
+            backgroundRepeat: "no-repeat",
+            backgroundColor: "#0a0805",
+            backgroundAttachment: "fixed",
+            opacity: 0.5,
+            zIndex: 0,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "linear-gradient(180deg, rgba(10,8,5,0.45) 0%, rgba(10,8,5,0.75) 70%, rgba(10,8,5,0.9) 100%)",
+          zIndex: 0,
+          pointerEvents: "none",
+        }}
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-8 mt-4 items-start">
-        {/* Carta grande */}
-        <div className="flex justify-center">
-          <div style={{ transform: "scale(1.4)", transformOrigin: "top center" }}>
-            <CardPreview card={card} />
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 1100, margin: "0 auto", padding: "40px 32px 60px", width: "100%" }}>
+
+        <Link
+          href="/cartas"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontFamily: "var(--font-cinzel), Georgia, serif",
+            fontSize: 11,
+            color: "#8b6f3a",
+            textDecoration: "none",
+            letterSpacing: "0.2em",
+            textTransform: "uppercase",
+            marginBottom: 24,
+          }}
+        >
+          &larr; Bestiario
+        </Link>
+
+        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 48, alignItems: "start" }}>
+
+          {/* Carta */}
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <div style={{ transform: "scale(1.4)", transformOrigin: "top center" }}>
+              <CardPreview card={card} />
+            </div>
           </div>
-        </div>
 
-        {/* Informações expandidas */}
-        <div className="space-y-6 md:mt-12 md:pl-16">
-          <div>
-            <h1 className="font-heading text-4xl font-bold text-amber-200">{card.name}</h1>
-            <p className="font-lore italic text-lg mt-1" style={{ color: card.faction.color }}>
+          {/* Info */}
+          <div style={{ marginTop: 48, paddingLeft: 16 }}>
+            <h1 style={{
+              margin: 0,
+              fontFamily: "var(--font-cinzel), Georgia, serif",
+              fontSize: 36,
+              fontWeight: 700,
+              letterSpacing: "0.05em",
+              background: "linear-gradient(180deg, #fef3c7 0%, #c9a961 50%, #6a4a20 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              filter: "drop-shadow(0 2px 8px rgba(201,169,97,0.3))",
+            }}>
+              {card.name}
+            </h1>
+            <p style={{
+              margin: "8px 0 0",
+              fontFamily: "var(--font-cormorant), Georgia, serif",
+              fontStyle: "italic",
+              fontSize: 18,
+              color: card.faction.color,
+            }}>
               {card.faction.name}
             </p>
+
+            {/* Stats */}
+            <div style={{
+              marginTop: 24,
+              padding: 16,
+              background: "rgba(20,12,4,0.6)",
+              border: "1px solid #3d3022",
+              borderRadius: 6,
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 16,
+            }}>
+              <StatLine label="Poder"    value={String(card.power)}                  color="#fcd34d" mono />
+              <StatLine label="Tipo"     value={cardType?.label ?? card.cardType}    color="#fef3c7" />
+              <StatLine label="Raridade" value={rarity?.label ?? card.rarity}        color={rarity?.color ?? "#fef3c7"} />
+              <StatLine label="Fileiras" value={rowList.join(", ") || "—"}           color="#fef3c7" />
+            </div>
+
+            {card.ability && (
+              <div style={{
+                marginTop: 16,
+                padding: 16,
+                background: "rgba(20,12,4,0.6)",
+                border: "1px solid #5a3f1a",
+                borderLeft: "3px solid #c9a961",
+                borderRadius: 6,
+              }}>
+                <p style={{ margin: "0 0 6px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 11, color: "#c9a961", letterSpacing: "0.3em", textTransform: "uppercase" }}>
+                  ✦ {card.ability.name}
+                </p>
+                <p style={{ margin: 0, fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: 15, color: "#d3c89a", lineHeight: 1.6 }}>
+                  {card.ability.description}
+                </p>
+              </div>
+            )}
+
+            {card.loreText && (
+              <div style={{
+                marginTop: 16,
+                padding: 20,
+                background: "linear-gradient(180deg, rgba(40,25,10,0.7), rgba(20,12,4,0.7))",
+                border: "1px solid #5a3f1a",
+                borderRadius: 6,
+                textAlign: "center",
+              }}>
+                <p style={{
+                  margin: 0,
+                  fontFamily: "var(--font-cormorant), Georgia, serif",
+                  fontStyle: "italic",
+                  fontSize: 17,
+                  color: "#d3c89a",
+                  lineHeight: 1.7,
+                }}>
+                  &ldquo;{card.loreText}&rdquo;
+                </p>
+              </div>
+            )}
           </div>
-
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-xs uppercase text-zinc-500">Poder</p>
-              <p className="text-zinc-100 font-mono text-xl">{card.power}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase text-zinc-500">Tipo</p>
-              <p className="text-zinc-100">{cardType?.label ?? card.cardType}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase text-zinc-500">Raridade</p>
-              <p style={{ color: rarity?.color ?? "#fff" }}>{rarity?.label ?? card.rarity}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase text-zinc-500">Fileiras</p>
-              <p className="text-zinc-100">{rowList.join(", ")}</p>
-            </div>
-          </div>
-
-          {card.ability && (
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4">
-              <p className="text-xs uppercase text-amber-400 mb-1">⚡ {card.ability.name}</p>
-              <p className="text-zinc-200">{card.ability.description}</p>
-            </div>
-          )}
-
-          {card.loreText && (
-            <div className="bg-parchment p-6 rounded-xl border-2" style={{ borderColor: "var(--bronze)" }}>
-              <p className="font-lore italic text-lg text-[var(--ink)] leading-relaxed text-center">
-                &ldquo;{card.loreText}&rdquo;
-              </p>
-            </div>
-          )}
         </div>
+
       </div>
     </main>
+  );
+}
+
+function StatLine({ label, value, color, mono }: { label: string; value: string; color: string; mono?: boolean }) {
+  return (
+    <div>
+      <p style={{ margin: 0, fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 9, color: "#8b6f3a", letterSpacing: "0.3em", textTransform: "uppercase" }}>
+        {label}
+      </p>
+      <p style={{
+        margin: "4px 0 0",
+        fontFamily: mono ? "monospace" : "var(--font-cinzel), Georgia, serif",
+        fontSize: mono ? 22 : 15,
+        color,
+        fontWeight: mono ? 700 : 400,
+        letterSpacing: mono ? 0 : "0.05em",
+      }}>
+        {value}
+      </p>
+    </div>
   );
 }
