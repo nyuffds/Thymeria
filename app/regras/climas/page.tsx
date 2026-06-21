@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/regras/climas/page.tsx
 
 import { RegrasLayout } from "../_components/RegrasLayout";

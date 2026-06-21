@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/regras/bolsa/page.tsx
 // Como funciona a Bolsa de cartas entre jogadores.
 

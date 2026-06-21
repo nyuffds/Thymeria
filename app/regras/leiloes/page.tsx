@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/regras/leiloes/page.tsx
 // Como funcionam os Leiloes.
 

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 // app/regras/jogo/page.tsx
 // Como jogar - regras basicas.
 
