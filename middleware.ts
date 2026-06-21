@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 // Rotas que NÃO exigem login (qualquer um pode acessar)
-const PUBLIC_PATHS = ["/login", "/definir-senha"];
+const PUBLIC_PATHS = ["/login", "/definir-senha", "/api/users/list", "/api/settings/public"];
 
 // Rotas que exigem papel ADMIN
 const ADMIN_PATHS = ["/admin"];

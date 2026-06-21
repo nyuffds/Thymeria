@@ -158,18 +158,7 @@ export default async function EstantePage() {
           </Link>
         </div>
 
-        {totalBoosters === 0 ? (
-          <div style={{ background: "rgba(20,12,4,0.5)", border: "1px solid #3d3022", borderRadius: 6, padding: "48px 20px", textAlign: "center" }}>
-            <p style={{ margin: "0 0 8px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 14, color: "#8b6f3a", letterSpacing: "0.1em" }}>
-              Estante vazia
-            </p>
-            <p style={{ margin: 0, fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", fontSize: 13, color: "#5f5340" }}>
-              Compre boosters no <Link href="/loja" style={{ color: "#c9a961" }}>Mercado do Eitri</Link> pra comecar.
-            </p>
-          </div>
-        ) : (
-          <EstanteList groups={groupList} />
-        )}
+        <EstanteList groups={groupList} />
 
       </div>
     </main>

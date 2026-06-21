@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { openUnopenedBoosterAction, type OpenedCard } from "@/lib/actions";
 import { CardPreview } from "@/app/components/CardPreview";
@@ -18,7 +18,6 @@ interface Group {
 
 export function EstanteList({ groups }: { groups: Group[] }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<{ name: string; cards: OpenedCard[] } | null>(null);
   const [revealedIdx, setRevealedIdx] = useState(0);
@@ -67,6 +66,7 @@ export function EstanteList({ groups }: { groups: Group[] }) {
 
   const currentCard = opened ? opened.cards[revealedIdx] : null;
   const currentRarity = currentCard ? RARITIES.find((r) => r.key === currentCard.rarity) : null;
+
   return (
     <>
       {error && (
@@ -76,13 +76,16 @@ export function EstanteList({ groups }: { groups: Group[] }) {
       )}
 
       {groups.length === 0 && !opened && (
-        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-12 text-center text-zinc-500">
-          <p className="mb-4">Sua estante está vazia.</p>
-          <a href="/loja" className="text-amber-300 hover:text-amber-200 underline">
-            Comprar boosters →
-          </a>
+        <div style={{ background: "rgba(20,12,4,0.5)", border: "1px solid #3d3022", borderRadius: 6, padding: "48px 20px", textAlign: "center" }}>
+          <p style={{ margin: "0 0 8px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 14, color: "#8b6f3a", letterSpacing: "0.1em" }}>
+            Estante vazia
+          </p>
+          <p style={{ margin: 0, fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", fontSize: 13, color: "#5f5340" }}>
+            Compre boosters no <a href="/loja" style={{ color: "#c9a961" }}>Mercado do Eitri</a> pra comecar.
+          </p>
         </div>
       )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {groups.map((g) => (
           <div
@@ -135,7 +138,6 @@ export function EstanteList({ groups }: { groups: Group[] }) {
           </button>
 
           <div className="flex items-center gap-4 md:gap-8 max-w-6xl w-full">
-            {/* Seta esquerda */}
             <button
               onClick={prevCard}
               disabled={revealedIdx === 0}
@@ -145,14 +147,12 @@ export function EstanteList({ groups }: { groups: Group[] }) {
               &#x2039;
             </button>
 
-            {/* Conteudo central */}
             <div className="flex-1 max-w-md mx-auto text-center">
               <p className="text-xs uppercase text-amber-400 tracking-widest mb-1">{opened.name}</p>
               <p className="text-sm text-zinc-500 mb-3">
                 Carta {revealedIdx + 1} de {opened.cards.length}
               </p>
 
-              {/* Indicador de pontos */}
               <div className="flex justify-center gap-1.5 mb-4">
                 {opened.cards.map((_, i) => (
                   <button
@@ -241,7 +241,6 @@ export function EstanteList({ groups }: { groups: Group[] }) {
               </div>
             </div>
 
-            {/* Seta direita */}
             <button
               onClick={nextCard}
               disabled={revealedIdx >= opened.cards.length - 1}

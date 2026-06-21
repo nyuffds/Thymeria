@@ -12,12 +12,20 @@ export default async function NovaPartidaPage() {
   const session = await auth();
   if (!session?.user?.name) redirect("/login");
 
+  const me = await prisma.user.findUnique({
+    where: { username: session.user.name },
+    select: { id: true, role: true },
+  });
+  if (!me) redirect("/login");
+
   const settings = await prisma.gameSettings.upsert({
     where: { id: "singleton" }, update: {}, create: { id: "singleton" },
   });
 
   const allDecks = await prisma.deck.findMany({
-    where: { archivedAt: null },
+    where: me.role === "ADMIN"
+      ? { archivedAt: null }
+      : { archivedAt: null, userId: me.id },
     orderBy: [{ user: { username: "asc" } }, { name: "asc" }],
     include: {
       user:    { select: { id: true, username: true } },

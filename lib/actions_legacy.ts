@@ -719,8 +719,54 @@ export interface OpenedCard {
   wasNew: boolean;
 }
 
+export async function openUnopenedBoosterAction(unopenedId: string): Promise<OpenedCard[]> {
+  const session = await auth();
+  if (!session?.user?.name) throw new Error("Você precisa estar logado.");
+
+  const user = await prisma.user.findUnique({ where: { username: session.user.name } });
+  if (!user) throw new Error("Usuário não encontrado.");
+
+  const unopened = await prisma.unopenedBooster.findUnique({
+    where: { id: unopenedId },
+    include: {
+      booster: { include: { rules: true } },
+    },
+  });
+  if (!unopened) throw new Error("Booster não encontrado.");
+  if (unopened.userId !== user.id) throw new Error("Este booster não é seu.");
+
+  // Carrega configurações de pity
+  const settings = await prisma.gameSettings.upsert({
+    where:  { id: "singleton" },
+    update: {},
+    create: { id: "singleton" },
+  });
+  const pityThreshold: Record<string, number> = {
+    COMMON:    settings.pityThresholdCommon,
+    RARE:      settings.pityThresholdRare,
+    EPIC:      settings.pityThresholdEpic,
+    LEGENDARY: settings.pityThresholdLegendary,
+  };
+
+  // Carrega coleção atual do jogador (cardId ? quantity)
+  const collectionRows = await prisma.userCollection.findMany({
+    where: { userId: user.id },
+    select: { cardId: true },
+  });
+  const ownedCardIds = new Set(collectionRows.map((r) => r.cardId));
+
+  // Carrega pity counters atuais (rarity ? counter)
+  const pityRows = await prisma.userPity.findMany({
+    where: { userId: user.id },
+  });
+  const pityCounters: Record<string, number> = {
+    COMMON: 0, RARE: 0, EPIC: 0, LEGENDARY: 0,
+  };
+  for (const p of pityRows) {
+    pityCounters[p.rarity] = p.counter;
+  }
 // Constroi o where clause para a busca de cartas elegiveis em um sorteio,
-// considerando filtros de faccao e habilidade do booster.
+// considerando filtros de fac\u00e7\u00e3o e habilidade do booster.
 function buildBoosterCardFilter(
   booster: { factionFiltersCsv: string | null; abilityFiltersCsv: string | null; includeNeutro: boolean },
   base: { rarity: string }
@@ -757,54 +803,9 @@ function buildBoosterCardFilter(
   return where;
 }
 
-export async function openUnopenedBoosterAction(unopenedId: string): Promise<OpenedCard[]> {
-  const session = await auth();
-  if (!session?.user?.name) throw new Error("Voce precisa estar logado.");
 
-  const user = await prisma.user.findUnique({ where: { username: session.user.name } });
-  if (!user) throw new Error("Usuario nao encontrado.");
-
-  const unopened = await prisma.unopenedBooster.findUnique({
-    where: { id: unopenedId },
-    include: {
-      booster: { include: { rules: true } },
-    },
-  });
-  if (!unopened) throw new Error("Booster nao encontrado.");
-  if (unopened.userId !== user.id) throw new Error("Este booster nao e seu.");
-
-  // Carrega configuracoes de pity
-  const settings = await prisma.gameSettings.upsert({
-    where:  { id: "singleton" },
-    update: {},
-    create: { id: "singleton" },
-  });
-  const pityThreshold: Record<string, number> = {
-    COMMON:    settings.pityThresholdCommon,
-    RARE:      settings.pityThresholdRare,
-    EPIC:      settings.pityThresholdEpic,
-    LEGENDARY: settings.pityThresholdLegendary,
-  };
-
-  // Carrega colecao atual do jogador (cardId -> quantity)
-  const collectionRows = await prisma.userCollection.findMany({
-    where: { userId: user.id },
-    select: { cardId: true },
-  });
-  const ownedCardIds = new Set(collectionRows.map((r) => r.cardId));
-
-  // Carrega pity counters atuais (rarity -> counter)
-  const pityRows = await prisma.userPity.findMany({
-    where: { userId: user.id },
-  });
-  const pityCounters: Record<string, number> = {
-    COMMON: 0, RARE: 0, EPIC: 0, LEGENDARY: 0,
-  };
-  for (const p of pityRows) {
-    pityCounters[p.rarity] = p.counter;
-  }
-
-  // Se o booster tem filtro de faccao + includeNeutro, adiciona o ID da faccao Neutro ao filtro
+  
+  // Se o booster tem filtro de facao + includeNeutro, adiciona o ID da faccao Neutro ao filtro
   if (unopened.booster.factionFiltersCsv && unopened.booster.includeNeutro) {
     const neutroFaction = await prisma.faction.findFirst({
       where: { name: "Neutro" },
@@ -817,16 +818,15 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
       }
     }
   }
-
-  // Sorteia as cartas. Para cada carta:
-  //   1. Se vier de FIXED_POOL -> respeita (nao interfere no pity)
-  //   2. Se vier de BY_RARITY -> considera pity:
-  //      - Se contador ja bateu o threshold E existe carta nova dessa raridade
-  //        -> forca sortear das novas
-  //      - Caso contrario -> sorteio normal
+// Sorteia as cartas. Para cada carta:
+  //   1. Se vier de FIXED_POOL ? respeita (não interfere no pity)
+  //   2. Se vier de BY_RARITY ? considera pity:
+  //      - Se contador já bateu o threshold E existe carta nova dessa raridade
+  //        ? força sortear das novas
+  //      - Caso contrário ? sorteio normal
   //   3. Atualiza pity counter da raridade:
-  //      - Se carta foi nova -> zera
-  //      - Se foi repetida -> incrementa
+  //      - Se carta foi nova ? zera
+  //      - Se foi repetida ? incrementa
   const cardIds: string[] = [];
 
   for (const rule of unopened.booster.rules) {
@@ -834,7 +834,7 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
       if (!rule.cardId) continue;
       for (let i = 0; i < rule.quantity; i++) {
         cardIds.push(rule.cardId);
-        // Atualiza pity baseado na carta fixa tambem
+        // Atualiza pity baseado na carta fixa também
         const card = await prisma.card.findUnique({ where: { id: rule.cardId }, select: { rarity: true } });
         if (card && pityCounters[card.rarity] !== undefined) {
           if (ownedCardIds.has(rule.cardId)) {
@@ -854,7 +854,7 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
         select: { id: true },
       });
       if (pool.length === 0) {
-        throw new Error(`Nao ha cartas liberadas da raridade ${rarity}. Avise o GM.`);
+        throw new Error(`Não há cartas liberadas da raridade ${rarity}. Avise o GM.`);
       }
 
       const newPool = pool.filter((c) => !ownedCardIds.has(c.id));
@@ -873,7 +873,7 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
         if (wasNew) {
           pityCounters[rarity] = 0;
           ownedCardIds.add(pickId);
-          // Remove do newPool pra nao sortear de novo no mesmo booster
+          // Remove do newPool pra não sortear de novo no mesmo booster
           const idxInNewPool = newPool.findIndex((c) => c.id === pickId);
           if (idxInNewPool !== -1) newPool.splice(idxInNewPool, 1);
         } else {
@@ -902,27 +902,29 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
         }
         if (!chosenRarity) chosenRarity = Object.keys(weights)[0];
 
-        // Pega o pool da raridade sorteada. Se vazio, fallback procurando QUALQUER raridade
-        // disponivel pelos filtros do booster (para nao oscilar a quantidade total).
-        let pool = await prisma.card.findMany({
-          where: buildBoosterCardFilter(unopened.booster, { rarity: chosenRarity }),
-          select: { id: true },
-        });
-        if (pool.length === 0) {
-          const fallbackOrder = ["COMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC"];
-          for (const fbRarity of fallbackOrder) {
-            if (fbRarity === chosenRarity) continue;
-            pool = await prisma.card.findMany({
-              where: buildBoosterCardFilter(unopened.booster, { rarity: fbRarity }),
-              select: { id: true },
-            });
-            if (pool.length > 0) {
-              chosenRarity = fbRarity;
-              break;
+        // Pega o pool da raridade sorteada. Se vazio, faz fallback procurando QUALQUER raridade
+          // disponivel pelos filtros do booster (para nao oscilar a quantidade total de cartas).
+          let pool = await prisma.card.findMany({
+            where: buildBoosterCardFilter(unopened.booster, { rarity: chosenRarity }),
+            select: { id: true },
+          });
+          if (pool.length === 0) {
+            // Fallback: tenta cada raridade em ordem ate achar uma com cartas
+            const fallbackOrder = ["COMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC"];
+            for (const fbRarity of fallbackOrder) {
+              if (fbRarity === chosenRarity) continue;
+              pool = await prisma.card.findMany({
+                where: buildBoosterCardFilter(unopened.booster, { rarity: fbRarity }),
+                select: { id: true },
+              });
+              if (pool.length > 0) {
+                chosenRarity = fbRarity;
+                break;
+              }
             }
+            // Se NENHUMA raridade tem cartas, continua (situacao impossivel de configurar mas seguranca)
+            if (pool.length === 0) continue;
           }
-          if (pool.length === 0) continue;
-        }
 
         const newPool = pool.filter((c) => !ownedCardIds.has(c.id));
         const threshold = pityThreshold[chosenRarity] ?? 999;
@@ -941,13 +943,12 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
         } else {
           pityCounters[chosenRarity] = (pityCounters[chosenRarity] ?? 0) + 1;
         }
-      }
-    }
+      }    }
+
   }
+    if (cardIds.length === 0) throw new Error("Booster sem regras válidas. Avise o GM.");
 
-  if (cardIds.length === 0) throw new Error("Booster sem regras validas. Avise o GM.");
-
-  // Aplica tudo numa transacao
+  // Aplica tudo numa transação
   const result = await prisma.$transaction(async (tx) => {
     await tx.unopenedBooster.delete({ where: { id: unopenedId } });
 
@@ -962,7 +963,7 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
     const counts = new Map<string, number>();
     for (const id of cardIds) counts.set(id, (counts.get(id) ?? 0) + 1);
 
-    // Atualiza colecao
+    // Atualiza coleção
     for (const [cardId, qty] of counts.entries()) {
       await tx.userCollection.upsert({
         where:  { userId_cardId: { userId: user.id, cardId } },
@@ -979,8 +980,7 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
         create: { userId: user.id, rarity, counter: pityCounters[rarity] },
       });
     }
-
-    // Cria opening + results
+// Cria opening + results
     const opening = await tx.boosterOpening.create({
       data: {
         userId: user.id,
@@ -1002,7 +1002,7 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
     });
     const fullById = new Map(fullCards.map((c) => [c.id, c]));
 
-    // Marca wasNew baseado em alreadyOwned + ocorrencia no booster
+    // Marca wasNew baseado em alreadyOwned + ocorrência no booster
     const seenInBooster = new Set<string>();
     const opened: OpenedCard[] = cardIds.map((id) => {
       const c = fullById.get(id)!;
@@ -1010,19 +1010,19 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
       seenInBooster.add(id);
       const wasNew = !alreadyOwned.has(id) && isFirstInBooster;
       return {
-        id: c.id,
-        name: c.name,
-        rarity: c.rarity,
-        cardType: c.cardType,
-        rows: c.rows,
-        power: c.power,
-        imageUrl: c.imageUrl,
-        frameUrl: c.frameUrl,
-        loreText: c.loreText,
-        faction: { name: c.faction.name, color: c.faction.color },
-        ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
-        wasNew,
-      };
+          id: c.id,
+          name: c.name,
+          rarity: c.rarity,
+          cardType: c.cardType,
+          rows: c.rows,
+          power: c.power,
+          imageUrl: c.imageUrl,
+          frameUrl: c.frameUrl,
+          loreText: c.loreText,
+          faction: { name: c.faction.name, color: c.faction.color },
+          ability: c.ability ? { name: c.ability.name, description: c.ability.description } : null,
+          wasNew,
+        };
     });
 
     return { openingId: opening.id, opened };
@@ -1030,7 +1030,7 @@ export async function openUnopenedBoosterAction(unopenedId: string): Promise<Ope
 
   revalidatePath("/colecao");
   revalidatePath("/conta");
-  return result.opened;
+    return result.opened;
 }
 
 // ---------------------------------------------
