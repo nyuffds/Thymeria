@@ -1,51 +1,46 @@
-﻿import Link from "next/link";
+// app/regras/faccoes/page.tsx
+
 import { PrismaClient } from "@prisma/client";
+import { RegrasLayout } from "../_components/RegrasLayout";
 
 const prisma = new PrismaClient();
 
 export const dynamic = "force-dynamic";
 
 export default async function RegrasFaccoesPage() {
-  const faccoes = await prisma.faction.findMany({
-    orderBy: { name: "asc" },
-  });
+  const faccoes = await prisma.faction.findMany({ orderBy: { name: "asc" } });
 
   return (
-    <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
-      <nav className="mb-6">
-        <Link href="/regras" className="text-sm text-zinc-500 hover:text-amber-200 transition">
-          {"\u2190 Manual"}
-        </Link>
-      </nav>
-
-      <header className="mb-8">
-        <p className="text-xs text-amber-500 uppercase tracking-[0.3em] mb-2">Manual</p>
-        <h1 className="text-3xl font-bold font-heading text-amber-200">Faccoes</h1>
-        <p className="text-sm text-zinc-400 mt-2">
-          Cada faccao tem seu proprio estilo de jogo e tematica.
-        </p>
-      </header>
-
+    <RegrasLayout title="Faccoes" subtitle="Cada faccao tem seu proprio estilo de jogo e tematica." maxWidth={900}>
       {faccoes.length === 0 ? (
-        <p className="text-zinc-500 italic">Nenhuma faccao cadastrada.</p>
+        <p style={{ textAlign: "center", fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", color: "#5f5340" }}>
+          Nenhuma faccao cadastrada.
+        </p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
           {faccoes.map((f) => (
             <article
               key={f.id}
-              className="rounded-lg border-2 bg-zinc-900/50 p-5"
-              style={{ borderColor: f.color + "55" }}
+              style={{
+                padding: 20,
+                background: "rgba(20,12,4,0.6)",
+                border: `1px solid ${f.color}55`,
+                borderLeft: `3px solid ${f.color}`,
+                borderRadius: 4,
+              }}
             >
-              <h2 className="text-lg font-bold font-heading mb-2" style={{ color: f.color }}>
+              <h2 style={{ margin: "0 0 10px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 18, color: f.color, letterSpacing: "0.08em" }}>
                 {f.name}
               </h2>
               {f.description && (
-                <p className="text-sm text-zinc-400">{f.description}</p>
+                <p style={{ margin: 0, fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: 14, color: "#d3c89a", lineHeight: 1.6 }}>
+                  {f.description}
+                </p>
               )}
             </article>
           ))}
         </div>
       )}
-    </main>
+    </RegrasLayout>
   );
 }

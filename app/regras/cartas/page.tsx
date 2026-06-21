@@ -1,33 +1,23 @@
-﻿import Link from "next/link";
+// app/regras/cartas/page.tsx
+
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
+import { RegrasLayout } from "../_components/RegrasLayout";
 
 const prisma = new PrismaClient();
 
 export const dynamic = "force-dynamic";
 
 const RARITY_LABEL: Record<string, string> = {
-  COMMON: "Comum",
-  UNCOMMON: "Incomum",
-  RARE: "Rara",
-  EPIC: "Epica",
-  LEGENDARY: "Lendaria",
+  COMMON: "Comum", UNCOMMON: "Incomum", RARE: "Rara", EPIC: "Epica", LEGENDARY: "Lendaria",
 };
-
 const RARITY_COLOR: Record<string, string> = {
-  COMMON: "#9ca3af",
-  UNCOMMON: "#34d399",
-  RARE: "#60a5fa",
-  EPIC: "#a78bfa",
-  LEGENDARY: "#fbbf24",
+  COMMON: "#9ca3af", UNCOMMON: "#34d399", RARE: "#60a5fa", EPIC: "#a78bfa", LEGENDARY: "#fbbf24",
 };
-
 const TYPE_LABEL: Record<string, string> = {
-  UNIT: "Unidade",
-  SPECIAL: "Especial",
-  WEATHER: "Clima",
-  LEADER: "Lider",
+  UNIT: "Unidade", SPECIAL: "Especial", WEATHER: "Clima", LEADER: "Lider",
 };
 
 export default async function RegrasCartasPage() {
@@ -42,93 +32,102 @@ export default async function RegrasCartasPage() {
 
   const isAdmin = user.role === "ADMIN";
 
-  // Admin ve tudo; jogadores so o que tem
   const cards = isAdmin
-    ? await prisma.card.findMany({
-        include: { faction: true, ability: true },
-        orderBy: [{ rarity: "asc" }, { name: "asc" }],
-      })
+    ? await prisma.card.findMany({ include: { faction: true, ability: true }, orderBy: [{ rarity: "asc" }, { name: "asc" }] })
     : await prisma.card.findMany({
-        where: {
-          collectedBy: { some: { userId: user.id, quantity: { gt: 0 } } },
-        },
+        where: { collectedBy: { some: { userId: user.id, quantity: { gt: 0 } } } },
         include: { faction: true, ability: true },
         orderBy: [{ rarity: "asc" }, { name: "asc" }],
       });
 
   return (
-    <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
-      <nav className="mb-6">
-        <Link href="/regras" className="text-sm text-zinc-500 hover:text-amber-200 transition">
-          {"\u2190 Manual"}
-        </Link>
-      </nav>
-
-      <header className="mb-8">
-        <p className="text-xs text-amber-500 uppercase tracking-[0.3em] mb-2">Manual</p>
-        <h1 className="text-3xl font-bold font-heading text-amber-200">
-          {isAdmin ? "Todas as Cartas" : "Suas Cartas"}
-        </h1>
-        <p className="text-sm text-zinc-400 mt-2">
-          {isAdmin
-            ? "Visao admin: todas as cartas ativas do sistema."
-            : "Cartas que voce possui na sua colecao. Adquira novas na Loja."}
-        </p>
-      </header>
-
+    <RegrasLayout
+      title={isAdmin ? "Todas as Cartas" : "Suas Cartas"}
+      subtitle={isAdmin
+        ? "Visao do Conselho: todas as cartas ativas do sistema."
+        : "Cartas que voce possui na sua colecao. Adquira novas no Mercado do Eitri."}
+      maxWidth={1100}
+    >
       {cards.length === 0 ? (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-8 text-center">
-          <p className="text-zinc-400 mb-4">Sua colecao esta vazia.</p>
+        <div style={{ padding: "48px 20px", background: "rgba(20,12,4,0.5)", border: "1px solid #3d3022", borderRadius: 6, textAlign: "center" }}>
+          <p style={{ margin: "0 0 16px", fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", fontSize: 14, color: "#5f5340" }}>
+            Sua colecao esta vazia.
+          </p>
           <Link
             href="/loja"
-            className="inline-block px-5 py-2 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold rounded transition"
+            style={{
+              display: "inline-block",
+              padding: "10px 22px",
+              background: "linear-gradient(180deg, #c9a961, #8b6f3a)",
+              color: "#1a0f05",
+              fontFamily: "var(--font-cinzel), Georgia, serif",
+              fontWeight: 700,
+              fontSize: 12,
+              letterSpacing: "0.2em",
+              textDecoration: "none",
+              borderRadius: 4,
+            }}
           >
-            Visitar a Loja
+            VISITAR O MERCADO
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
           {cards.map((c) => (
             <article
               key={c.id}
-              className="rounded-lg border-2 bg-zinc-900/50 p-4 flex gap-3"
-              style={{ borderColor: c.faction.color + "55" }}
+              style={{
+                padding: 12,
+                display: "flex",
+                gap: 10,
+                background: "rgba(20,12,4,0.6)",
+                border: `1px solid ${c.faction.color}55`,
+                borderRadius: 4,
+              }}
             >
               {c.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={c.imageUrl}
                   alt={c.name}
-                  className="w-16 h-24 rounded object-cover flex-shrink-0"
-                  style={{ border: `1px solid ${c.faction.color}88` }}
+                  style={{
+                    width: 56,
+                    height: 84,
+                    borderRadius: 3,
+                    objectFit: "cover",
+                    flexShrink: 0,
+                    border: `1px solid ${c.faction.color}88`,
+                  }}
                 />
               )}
-              <div className="flex-1 min-w-0">
-                <h2 className="text-sm font-bold font-heading text-amber-200 truncate">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ margin: 0, fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 13, color: "#fef3c7", letterSpacing: "0.05em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {c.name}
-                </h2>
-                <p className="text-xs" style={{ color: c.faction.color }}>
+                </h3>
+                <p style={{ margin: "2px 0 0", fontSize: 11, color: c.faction.color, fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic" }}>
                   {c.faction.name}
                 </p>
-                <p className="text-xs flex items-center gap-2 mt-1">
-                  <span style={{ color: RARITY_COLOR[c.rarity] ?? "#9ca3af" }}>
+                <p style={{ margin: "4px 0 0", display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+                  <span style={{ color: RARITY_COLOR[c.rarity] ?? "#9ca3af", fontFamily: "var(--font-cinzel), Georgia, serif", letterSpacing: "0.05em" }}>
                     {RARITY_LABEL[c.rarity] ?? c.rarity}
                   </span>
-                  <span className="text-zinc-600">|</span>
-                  <span className="text-zinc-400">{TYPE_LABEL[c.cardType] ?? c.cardType}</span>
+                  <span style={{ color: "#3d3022" }}>·</span>
+                  <span style={{ color: "#8b6f3a" }}>{TYPE_LABEL[c.cardType] ?? c.cardType}</span>
                   {c.cardType !== "LEADER" && c.cardType !== "WEATHER" && (
                     <>
-                      <span className="text-zinc-600">|</span>
-                      <span className="text-amber-300 font-mono">{c.power}</span>
+                      <span style={{ color: "#3d3022" }}>·</span>
+                      <span style={{ fontFamily: "monospace", color: "#fcd34d", fontWeight: 700 }}>{c.power}</span>
                     </>
                   )}
                 </p>
                 {c.isElite && (
-                  <p className="text-xs text-amber-400 font-bold mt-1">⚜ Elite</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 10, color: "#fbbf24", fontFamily: "var(--font-cinzel), Georgia, serif", letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                    ⚜ Elite
+                  </p>
                 )}
                 {c.ability && (
-                  <p className="text-xs text-zinc-400 mt-2 leading-snug">
-                    <strong className="text-amber-300">{c.ability.name}:</strong>{" "}
-                    {c.ability.description}
+                  <p style={{ margin: "6px 0 0", fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: 12, color: "#d3c89a", lineHeight: 1.4 }}>
+                    <strong style={{ color: "#c9a961", fontStyle: "normal" }}>{c.ability.name}:</strong> {c.ability.description}
                   </p>
                 )}
               </div>
@@ -136,6 +135,6 @@ export default async function RegrasCartasPage() {
           ))}
         </div>
       )}
-    </main>
+    </RegrasLayout>
   );
 }

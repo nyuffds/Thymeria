@@ -1,7 +1,10 @@
-﻿import Link from "next/link";
+// app/regras/habilidades/page.tsx
+
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
+import { RegrasLayout } from "../_components/RegrasLayout";
 
 const prisma = new PrismaClient();
 
@@ -19,92 +22,86 @@ export default async function RegrasHabilidadesPage() {
 
   const isAdmin = user.role === "ADMIN";
 
-  // Pega cartas do jogador (ou todas pra admin) com habilidades
   const cards = isAdmin
-    ? await prisma.card.findMany({
-        where: { abilityId: { not: null } },
-        include: { ability: true, faction: true },
-      })
+    ? await prisma.card.findMany({ where: { abilityId: { not: null } }, include: { ability: true, faction: true } })
     : await prisma.card.findMany({
-        where: {
-          abilityId: { not: null },
-          collectedBy: { some: { userId: user.id, quantity: { gt: 0 } } },
-        },
+        where: { abilityId: { not: null }, collectedBy: { some: { userId: user.id, quantity: { gt: 0 } } } },
         include: { ability: true, faction: true },
       });
 
-  // Agrupa por habilidade (mesma ability pode aparecer em varias cartas)
-  type AbilityWithCards = {
-    id: string;
-    name: string;
-    description: string;
-    cards: typeof cards;
-  };
+  type AbilityWithCards = { id: string; name: string; description: string; cards: typeof cards };
   const byAbility = new Map<string, AbilityWithCards>();
   for (const c of cards) {
     if (!c.ability) continue;
-    const key = c.ability.id;
-    if (!byAbility.has(key)) {
-      byAbility.set(key, {
-        id: c.ability.id,
-        name: c.ability.name,
-        description: c.ability.description,
-        cards: [],
-      });
+    if (!byAbility.has(c.ability.id)) {
+      byAbility.set(c.ability.id, { id: c.ability.id, name: c.ability.name, description: c.ability.description, cards: [] });
     }
-    byAbility.get(key)!.cards.push(c);
+    byAbility.get(c.ability.id)!.cards.push(c);
   }
   const abilities = Array.from(byAbility.values()).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
-      <nav className="mb-6">
-        <Link href="/regras" className="text-sm text-zinc-500 hover:text-amber-200 transition">
-          {"\u2190 Manual"}
-        </Link>
-      </nav>
-
-      <header className="mb-8">
-        <p className="text-xs text-amber-500 uppercase tracking-[0.3em] mb-2">Manual</p>
-        <h1 className="text-3xl font-bold font-heading text-amber-200">
-          {isAdmin ? "Todas as Habilidades" : "Suas Habilidades"}
-        </h1>
-        <p className="text-sm text-zinc-400 mt-2">
-          {isAdmin
-            ? "Visao admin: todas as habilidades cadastradas."
-            : "Habilidades das cartas da sua colecao. Cada habilidade pode estar em multiplas cartas."}
-        </p>
-      </header>
-
+    <RegrasLayout
+      title={isAdmin ? "Todas as Habilidades" : "Suas Habilidades"}
+      subtitle={isAdmin
+        ? "Visao do Conselho: todas as habilidades cadastradas."
+        : "Habilidades das cartas da sua colecao."}
+      maxWidth={900}
+    >
       {abilities.length === 0 ? (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-8 text-center">
-          <p className="text-zinc-400 mb-4">Voce ainda nao tem cartas com habilidades.</p>
+        <div style={{ padding: "48px 20px", background: "rgba(20,12,4,0.5)", border: "1px solid #3d3022", borderRadius: 6, textAlign: "center" }}>
+          <p style={{ margin: "0 0 16px", fontFamily: "var(--font-cormorant), Georgia, serif", fontStyle: "italic", fontSize: 14, color: "#5f5340" }}>
+            Voce ainda nao tem cartas com habilidades.
+          </p>
           <Link
             href="/loja"
-            className="inline-block px-5 py-2 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold rounded transition"
+            style={{
+              display: "inline-block",
+              padding: "10px 22px",
+              background: "linear-gradient(180deg, #c9a961, #8b6f3a)",
+              color: "#1a0f05",
+              fontFamily: "var(--font-cinzel), Georgia, serif",
+              fontWeight: 700,
+              fontSize: 12,
+              letterSpacing: "0.2em",
+              textDecoration: "none",
+              borderRadius: 4,
+            }}
           >
-            Visitar a Loja
+            VISITAR O MERCADO
           </Link>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {abilities.map((a) => (
             <article
               key={a.id}
-              className="rounded-lg border-2 border-zinc-800 bg-zinc-900/50 p-5"
+              style={{ padding: 20, background: "rgba(20,12,4,0.6)", border: "1px solid #5a3f1a", borderLeft: "3px solid #c9a961", borderRadius: 4 }}
             >
-              <h2 className="text-lg font-bold font-heading text-amber-200 mb-2">{a.name}</h2>
-              <p className="text-sm text-zinc-300 leading-relaxed mb-3">{a.description}</p>
-              <div className="border-t border-zinc-800 pt-3 mt-3">
-                <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">
-                  {a.cards.length === 1 ? "Carta com esta habilidade" : `${a.cards.length} cartas com esta habilidade`}
+              <h2 style={{ margin: 0, fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 16, color: "#fef3c7", letterSpacing: "0.08em" }}>
+                {a.name}
+              </h2>
+              <p style={{ margin: "8px 0 12px", fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: 14, color: "#d3c89a", lineHeight: 1.6 }}>
+                {a.description}
+              </p>
+              <div style={{ paddingTop: 12, borderTop: "1px solid #3d3022" }}>
+                <p style={{ margin: "0 0 8px", fontFamily: "var(--font-cinzel), Georgia, serif", fontSize: 10, color: "#8b6f3a", letterSpacing: "0.25em", textTransform: "uppercase" }}>
+                  {a.cards.length === 1 ? "1 carta com esta habilidade" : `${a.cards.length} cartas com esta habilidade`}
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {a.cards.map((c) => (
                     <span
                       key={c.id}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-zinc-800 border"
-                      style={{ borderColor: c.faction.color + "55", color: c.faction.color }}
+                      style={{
+                        padding: "3px 8px",
+                        fontSize: 11,
+                        borderRadius: 3,
+                        background: c.faction.color + "15",
+                        border: `1px solid ${c.faction.color}55`,
+                        color: c.faction.color,
+                        fontFamily: "var(--font-cinzel), Georgia, serif",
+                        letterSpacing: "0.05em",
+                      }}
                     >
                       {c.name}
                     </span>
@@ -115,6 +112,6 @@ export default async function RegrasHabilidadesPage() {
           ))}
         </div>
       )}
-    </main>
+    </RegrasLayout>
   );
 }
