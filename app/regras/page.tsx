@@ -22,6 +22,7 @@ const TOPICS: Topic[] = [
   { href: "/regras/jogo",         title: "Como Jogar",   desc: "Fases, fileiras, turnos e vitoria.",       icon: "♔", color: "#fcd34d", category: "JOGO" },
   { href: "/regras/cartas",       title: "Suas Cartas",  desc: "Visao das cartas da sua colecao.",         icon: "▦", color: "#c9a961", category: "JOGO" },
   { href: "/regras/habilidades",  title: "Habilidades",  desc: "Efeitos das cartas que voce possui.",      icon: "✦", color: "#8e44ad", category: "JOGO" },
+  { href: "/regras/efeitos",      title: "Catalogo de Efeitos", desc: "Todas as habilidades disponiveis no motor.", icon: "⚡", color: "#fbbf24", category: "JOGO" },
   { href: "/regras/climas",       title: "Climas",       desc: "Os 5 climas e seus efeitos nas fileiras.", icon: "❄", color: "#5dade2", category: "JOGO" },
   { href: "/regras/faccoes",      title: "Faccoes",      desc: "As faccoes de Thymeria e seus estilos.",   icon: "⚔", color: "#c0392b", category: "JOGO" },
 
