@@ -49,6 +49,7 @@ export default async function AdminHomePage() {
     { href: "/admin/habilidades",  title: "Habilidades",  desc: "Efeitos automaticos ou narrativos.",          icon: "✦", color: "#8e44ad", category: "CONTEUDO", count: counts.abilities },
     { href: "/admin/cartas",       title: "Cartas",       desc: "Catalogo mestre de todas as cartas do jogo.", icon: "▦", color: "#27ae60", category: "CONTEUDO", count: counts.cards },
     { href: "/admin/boosters",     title: "Boosters",     desc: "Pacotes de cartas a venda no Mercado.",       icon: "📦", color: "#b76e5f", category: "CONTEUDO", count: counts.boosters },
+    { href: "/admin/panteao",      title: "Panteao",      desc: "Divindades, lore e imagens do panteao.",      icon: "✦", color: "#fcd34d", category: "CONTEUDO" },
 
     // Economia
     { href: "/admin/economia",     title: "Economia",     desc: "Distribuir moedas e ver historico.",          icon: "✨", color: "#fcd34d", category: "ECONOMIA" },

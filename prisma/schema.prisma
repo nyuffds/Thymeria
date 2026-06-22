@@ -756,3 +756,25 @@ model ChargedCard {
   @@index([matchId])
   @@index([matchId, triggersRound])
 }
+
+model PantheonDeity {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  name          String
+  alignment     String              // ORDER | NEUTRAL | CHAOS
+  domain        String
+  symbol        String
+  color         String   @default("#c9a961")
+  quote         String?
+  quoteSource   String?
+  loreText      String?
+  imageUrl      String?
+  famousDevotees String?  // CSV
+  displayOrder  Int      @default(0)
+  isPublished   Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([alignment])
+  @@index([displayOrder])
+}
