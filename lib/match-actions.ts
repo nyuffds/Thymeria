@@ -1310,7 +1310,198 @@ export async function playCardAction(data: {
             await logEvent(tx, data.matchId, match.currentRound, data.side, "SUMMON_TO_BOARD_BY_NAME",
               { count: totalCreated });
           }
+        } else if (ek === "HEAL_ROW") {
+          // Bencao da Manha: restaura basePower de todas aliadas curaveis (basePower < power original) da fileira
+          const targetRowEffect = effEffectRow ?? effTargetRow;
+          const allies = await tx.matchBoardCard.findMany({
+            where: { matchId: data.matchId, side: ownerSide, row: targetRowEffect },
+            include: { card: true },
+          });
+          let healed = 0;
+          for (const a of allies) {
+            if (a.card.isElite) continue;
+            if (a.basePower >= a.card.power) continue;
+            await tx.matchBoardCard.update({
+              where: { id: a.id },
+              data: { basePower: a.card.power },
+            });
+            healed++;
+          }
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "HEAL_ROW",
+            { row: targetRowEffect, count: healed });
+        } else if (ek === "DAMAGE_BY_ENEMY_ROW" && effTargetBoardCardId) {
+          // Vinganca da Lanca: dano = numero de inimigos na mesma fileira do alvo
+          const target = await tx.matchBoardCard.findUnique({
+            where: { id: effTargetBoardCardId },
+            include: { card: true },
+          });
+          if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !_isImmune(target.side, target.row)) {
+            const enemiesInRow = await tx.matchBoardCard.count({
+              where: { matchId: data.matchId, side: target.side, row: target.row },
+            });
+            const damage = enemiesInRow > 0 ? enemiesInRow : 1;
+            if (target.shielded) {
+              await tx.matchBoardCard.update({ where: { id: target.id }, data: { shielded: false } });
+              await logEvent(tx, data.matchId, match.currentRound, data.side, "DAMAGE_BLOCKED",
+                { targetId: target.id });
+            } else {
+              const newBase = target.basePower - damage;
+              if (newBase <= 0) {
+                await triggerOnDeath(tx, data.matchId, target.id);
+                await tx.matchBoardCard.delete({ where: { id: target.id } });
+                await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+                  { targetId: target.id, by: "DAMAGE_BY_ENEMY_ROW", damage });
+              } else {
+                await tx.matchBoardCard.update({
+                  where: { id: target.id },
+                  data: { basePower: newBase },
+                });
+                await logEvent(tx, data.matchId, match.currentRound, data.side, "DAMAGE",
+                  { targetId: target.id, amount: damage, newBase, by: "DAMAGE_BY_ENEMY_ROW" });
+              }
+            }
+          }
+        } else if (ek === "DRAW_DISCARD_OPP") {
+          // Espionagem Cruel: voce compra ev cartas, oponente descarta 1 random da mao
+          const drawCount = ev > 0 ? ev : 1;
+          const myDeck = await tx.matchHand.findMany({
+            where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+            orderBy: { deckOrder: "asc" },
+            take: drawCount,
+          });
+          for (const d of myDeck) {
+            await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
+          }
+          // Oponente: 1 carta aleatoria da mao vira DISCARD
+          const oppSide = otherSide(ownerSide);
+          const oppHand = await tx.matchHand.findMany({
+            where: { matchId: data.matchId, side: oppSide, zone: "HAND" },
+          });
+          let discarded = 0;
+          if (oppHand.length > 0) {
+            const victim = oppHand[Math.floor(Math.random() * oppHand.length)];
+            await tx.matchHand.update({ where: { id: victim.id }, data: { zone: "DISCARD" } });
+            discarded = 1;
+          }
+          await logEvent(tx, data.matchId, match.currentRound, data.side, "DRAW_DISCARD_OPP",
+            { drew: myDeck.length, oppDiscarded: discarded });
+        } else if (ek === "SACRIFICE_DRAW" && effTargetBoardCardId) {
+          // Pacto de Sangue: destroi aliada escolhida E compra ev cartas
+          const target = await tx.matchBoardCard.findUnique({
+            where: { id: effTargetBoardCardId },
+            include: { card: true },
+          });
+          if (target && target.matchId === data.matchId && target.side === ownerSide && !target.card.isElite && target.permanenceCounter === 0) {
+            await triggerOnDeath(tx, data.matchId, target.id);
+            await tx.matchBoardCard.delete({ where: { id: target.id } });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
+              { targetId: target.id, by: "SACRIFICE_DRAW" });
+            const drawCount = ev > 0 ? ev : 1;
+            const drawFrom = await tx.matchHand.findMany({
+              where: { matchId: data.matchId, side: data.side, zone: "DECK" },
+              orderBy: { deckOrder: "asc" },
+              take: drawCount,
+            });
+            for (const d of drawFrom) {
+              await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
+            }
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "SACRIFICE_DRAW",
+              { drew: drawFrom.length });
+          }
+        } else if (ek === "SUMMON_COPY" && effTargetBoardCardId) {
+          // Ecos: cria token copia de uma carta inimiga escolhida na fileira da carta jogada
+          const target = await tx.matchBoardCard.findUnique({
+            where: { id: effTargetBoardCardId },
+            include: { card: true },
+          });
+          if (target && target.matchId === data.matchId && target.side !== ownerSide) {
+            // Copia o card-def, vai pra fileira da carta jogada (ou primeira fileira permitida da copia)
+            const allowedRows = target.card.rows.split(",").filter(Boolean);
+            const targetRowForCopy = allowedRows.includes(effTargetRow) ? effTargetRow : ((allowedRows[0] ?? "MELEE") as Row);
+            await tx.matchBoardCard.create({
+              data: {
+                matchId: data.matchId,
+                side: ownerSide,
+                cardId: target.cardId,
+                row: targetRowForCopy,
+                basePower: target.card.power,
+                power: target.card.power,
+                isToken: true,
+                shielded: false,
+              },
+            });
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "SUMMON_COPY",
+              { copiedFrom: target.id, copiedCardId: target.cardId, toRow: targetRowForCopy });
+          }
+        } else if (ek === "ROW_SWAP") {
+          // Ordem do Caos: troca as cartas aliadas de duas fileiras (a carta jogada usa effTargetRow e effEffectRow)
+          const rowA: Row = effTargetRow;
+          const rowB: Row = effEffectRow ?? "MELEE";
+          if (rowA !== rowB) {
+            const cardsInA = await tx.matchBoardCard.findMany({
+              where: { matchId: data.matchId, side: ownerSide, row: rowA },
+            });
+            const cardsInB = await tx.matchBoardCard.findMany({
+              where: { matchId: data.matchId, side: ownerSide, row: rowB },
+            });
+            // Para evitar conflito, primeiro move pra TEMP_ (string ilegal? usar uma row valida temporaria)
+            // Solucao mais simples: muda em duas passadas
+            for (const c of cardsInA) {
+              // Verifica se a carta permite a fileira B
+              const def = await tx.card.findUnique({ where: { id: c.cardId } });
+              if (!def) continue;
+              const allowed = def.rows.split(",").filter(Boolean);
+              if (allowed.includes(rowB)) {
+                await tx.matchBoardCard.update({ where: { id: c.id }, data: { row: rowB } });
+              }
+            }
+            for (const c of cardsInB) {
+              const def = await tx.card.findUnique({ where: { id: c.cardId } });
+              if (!def) continue;
+              const allowed = def.rows.split(",").filter(Boolean);
+              if (allowed.includes(rowA)) {
+                await tx.matchBoardCard.update({ where: { id: c.id }, data: { row: rowA } });
+              }
+            }
+            await logEvent(tx, data.matchId, match.currentRound, data.side, "ROW_SWAP",
+              { rowA, rowB, movedFromA: cardsInA.length, movedFromB: cardsInB.length });
+          }
+        } else if (ek === "STEAL_BUFF" && effTargetBoardCardId) {
+          // Ladrao de Gloria: rouba todo o poder acima do power original de um inimigo
+          const target = await tx.matchBoardCard.findUnique({
+            where: { id: effTargetBoardCardId },
+            include: { card: true },
+          });
+          if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !_isImmune(target.side, target.row)) {
+            const stolen = target.basePower - target.card.power;
+            if (stolen > 0) {
+              // Reduz o inimigo de volta ao basePower original
+              await tx.matchBoardCard.update({
+                where: { id: target.id },
+                data: { basePower: target.card.power },
+              });
+              // Adiciona o bonus a propria carta (se ela esta no campo)
+              if (newBoardCard) {
+                await tx.matchBoardCard.update({
+                  where: { id: newBoardCard.id },
+                  data: { basePower: newBoardCard.basePower + stolen },
+                });
+              }
+              await logEvent(tx, data.matchId, match.currentRound, data.side, "STEAL_BUFF",
+                { targetId: target.id, stolen, gainerId: newBoardCard?.id });
+            }
+          }
         }
+
+
+
+
+
+
+
+
+
+
         }
         // SHIELD já foi tratado na criação (shielded: true)
         // BOND não tem efeito ativo, só passivo no recomputePower

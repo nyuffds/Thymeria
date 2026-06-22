@@ -64,6 +64,13 @@ export const ENGINE_KEYS = [
   { key: "CONSUME_ALLY",     label: "Consumir",              desc: "Ao entrar em campo, destroi uma aliada escolhida e absorve seu poder." },
   { key: "SUMMON_TO_HAND_BY_NAME", label: "Recuperacao",     desc: "Ao entrar em campo, puxa uma carta especifica do universo para sua mao." },
   { key: "SUMMON_TO_BOARD_BY_NAME", label: "Invocacao Direta", desc: "Ao entrar em campo, invoca uma carta especifica do universo direto no seu campo." },
+  { key: "HEAL_ROW",             label: "Bencao da Manha",       desc: "Restaura o poder original de todas as aliadas curaveis da fileira." },
+  { key: "DAMAGE_BY_ENEMY_ROW",  label: "Vinganca da Lanca",     desc: "Causa dano em uma inimiga igual ao numero de inimigas na mesma fileira." },
+  { key: "DRAW_DISCARD_OPP",     label: "Espionagem Cruel",      desc: "Voce compra X cartas. O oponente descarta 1 carta aleatoria da mao." },
+  { key: "SACRIFICE_DRAW",       label: "Pacto de Sangue",       desc: "Destroi uma aliada escolhida. Compra X cartas." },
+  { key: "SUMMON_COPY",          label: "Ecos",                  desc: "Cria um token copia de uma carta inimiga escolhida na sua fileira." },
+  { key: "ROW_SWAP",             label: "Ordem do Caos",         desc: "Troca todas as suas cartas de duas fileiras escolhidas entre si." },
+  { key: "STEAL_BUFF",           label: "Ladrao de Gloria",      desc: "Rouba todo o poder bonus (acima do original) de uma carta inimiga." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },
