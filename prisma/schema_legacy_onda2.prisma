@@ -545,14 +545,6 @@ model Match {
   pausedBy        String?   // "A" ou "B" — null se não está pausada
   pausedAt        DateTime?
 
-  // Onda 3
-  sealAbilitiesUntilTurn Int  @default(0)  // turn count global ate o qual Selo Arcano bloqueia habilidades
-  lastPlayedCardIdA      String?           // ultima cardId jogada pelo lado A nesta ronda (para MIRROR_PLAY)
-  lastPlayedCardIdB      String?           // idem lado B
-  lastPlayedTargetIdA    String?           // targetBoardCardId da ultima hab do A (se aplicavel)
-  lastPlayedTargetIdB    String?           // idem lado B
-  turnCounter            Int      @default(0)  // contador global de turnos jogados
-
   players  MatchPlayer[]
   hands    MatchHand[]
   board    MatchBoardCard[]
@@ -562,7 +554,6 @@ model Match {
   auras    MatchAura[]
   pendingRevenges PendingRevenge[]
   pendingDamages  PendingDamage[]
-  chargedCards    ChargedCard[]
 
   @@index([status])
 }
@@ -637,10 +628,6 @@ model MatchBoardCard {
   intercepting Boolean  @default(false) // Heroismo: intercepta dano em aliados da mesma faccao
   loopback     Boolean  @default(false) // Recursao: volta pra mao no fim da ronda em vez do cemiterio
   reflectsNext Boolean  @default(false) // Espelho da Vinganca: proximo dano e refletido em dobro ao atacante
-  // Onda 3
-  turnsOnBoard Int      @default(0)     // quantos turnos no campo (usado por TRANSFORM)
-  polymorphedUntilRound Int? // se nao-null, esta polimorfada ate essa ronda terminar (poder=1)
-  counterspellArmed Boolean @default(false) // se true, proximo SPECIAL/WEATHER inimigo e cancelado
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   card  Card  @relation(fields: [cardId], references: [id])
@@ -740,19 +727,4 @@ model MatchRowImmunity {
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   @@index([matchId])
   @@unique([matchId, side, row])
-}
-
-// Onda 3: CHARGE - cartas que entram em stasis e voltam pra mao/campo na proxima ronda
-model ChargedCard {
-  id            String   @id @default(cuid())
-  matchId       String
-  side          String   // dono
-  cardId        String
-  bonusPower    Int      @default(0)  // bonus de poder aplicado ao entrar
-  triggersRound Int      // ronda em que volta pra mao (currentRound + 1)
-  createdAt     DateTime @default(now())
-
-  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  @@index([matchId])
-  @@index([matchId, triggersRound])
 }

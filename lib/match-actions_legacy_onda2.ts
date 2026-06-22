@@ -480,76 +480,6 @@ async function triggerOnDeath(
   });
 }
 
-// ONDA 3: incrementa turnsOnBoard das UNITs e dispara TRANSFORM quando >= ev
-async function processTransformations(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  matchId: string,
-) {
-  const allBoard = await tx.matchBoardCard.findMany({
-    where: { matchId },
-    include: { card: { include: { ability: true } } },
-  });
-  for (const b of allBoard) {
-    // Incrementa turnsOnBoard
-    const newTurns = b.turnsOnBoard + 1;
-    await tx.matchBoardCard.update({
-      where: { id: b.id },
-      data: { turnsOnBoard: newTurns },
-    });
-    // Verifica TRANSFORM
-    if (b.card.ability?.engineKey === "TRANSFORM") {
-      const trigger = b.card.ability.engineValue ?? 1;
-      const csv = b.card.ability.targetCardIdsCsv;
-      if (newTurns >= trigger && csv) {
-        const targetCardIds = csv.split(",").filter(Boolean);
-        if (targetCardIds.length > 0) {
-          const newCard = await tx.card.findUnique({
-            where: { id: targetCardIds[0] },
-          });
-          if (newCard) {
-            const allowedRows = newCard.rows.split(",").filter(Boolean);
-            const finalRow = allowedRows.includes(b.row) ? b.row : (allowedRows[0] ?? "MELEE");
-            await tx.matchBoardCard.update({
-              where: { id: b.id },
-              data: {
-                cardId: newCard.id,
-                basePower: newCard.power,
-                power: newCard.power,
-                row: finalRow,
-                turnsOnBoard: 0,  // reset
-              },
-            });
-          }
-        }
-      }
-    }
-  }
-}
-
-// ONDA 3: processa cartas em CHARGE - quando triggersRound chega, volta pra HAND com bonus
-async function processChargedCards(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  matchId: string,
-  currentRound: number,
-) {
-  const charged = await tx.chargedCard.findMany({
-    where: { matchId, triggersRound: { lte: currentRound } },
-  });
-  for (const c of charged) {
-    // Move o card de STASIS pra HAND
-    const handEntry = await tx.matchHand.findFirst({
-      where: { matchId, side: c.side, cardId: c.cardId, zone: "STASIS" },
-    });
-    if (handEntry) {
-      await tx.matchHand.update({
-        where: { id: handEntry.id },
-        data: { zone: "HAND" },
-      });
-    }
-    await tx.chargedCard.delete({ where: { id: c.id } });
-  }
-}
-
 async function decrementImmunities(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   matchId: string,
@@ -694,19 +624,6 @@ export async function playCardAction(data: {
         throw new Error("Esta carta não pode ser jogada nessa fileira.");
       }
 
-      // ONDA 3: VOID_ZONE - se o lado oposto bloqueou esta fileira, nao pode jogar
-      const voidZoneBlocker = await tx.matchAura.findFirst({
-        where: {
-          matchId: data.matchId,
-          engineKey: "VOID_ZONE",
-          row: data.targetRow,
-          side: { not: data.side },  // aura inimiga bloqueia minha fileira
-        },
-      });
-      if (voidZoneBlocker && card.cardType === "UNIT") {
-        throw new Error("Esta fileira esta bloqueada por Zona Vazia.");
-      }
-
       // SPY → vai pro lado inimigo
       const isSpy = card.ability?.engineKey === "SPY";
         const ownerSide: Side = isSpy ? otherSide(data.side) : data.side;
@@ -747,32 +664,8 @@ export async function playCardAction(data: {
       await logEvent(tx, data.matchId, match.currentRound, data.side, "PLAY_CARD",
         { cardId: card.id, row: data.targetRow, asSpy: isSpy });
 
-      // ── Onda 3: Selo Arcano - bloqueia abilities se estiver ativo ──
-      const sealActive = match.sealAbilitiesUntilTurn > match.turnCounter;
-
-      // ── Onda 3: Counterspell - se o oponente tem counterspellArmed, cancela este SPECIAL/WEATHER
-      let counterspelled = false;
-      if (card.cardType === "SPECIAL" || card.cardType === "WEATHER") {
-        const enemyCounterspeller = await tx.matchBoardCard.findFirst({
-          where: {
-            matchId: data.matchId,
-            side: otherSide(ownerSide),
-            counterspellArmed: true,
-          },
-        });
-        if (enemyCounterspeller) {
-          counterspelled = true;
-          await tx.matchBoardCard.update({
-            where: { id: enemyCounterspeller.id },
-            data: { counterspellArmed: false },
-          });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "COUNTERSPELLED",
-            { byCardId: enemyCounterspeller.id, blockedCardId: card.id });
-        }
-      }
-
       // ── Aplica habilidade(s) da carta jogada ──
-        if (!sealActive && !counterspelled && card.ability?.engineKey && card.ability?.engineValue !== null) {
+        if (card.ability?.engineKey && card.ability?.engineValue !== null) {
           // Constroi lista de efeitos: principal + secundario (se existir)
           const effects: Array<{
             ek: string;
@@ -1819,160 +1712,6 @@ export async function playCardAction(data: {
             await logEvent(tx, data.matchId, match.currentRound, data.side, "REFLECT_ARMED",
               { cardId: newBoardCard.id });
           }
-        } else if (ek === "TRANSFORM") {
-          // Metamorfose: passiva, transforma apos turnsOnBoard >= ev turnos
-          // Aqui so logamos. A transformacao acontece no processTransformations
-          if (newBoardCard) {
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "TRANSFORM_ARMED",
-              { cardId: newBoardCard.id, turnsUntilTransform: ev });
-          }
-        } else if (ek === "POLYMORPH" && effTargetBoardCardId) {
-          // Polimorfismo: vira inimigo num token fraco ate fim da ronda
-          const target = await tx.matchBoardCard.findUnique({
-            where: { id: effTargetBoardCardId },
-            include: { card: true },
-          });
-          if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !target.untargetable && target.permanenceCounter === 0) {
-            await tx.matchBoardCard.update({
-              where: { id: target.id },
-              data: {
-                basePower: 1,
-                polymorphedUntilRound: match.currentRound,
-                shielded: false,
-                markedBy: null,
-                oathGroup: null,
-              },
-            });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "POLYMORPH",
-              { targetId: target.id });
-          }
-        } else if (ek === "CHARGE") {
-          // Carga: a carta jogada vai pra ChargedCard e nao entra em campo ainda
-          // Remove o que ja foi colocado em newBoardCard (se foi UNIT)
-          if (newBoardCard) {
-            await tx.matchBoardCard.delete({ where: { id: newBoardCard.id } });
-          }
-          // Move o handEntry de volta pra um zone STASIS no proprio MatchHand (nao DISCARD nem BOARD)
-          await tx.matchHand.update({
-            where: { id: handEntry.id },
-            data: { zone: "STASIS" },
-          });
-          // Cria registro em ChargedCard
-          await tx.chargedCard.create({
-            data: {
-              matchId: data.matchId,
-              side: ownerSide,
-              cardId: card.id,
-              bonusPower: ev,
-              triggersRound: match.currentRound + 1,
-            },
-          });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "CHARGE_ARMED",
-            { cardId: card.id, triggersRound: match.currentRound + 1, bonusPower: ev });
-        } else if (ek === "VOID_ZONE") {
-          // Zona Vazia: cria aura VOID_ZONE bloqueando uma fileira inimiga
-          // Persiste enquanto newBoardCard estiver no campo (limpa quando ela morre)
-          const targetRowForVoid = effEffectRow ?? effTargetRow;
-          if (newBoardCard) {
-            await tx.matchAura.create({
-              data: {
-                matchId: data.matchId,
-                side: ownerSide,  // dono da aura
-                engineKey: "VOID_ZONE",
-                amount: 0,
-                row: targetRowForVoid,
-              },
-            });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "VOID_ZONE",
-              { blockedRow: targetRowForVoid, sourceCardId: newBoardCard.id });
-          }
-        } else if (ek === "COUNTERSPELL") {
-          // Contra-Conjuracao: marca a propria carta com counterspellArmed
-          if (newBoardCard) {
-            await tx.matchBoardCard.update({
-              where: { id: newBoardCard.id },
-              data: { counterspellArmed: true },
-            });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "COUNTERSPELL_ARMED",
-              { cardId: newBoardCard.id });
-          }
-        } else if (ek === "MIRROR_PLAY") {
-          // Espelho de Memoria: copia a habilidade da ultima carta jogada pelo OPONENTE
-          const lastCardId = ownerSide === "A" ? match.lastPlayedCardIdB : match.lastPlayedCardIdA;
-          const lastTargetId = ownerSide === "A" ? match.lastPlayedTargetIdB : match.lastPlayedTargetIdA;
-          if (lastCardId) {
-            const lastCard = await tx.card.findUnique({
-              where: { id: lastCardId },
-              include: { ability: true },
-            });
-            if (lastCard?.ability?.engineKey) {
-              // Re-executa a habilidade copiada como se fosse propria
-              const ekMirror = lastCard.ability.engineKey;
-              const evMirror = lastCard.ability.engineValue ?? 0;
-              // Suporte minimo: BOOST/DAMAGE/HEAL nos mesmos alvos da ultima jogada
-              if (ekMirror === "BOOST" && lastTargetId) {
-                const t = await tx.matchBoardCard.findUnique({
-                  where: { id: lastTargetId },
-                  include: { card: true },
-                });
-                if (t && t.side === ownerSide && !t.card.isElite) {
-                  await tx.matchBoardCard.update({
-                    where: { id: t.id },
-                    data: { basePower: t.basePower + evMirror },
-                  });
-                }
-              } else if (ekMirror === "DAMAGE" && lastTargetId) {
-                const t = await tx.matchBoardCard.findUnique({
-                  where: { id: lastTargetId },
-                  include: { card: true },
-                });
-                if (t && t.side !== ownerSide && !t.card.isElite && !t.untargetable) {
-                  if (t.shielded) {
-                    await tx.matchBoardCard.update({ where: { id: t.id }, data: { shielded: false } });
-                  } else {
-                    const newB = t.basePower - evMirror;
-                    if (newB <= 0) {
-                      await triggerOnDeath(tx, data.matchId, t.id);
-                      await tx.matchBoardCard.delete({ where: { id: t.id } });
-                    } else {
-                      await tx.matchBoardCard.update({ where: { id: t.id }, data: { basePower: newB } });
-                    }
-                  }
-                }
-              } else if (ekMirror === "HEAL" && lastTargetId) {
-                const t = await tx.matchBoardCard.findUnique({
-                  where: { id: lastTargetId },
-                  include: { card: true },
-                });
-                if (t && t.side === ownerSide && !t.card.isElite) {
-                  await tx.matchBoardCard.update({
-                    where: { id: t.id },
-                    data: { basePower: t.card.power },
-                  });
-                }
-              } else if (ekMirror === "DRAW") {
-                const drawFrom = await tx.matchHand.findMany({
-                  where: { matchId: data.matchId, side: data.side, zone: "DECK" },
-                  orderBy: { deckOrder: "asc" },
-                  take: evMirror,
-                });
-                for (const d of drawFrom) {
-                  await tx.matchHand.update({ where: { id: d.id }, data: { zone: "HAND" } });
-                }
-              }
-              await logEvent(tx, data.matchId, match.currentRound, data.side, "MIRROR_PLAY",
-                { copiedFromCardId: lastCardId, copiedEngineKey: ekMirror });
-            }
-          }
-        } else if (ek === "SEAL_ARCANE") {
-          // Selo Arcano: bloqueia habilidades e clima por ev turnos a partir de agora
-          const currentTurn = match.turnCounter;
-          await tx.match.update({
-            where: { id: data.matchId },
-            data: { sealAbilitiesUntilTurn: currentTurn + ev },
-          });
-          await logEvent(tx, data.matchId, match.currentRound, data.side, "SEAL_ARCANE",
-            { turnsBlocked: ev, untilTurn: currentTurn + ev });
         }
 
 
@@ -1991,21 +1730,6 @@ export async function playCardAction(data: {
 
       await persistRecomputedPower(tx, data.matchId);
     }
-
-    // ONDA 3: rastrea ultima carta jogada (para MIRROR_PLAY) + incrementa turnCounter
-    const lastPlayedField = data.side === "A" ? "lastPlayedCardIdA" : "lastPlayedCardIdB";
-    const lastTargetField = data.side === "A" ? "lastPlayedTargetIdA" : "lastPlayedTargetIdB";
-    await tx.match.update({
-      where: { id: data.matchId },
-      data: {
-        [lastPlayedField]: card.id,
-        [lastTargetField]: data.targetBoardCardId ?? null,
-        turnCounter: { increment: 1 },
-      } as Parameters<typeof tx.match.update>[0]["data"],
-    });
-
-    // ONDA 3: processa transformacoes pendentes (incrementa turnsOnBoard de UNITS no campo)
-    await processTransformations(tx, data.matchId);
 
     // Decrementa carta do deck count (informativo)
     await tx.matchPlayer.update({
@@ -2302,13 +2026,9 @@ const boardCards = await tx.matchBoardCard.findMany({
 
   // Decrementa permanenceCounter e reseta untargetable dos sobreviventes
   for (const s of survivors) {
-    const updates: { permanenceCounter?: number; untargetable?: boolean; polymorphedUntilRound?: number | null; counterspellArmed?: boolean; markedBy?: string | null } = {};
+    const updates: { permanenceCounter?: number; untargetable?: boolean } = {};
     if (s.permanenceCounter > 0) updates.permanenceCounter = s.permanenceCounter - 1;
     if (s.untargetable) updates.untargetable = false;
-    // ONDA 3: reseta polimorfismo e counterspell na nova ronda
-    if (s.polymorphedUntilRound !== null && s.polymorphedUntilRound !== undefined) updates.polymorphedUntilRound = null;
-    if (s.counterspellArmed) updates.counterspellArmed = false;
-    if (s.markedBy) updates.markedBy = null;
     if (Object.keys(updates).length > 0) {
       await tx.matchBoardCard.update({ where: { id: s.id }, data: updates });
     }
@@ -2350,16 +2070,8 @@ const boardCards = await tx.matchBoardCard.findMany({
       currentTurnSide: newStarter,
       startsRoundSide: newStarter,
       status: "REDRAW",
-      // ONDA 3: reseta trackers de Mirror Play na nova ronda
-      lastPlayedCardIdA: null,
-      lastPlayedCardIdB: null,
-      lastPlayedTargetIdA: null,
-      lastPlayedTargetIdB: null,
     },
   });
-
-  // ONDA 3: cartas em CHARGE voltam pra mao agora (com bonus aplicado quando jogadas dnv)
-  await processChargedCards(tx, matchId, nextRound);
 
   await logEvent(tx, matchId, nextRound, null, "ROUND_START",
     { round: nextRound, starter: newStarter });

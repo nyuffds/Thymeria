@@ -80,14 +80,6 @@ export const ENGINE_KEYS = [
   { key: "HEROISM",              label: "Heroismo",              desc: "Quando uma aliada da mesma faccao for atacada, esta carta intercepta o dano." },
   { key: "TIME_LOOP",            label: "Recursao",              desc: "Ao fim da ronda, se voce venceu ou empatou, esta carta volta para sua mao." },
   { key: "REFLECT",              label: "Espelho da Vinganca",   desc: "O proximo dano recebido sera refletido em dobro a quem atacou." },
-  // Onda 3 - mecanicas avancadas
-  { key: "TRANSFORM",            label: "Metamorfose",           desc: "Apos X turnos no campo, esta carta se transforma em outra (definida em alvos)." },
-  { key: "POLYMORPH",            label: "Polimorfismo",          desc: "Transforma uma carta inimiga em um token fraco ate o fim da ronda." },
-  { key: "CHARGE",               label: "Carga",                 desc: "Sai da mao agora, mas so entra em campo na proxima ronda com bonus." },
-  { key: "VOID_ZONE",            label: "Zona Vazia",            desc: "Bloqueia uma fileira inimiga. Cartas nao podem ser jogadas la enquanto esta viver." },
-  { key: "COUNTERSPELL",         label: "Contra-Conjuracao",     desc: "Enquanto no campo, o proximo SPECIAL ou CLIMA do oponente e cancelado." },
-  { key: "MIRROR_PLAY",          label: "Espelho de Memoria",    desc: "Copia a habilidade da ultima carta jogada pelo oponente nesta ronda." },
-  { key: "SEAL_ARCANE",          label: "Selo Arcano",           desc: "Por X turnos, nenhuma habilidade ou clima pode ser ativada. Cartas podem ser jogadas, mas sem efeito." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },
