@@ -71,15 +71,6 @@ export const ENGINE_KEYS = [
   { key: "SUMMON_COPY",          label: "Ecos",                  desc: "Cria um token copia de uma carta inimiga escolhida na sua fileira." },
   { key: "ROW_SWAP",             label: "Ordem do Caos",         desc: "Troca todas as suas cartas de duas fileiras escolhidas entre si." },
   { key: "STEAL_BUFF",           label: "Ladrao de Gloria",      desc: "Rouba todo o poder bonus (acima do original) de uma carta inimiga." },
-  // Onda 2 - habilidades reativas
-  { key: "MARK",                 label: "Marca",                 desc: "Aplica uma Marca em um inimigo. Cartas suas que mirarem nele tem efeitos ampliados." },
-  { key: "DELAYED_DAMAGE",       label: "Maldicao",              desc: "Causa X de dano em um inimigo no inicio do proximo turno do oponente." },
-  { key: "CHAIN_REACTION",       label: "Reacao em Cadeia",      desc: "Ganha +X de poder permanente sempre que outra aliada da mesma fileira e destruida." },
-  { key: "OATHBOUND",            label: "Juramento",             desc: "Forma um pacto com uma aliada escolhida. Ambas ganham +X. Se uma morre, a outra morre junto." },
-  { key: "PASS_WITHOUT_TRACE",   label: "Passar Sem Rastro",     desc: "Nao pode ser alvo de habilidades inimigas ate o fim da ronda." },
-  { key: "HEROISM",              label: "Heroismo",              desc: "Quando uma aliada da mesma faccao for atacada, esta carta intercepta o dano." },
-  { key: "TIME_LOOP",            label: "Recursao",              desc: "Ao fim da ronda, se voce venceu ou empatou, esta carta volta para sua mao." },
-  { key: "REFLECT",              label: "Espelho da Vinganca",   desc: "O proximo dano recebido sera refletido em dobro a quem atacou." },
 ] as const;
 export const LEADER_MODES = [
   { key: "PASSIVE", label: "Passivo", desc: "Habilidade do lider aplicada automaticamente ao longo da partida." },

@@ -384,47 +384,6 @@ async function triggerOnDeath(
     include: { card: { include: { ability: true } } },
   });
   if (!dying) return;
-
-  // ONDA 2: CHAIN_REACTION
-  const chainReactors = await tx.matchBoardCard.findMany({
-    where: {
-      matchId,
-      side: dying.side,
-      row: dying.row,
-      id: { not: dying.id },
-    },
-    include: { card: { include: { ability: true } } },
-  });
-  for (const r of chainReactors) {
-    if (r.card.ability?.engineKey === "CHAIN_REACTION") {
-      const gain = r.card.ability?.engineValue ?? 1;
-      await tx.matchBoardCard.update({
-        where: { id: r.id },
-        data: { basePower: r.basePower + gain, chainBonus: r.chainBonus + gain },
-      });
-    }
-  }
-
-  // ONDA 2: OATHBOUND - parceiros morrem juntos
-  if (dying.oathGroup) {
-    const partners = await tx.matchBoardCard.findMany({
-      where: {
-        matchId,
-        oathGroup: dying.oathGroup,
-        id: { not: dying.id },
-      },
-    });
-    for (const p of partners) {
-      if (p.handEntryId) {
-        await tx.matchHand.updateMany({
-          where: { id: p.handEntryId, zone: "BOARD" },
-          data: { zone: "DISCARD" },
-        });
-      }
-      await tx.matchBoardCard.delete({ where: { id: p.id } });
-    }
-  }
-
   // Move a entrada de MatchHand correspondente para DISCARD (cemiterio)
   // Usa handEntryId quando disponivel (precisao), fallback para busca por cardId+side+zone
   if (dying.handEntryId) {
@@ -491,40 +450,6 @@ async function decrementImmunities(
     } else {
       await tx.matchRowImmunity.update({ where: { id: i.id }, data: { turnsLeft: { decrement: 1 } } });
     }
-  }
-}
-
-// ONDA 2: processa PendingDamage
-async function processPendingDamage(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  matchId: string,
-  triggersAt: string,
-) {
-  const pending = await tx.pendingDamage.findMany({
-    where: { matchId, triggersAt },
-  });
-  for (const p of pending) {
-    const target = await tx.matchBoardCard.findUnique({
-      where: { id: p.targetId },
-      include: { card: true },
-    });
-    if (target && !target.card.isElite) {
-      if (target.shielded) {
-        await tx.matchBoardCard.update({ where: { id: target.id }, data: { shielded: false } });
-      } else {
-        const newBase = target.basePower - p.damage;
-        if (newBase <= 0) {
-          await triggerOnDeath(tx, matchId, target.id);
-          await tx.matchBoardCard.delete({ where: { id: target.id } });
-        } else {
-          await tx.matchBoardCard.update({
-            where: { id: target.id },
-            data: { basePower: newBase },
-          });
-        }
-      }
-    }
-    await tx.pendingDamage.delete({ where: { id: p.id } });
   }
 }
 
@@ -829,29 +754,11 @@ export async function playCardAction(data: {
           { returned: returning.length, drew: drawFrom.length });
       } else if (ek === "DAMAGE") {
           if (effTargetBoardCardId) {
-            const originalTarget = await tx.matchBoardCard.findUnique({
+            const target = await tx.matchBoardCard.findUnique({
               where: { id: effTargetBoardCardId },
               include: { card: true },
             });
-            if (originalTarget && originalTarget.matchId === data.matchId && originalTarget.side !== ownerSide && !originalTarget.card.isElite && !originalTarget.untargetable) {
-              // ONDA 2: HEROISM - aliada da mesma faccao com intercepting=true intercepta
-              let target = originalTarget;
-              const heroes = await tx.matchBoardCard.findMany({
-                where: {
-                  matchId: data.matchId,
-                  side: originalTarget.side,
-                  intercepting: true,
-                  id: { not: originalTarget.id },
-                },
-                include: { card: true },
-              });
-              const sameFactionHero = heroes.find((h) => h.card.factionId === originalTarget.card.factionId);
-              if (sameFactionHero) {
-                target = sameFactionHero;
-                await logEvent(tx, data.matchId, match.currentRound, data.side, "HEROISM_INTERCEPT",
-                  { originalTarget: originalTarget.id, interceptor: sameFactionHero.id });
-              }
-
+            if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite) {
               if (_isImmune(target.side, target.row)) {
                 await logEvent(tx, data.matchId, match.currentRound, data.side, "DAMAGE_BLOCKED",
                   { targetId: target.id, by: "IMMUNE_ROW" });
@@ -863,48 +770,19 @@ export async function playCardAction(data: {
                 await logEvent(tx, data.matchId, match.currentRound, data.side, "DAMAGE_BLOCKED",
                   { targetId: target.id });
               } else {
-                // ONDA 2: REFLECT - se reflectsNext, prepara reflexo
-                const willReflect = target.reflectsNext && newBoardCard;
                 const newBase = target.basePower - ev;
                 if (newBase <= 0) {
                   await triggerOnDeath(tx, data.matchId, target.id);
-                  await tx.matchBoardCard.delete({ where: { id: target.id } });
+            await tx.matchBoardCard.delete({ where: { id: target.id } });
                   await logEvent(tx, data.matchId, match.currentRound, data.side, "DESTROY",
                     { targetId: target.id, by: "DAMAGE" });
                 } else {
                   await tx.matchBoardCard.update({
                     where: { id: target.id },
-                    data:  { basePower: newBase, reflectsNext: willReflect ? false : target.reflectsNext },
+                    data:  { basePower: newBase },
                   });
                   await logEvent(tx, data.matchId, match.currentRound, data.side, "DAMAGE",
                     { targetId: target.id, amount: ev, newBase });
-                }
-                if (willReflect && newBoardCard) {
-                  const reflected = ev * 2;
-                  const attacker = await tx.matchBoardCard.findUnique({
-                    where: { id: newBoardCard.id },
-                  });
-                  if (attacker && !attacker.shielded) {
-                    const attackerNewBase = attacker.basePower - reflected;
-                    if (attackerNewBase <= 0) {
-                      await triggerOnDeath(tx, data.matchId, attacker.id);
-                      await tx.matchBoardCard.delete({ where: { id: attacker.id } });
-                      await logEvent(tx, data.matchId, match.currentRound, data.side, "REFLECT_DESTROY",
-                        { attackerId: attacker.id, reflected });
-                    } else {
-                      await tx.matchBoardCard.update({
-                        where: { id: attacker.id },
-                        data: { basePower: attackerNewBase },
-                      });
-                      await logEvent(tx, data.matchId, match.currentRound, data.side, "REFLECT_DAMAGE",
-                        { attackerId: attacker.id, reflected });
-                    }
-                  } else if (attacker?.shielded) {
-                    await tx.matchBoardCard.update({
-                      where: { id: attacker.id },
-                      data: { shielded: false },
-                    });
-                  }
                 }
               }
             }
@@ -1613,105 +1491,6 @@ export async function playCardAction(data: {
                 { targetId: target.id, stolen, gainerId: newBoardCard?.id });
             }
           }
-        } else if (ek === "MARK" && effTargetBoardCardId) {
-          // Marca: aplica markedBy num inimigo
-          const target = await tx.matchBoardCard.findUnique({
-            where: { id: effTargetBoardCardId },
-            include: { card: true },
-          });
-          if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !target.untargetable) {
-            await tx.matchBoardCard.update({
-              where: { id: target.id },
-              data: { markedBy: card.id },
-            });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "MARK",
-              { targetId: target.id, sourceCardId: card.id });
-          }
-        } else if (ek === "DELAYED_DAMAGE" && effTargetBoardCardId) {
-          // Maldicao: registra PendingDamage que dispara no proximo turno do oponente
-          const target = await tx.matchBoardCard.findUnique({
-            where: { id: effTargetBoardCardId },
-            include: { card: true },
-          });
-          if (target && target.matchId === data.matchId && target.side !== ownerSide && !target.card.isElite && !target.untargetable && !_isImmune(target.side, target.row)) {
-            await tx.pendingDamage.create({
-              data: {
-                matchId: data.matchId,
-                targetId: target.id,
-                damage: ev,
-                sourceName: card.name,
-                triggersAt: "NEXT_TURN",
-              },
-            });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "DELAYED_DAMAGE_APPLIED",
-              { targetId: target.id, damage: ev });
-          }
-        } else if (ek === "CHAIN_REACTION") {
-          // Reacao em Cadeia: passiva, disparada em triggerOnDeath. So loga.
-          if (newBoardCard) {
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "CHAIN_REACTION_ARMED",
-              { cardId: newBoardCard.id, perAllyDeath: ev });
-          }
-        } else if (ek === "OATHBOUND" && effTargetBoardCardId) {
-          // Juramento: liga a carta jogada a uma aliada escolhida
-          const target = await tx.matchBoardCard.findUnique({
-            where: { id: effTargetBoardCardId },
-            include: { card: true },
-          });
-          if (target && target.matchId === data.matchId && target.side === ownerSide && target.id !== newBoardCard?.id && !target.card.isElite && newBoardCard) {
-            const oathId = `OATH_${newBoardCard.id}`;
-            await tx.matchBoardCard.updateMany({
-              where: { id: { in: [newBoardCard.id, target.id] } },
-              data: { oathGroup: oathId },
-            });
-            await tx.matchBoardCard.update({
-              where: { id: newBoardCard.id },
-              data: { basePower: newBoardCard.basePower + ev },
-            });
-            await tx.matchBoardCard.update({
-              where: { id: target.id },
-              data: { basePower: target.basePower + ev },
-            });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "OATHBOUND",
-              { caster: newBoardCard.id, partner: target.id, bonus: ev, oathId });
-          }
-        } else if (ek === "PASS_WITHOUT_TRACE") {
-          // Passar Sem Rastro: marca a propria carta como untargetable
-          if (newBoardCard) {
-            await tx.matchBoardCard.update({
-              where: { id: newBoardCard.id },
-              data: { untargetable: true },
-            });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "PASS_WITHOUT_TRACE",
-              { cardId: newBoardCard.id });
-          }
-        } else if (ek === "HEROISM") {
-          if (newBoardCard) {
-            await tx.matchBoardCard.update({
-              where: { id: newBoardCard.id },
-              data: { intercepting: true },
-            });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "HEROISM_ARMED",
-              { cardId: newBoardCard.id });
-          }
-        } else if (ek === "TIME_LOOP") {
-          if (newBoardCard) {
-            await tx.matchBoardCard.update({
-              where: { id: newBoardCard.id },
-              data: { loopback: true },
-            });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "TIME_LOOP_ARMED",
-              { cardId: newBoardCard.id });
-          }
-        } else if (ek === "REFLECT") {
-          if (newBoardCard) {
-            await tx.matchBoardCard.update({
-              where: { id: newBoardCard.id },
-              data: { reflectsNext: true },
-            });
-            await logEvent(tx, data.matchId, match.currentRound, data.side, "REFLECT_ARMED",
-              { cardId: newBoardCard.id });
-          }
         }
 
 
@@ -1746,7 +1525,6 @@ export async function playCardAction(data: {
       : data.side;
 
     await decrementImmunities(tx, data.matchId);
-    await processPendingDamage(tx, data.matchId, "NEXT_TURN");
     await tx.match.update({
       where: { id: data.matchId },
       data:  { currentTurnSide: nextTurnSide },
@@ -1925,7 +1703,6 @@ export async function activateLeaderAction(data: {
     });
     const nextTurnSide: Side = opponent && !opponent.hasPassed ? otherSide(data.side) : data.side;
     await decrementImmunities(tx, data.matchId);
-    await processPendingDamage(tx, data.matchId, "NEXT_TURN");
     await tx.match.update({
       where: { id: data.matchId },
       data:  { currentTurnSide: nextTurnSide },
@@ -1997,49 +1774,32 @@ const boardCards = await tx.matchBoardCard.findMany({
     where: { matchId },
     include: { card: true },
   });
-  // ONDA 2: TIME_LOOP - cartas com loopback que vencem voltam pra mao
-  const loopbackCards = boardCards.filter((b) =>
-    b.loopback && (winner === "DRAW" || winner === b.side)
-  );
-  const loopbackIds = new Set(loopbackCards.map((b) => b.id));
-  const loopbackHandIds = new Set(loopbackCards.map((b) => b.handEntryId).filter((id): id is string => !!id));
-
   const survivors = boardCards.filter((b) =>
     (b.card.cardType === "LEADER" && b.card.leaderMode === "PERSISTENT") ||
     b.permanenceCounter > 0
   );
   const survivorIds = new Set(survivors.map((s) => s.id));
   const survivorHandIds = new Set(survivors.map((s) => s.handEntryId).filter((id): id is string => !!id));
-  const idsToDelete = boardCards.filter((b) => !survivorIds.has(b.id) && !loopbackIds.has(b.id)).map((b) => b.id);
+  const idsToDelete = boardCards.filter((b) => !survivorIds.has(b.id)).map((b) => b.id);
 
   await tx.matchBoardCard.deleteMany({ where: { id: { in: idsToDelete } } });
-  // Loopback: sai do board mas volta pra mao
-  if (loopbackIds.size > 0) {
-    await tx.matchBoardCard.deleteMany({ where: { id: { in: Array.from(loopbackIds) } } });
-    if (loopbackHandIds.size > 0) {
-      await tx.matchHand.updateMany({
-        where: { id: { in: Array.from(loopbackHandIds) } },
-        data: { zone: "HAND" },
+
+  // Decrementa permanenceCounter dos sobreviventes
+  for (const s of survivors) {
+    if (s.permanenceCounter > 0) {
+      await tx.matchBoardCard.update({
+        where: { id: s.id },
+        data: { permanenceCounter: s.permanenceCounter - 1 },
       });
     }
   }
 
-  // Decrementa permanenceCounter e reseta untargetable dos sobreviventes
-  for (const s of survivors) {
-    const updates: { permanenceCounter?: number; untargetable?: boolean } = {};
-    if (s.permanenceCounter > 0) updates.permanenceCounter = s.permanenceCounter - 1;
-    if (s.untargetable) updates.untargetable = false;
-    if (Object.keys(updates).length > 0) {
-      await tx.matchBoardCard.update({ where: { id: s.id }, data: updates });
-    }
-  }
-
-  // Cartas no campo viram cemiterio, exceto sobreviventes e loopback
+  // Cartas no campo viram cemiterio, exceto sobreviventes
   await tx.matchHand.updateMany({
     where: {
       matchId,
       zone: "BOARD",
-      NOT: { id: { in: [...Array.from(survivorHandIds), ...Array.from(loopbackHandIds)] } },
+      NOT: { id: { in: Array.from(survivorHandIds) } },
     },
     data: { zone: "DISCARD" },
   });

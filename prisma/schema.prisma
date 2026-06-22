@@ -553,6 +553,7 @@ model Match {
   immunities MatchRowImmunity[]
   auras    MatchAura[]
   pendingRevenges PendingRevenge[]
+  pendingDamages  PendingDamage[]
 
   @@index([status])
 }
@@ -618,7 +619,15 @@ model MatchBoardCard {
   isToken      Boolean  @default(false)
   permanenceCounter Int     @default(0) // rondas restantes de imunidade total (Permanencia)
   playedAt     DateTime @default(now())
-  handEntryId  String?  // refer\u00eancia para MatchHand original (rastreio uni)
+  handEntryId  String?  // referencia para MatchHand original (rastreio uni)
+  // Onda 2 - novos campos
+  markedBy     String?  // cardId da carta que aplicou Marca; proximas habs dela ganham bonus
+  chainBonus   Int      @default(0)     // bonus por Chain Reaction acumulado
+  oathGroup    String?  // identificador do grupo de Juramento (cartas com mesmo oathGroup sobem juntas e morrem juntas)
+  untargetable Boolean  @default(false) // Passar Sem Deixar Rastro: ate fim do turno seguinte nao pode ser alvo
+  intercepting Boolean  @default(false) // Heroismo: intercepta dano em aliados da mesma faccao
+  loopback     Boolean  @default(false) // Recursao: volta pra mao no fim da ronda em vez do cemiterio
+  reflectsNext Boolean  @default(false) // Espelho da Vinganca: proximo dano e refletido em dobro ao atacante
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   card  Card  @relation(fields: [cardId], references: [id])
@@ -639,6 +648,20 @@ model PendingRevenge {
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   @@index([matchId])
   @@index([matchId, side])
+}
+
+model PendingDamage {
+  id         String   @id @default(cuid())
+  matchId    String
+  targetId   String   // MatchBoardCard.id que vai receber o dano
+  damage     Int
+  sourceName String   // pra mostrar de onde veio
+  triggersAt String   // "NEXT_TURN" | "ROUND_END" - quando vai disparar
+  createdAt  DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  @@index([matchId])
+  @@index([matchId, triggersAt])
 }
 
 model MatchAura {
