@@ -102,7 +102,7 @@ interface Props {
   lastDiscarded: Record<Side, { name: string; power: number; rarity: string; cardType: string; imageUrl: string | null; frameUrl: string | null; faction: { name: string; color: string }; ability: { name: string; description: string } | null } | null>;
   sideEffects: Record<Side, {
     immunities: Array<{ row: "MELEE" | "RANGED" | "SIEGE"; turnsLeft: number }>;
-    auras: Array<{ engineKey: string; amount: number; row: "MELEE" | "RANGED" | "SIEGE" | null }>;
+    auras: Array<{ engineKey: string; amount: number }>;
     weathers: Array<{ weatherKey: string; affectedRow: "MELEE" | "RANGED" | "SIEGE" }>;
   }>;
   pendingRevenges: Record<Side, Array<{ id: string; damage: number; sourceName: string }>>;
@@ -130,78 +130,6 @@ interface Props {
 
 const NEEDS_TARGET = new Set(["BOOST", "DAMAGE", "HEAL", "DAMAGE_IF", "DESTROY_AND_DRAW", "EVOLVE_FACTION", "PERMANENCE", "RETURN_TO_HAND", "CONSUME_ALLY"]);
 const NEEDS_ROW_TARGET = new Set(["BOOST_ROW", "MULTIPLY_ROW", "DESTROY_ROW", "IMMUNE_ROW", "WEATHER_RAIN"]);
-
-
-// Helper: filtra auras de uma fileira especifica de um lado
-function getRowAuras(sideEffects: { auras: Array<{ engineKey: string; amount: number; row: "MELEE" | "RANGED" | "SIEGE" | null }> } | undefined, row: "MELEE" | "RANGED" | "SIEGE") {
-  if (!sideEffects?.auras) return [];
-  return sideEffects.auras.filter((a) => a.row === row);
-}
-
-// Mapeia engineKey de aura -> rotulo + cor pra exibir banner
-const AURA_META: Record<string, { label: string; color: string; icon: string }> = {
-  BOOST_ROW:     { label: "Inspiracao",     color: "#34d399", icon: "✦" },
-  MULTIPLY_ROW:  { label: "Dadiva",         color: "#fcd34d", icon: "✦✦" },
-  BLOOD_MOON:    { label: "Lua de Sangue",  color: "#c0392b", icon: "🌙" },
-  VOID_ZONE:     { label: "Zona Vazia",     color: "#8e44ad", icon: "▣" },
-  IMMUNE_ROW:    { label: "Imunidade",      color: "#5dade2", icon: "◈" },
-};
-
-function RowAuraBanner({ auras, side, immunity }: { auras: Array<{ engineKey: string; amount: number }>; side: "A" | "B"; immunity?: { turnsLeft: number } | null }) {
-  const visible = auras.filter((a) => AURA_META[a.engineKey]);
-  const items: Array<{ label: string; color: string; icon: string; sub?: string }> = visible.map((a) => {
-    const meta = AURA_META[a.engineKey];
-    let sub: string | undefined;
-    if (a.engineKey === "BOOST_ROW") sub = `+${a.amount}`;
-    if (a.engineKey === "MULTIPLY_ROW") sub = "x2";
-    return { ...meta, sub };
-  });
-  if (immunity && immunity.turnsLeft > 0) {
-    items.push({ label: AURA_META.IMMUNE_ROW.label, color: AURA_META.IMMUNE_ROW.color, icon: AURA_META.IMMUNE_ROW.icon, sub: `${immunity.turnsLeft}t` });
-  }
-  if (items.length === 0) return null;
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: 2,
-        left: 4,
-        right: 4,
-        display: "flex",
-        gap: 4,
-        flexWrap: "wrap",
-        pointerEvents: "none",
-        zIndex: 5,
-      }}
-    >
-      {items.map((it, i) => (
-        <div
-          key={`${side}-${i}`}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "1px 6px",
-            background: `${it.color}22`,
-            border: `1px solid ${it.color}99`,
-            borderRadius: 2,
-            fontFamily: "var(--font-cinzel), Georgia, serif",
-            fontSize: 9,
-            color: it.color,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            textShadow: `0 0 4px ${it.color}88`,
-          }}
-          title={it.label}
-        >
-          <span>{it.icon}</span>
-          <span>{it.label}</span>
-          {it.sub && <span style={{ fontFamily: "monospace", marginLeft: 2 }}>{it.sub}</span>}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export function MatchTable(props: Props) {
   const pA = props.players.A;
@@ -935,27 +863,21 @@ export function MatchTable(props: Props) {
         <Region pos={{ top: "61.5%", left: "22.6%", width: "4%", height: "4%" }} label={rowTotal("A", "MELEE").toString()} />
 
         <Region pos={{ top: "9.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "SIEGE")} weathered={!!weatherOnRow("SIEGE")} onClick={isRowAvailable("A", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
-          <RowAuraBanner auras={getRowAuras(props.sideEffects.A, "SIEGE")} side="A" immunity={props.sideEffects.A?.immunities?.find((i) => i.row === "SIEGE")} />
           <CardLane cards={cardsOn("A", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
         <Region pos={{ top: "9.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "SIEGE")} weathered={!!weatherOnRow("SIEGE")} onClick={isRowAvailable("B", "SIEGE") ? () => handleChooseRow("SIEGE") : undefined}>
-          <RowAuraBanner auras={getRowAuras(props.sideEffects.B, "SIEGE")} side="B" immunity={props.sideEffects.B?.immunities?.find((i) => i.row === "SIEGE")} />
           <CardLane cards={cardsOn("B", "SIEGE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
         <Region pos={{ top: "31%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "RANGED")} weathered={!!weatherOnRow("RANGED")} onClick={isRowAvailable("A", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
-          <RowAuraBanner auras={getRowAuras(props.sideEffects.A, "RANGED")} side="A" immunity={props.sideEffects.A?.immunities?.find((i) => i.row === "RANGED")} />
           <CardLane cards={cardsOn("A", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
         <Region pos={{ top: "31%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "RANGED")} weathered={!!weatherOnRow("RANGED")} onClick={isRowAvailable("B", "RANGED") ? () => handleChooseRow("RANGED") : undefined}>
-          <RowAuraBanner auras={getRowAuras(props.sideEffects.B, "RANGED")} side="B" immunity={props.sideEffects.B?.immunities?.find((i) => i.row === "RANGED")} />
           <CardLane cards={cardsOn("B", "RANGED")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
         <Region pos={{ top: "52.5%", left: "27.5%", width: "23%", height: "21%" }} highlight={isRowAvailable("A", "MELEE")} weathered={!!weatherOnRow("MELEE")} onClick={isRowAvailable("A", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
-          <RowAuraBanner auras={getRowAuras(props.sideEffects.A, "MELEE")} side="A" immunity={props.sideEffects.A?.immunities?.find((i) => i.row === "MELEE")} />
           <CardLane cards={cardsOn("A", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
         <Region pos={{ top: "52.5%", left: "52.8%", width: "22.4%", height: "21%" }} highlight={isRowAvailable("B", "MELEE")} weathered={!!weatherOnRow("MELEE")} onClick={isRowAvailable("B", "MELEE") ? () => handleChooseRow("MELEE") : undefined}>
-          <RowAuraBanner auras={getRowAuras(props.sideEffects.B, "MELEE")} side="B" immunity={props.sideEffects.B?.immunities?.find((i) => i.row === "MELEE")} />
           <CardLane cards={cardsOn("B", "MELEE")} isTargetable={isCardTargetable} onCardClick={dispatchCardClick} onCardShiftClick={openBoardCard} />
         </Region>
 
@@ -1632,7 +1554,7 @@ function WeatherPanel({ weather }: { weather: WeatherInfo[] }) {
 
 interface SideEffectsData {
   immunities: Array<{ row: "MELEE" | "RANGED" | "SIEGE"; turnsLeft: number }>;
-  auras: Array<{ engineKey: string; amount: number; row: "MELEE" | "RANGED" | "SIEGE" | null }>;
+  auras: Array<{ engineKey: string; amount: number }>;
   weathers: Array<{ weatherKey: string; affectedRow: "MELEE" | "RANGED" | "SIEGE" }>;
 }
 

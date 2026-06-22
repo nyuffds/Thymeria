@@ -1,4 +1,4 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -324,12 +324,12 @@ export default async function PartidaPage({
         sideEffects={{
           A: {
             immunities: match.immunities.filter((i) => i.side === "A" && i.turnsLeft > 0).map((i) => ({ row: i.row as "MELEE" | "RANGED" | "SIEGE", turnsLeft: i.turnsLeft })),
-            auras: match.auras.filter((a) => a.side === "A").map((a) => ({ engineKey: a.engineKey, amount: a.amount })),
+            auras: match.auras.filter((a) => a.side === "A").map((a) => ({ engineKey: a.engineKey, amount: a.amount, row: a.row as "MELEE" | "RANGED" | "SIEGE" | null })),
             weathers: match.weather.filter((w) => match.board.some((b) => b.side === "A" && b.row === w.affectedRow)).map((w) => ({ weatherKey: w.weatherKey, affectedRow: w.affectedRow as "MELEE" | "RANGED" | "SIEGE" })),
           },
           B: {
             immunities: match.immunities.filter((i) => i.side === "B" && i.turnsLeft > 0).map((i) => ({ row: i.row as "MELEE" | "RANGED" | "SIEGE", turnsLeft: i.turnsLeft })),
-            auras: match.auras.filter((a) => a.side === "B").map((a) => ({ engineKey: a.engineKey, amount: a.amount })),
+            auras: match.auras.filter((a) => a.side === "B").map((a) => ({ engineKey: a.engineKey, amount: a.amount, row: a.row as "MELEE" | "RANGED" | "SIEGE" | null })),
             weathers: match.weather.filter((w) => match.board.some((b) => b.side === "B" && b.row === w.affectedRow)).map((w) => ({ weatherKey: w.weatherKey, affectedRow: w.affectedRow as "MELEE" | "RANGED" | "SIEGE" })),
           },
         }}
